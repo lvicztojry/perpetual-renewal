@@ -186,7 +186,7 @@ function checkReleaseHandoff() {
   }
 
   const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
-  for (const snippet of ["M51", "M52", "M53", "57 checks", "19 safety areas"]) {
+  for (const snippet of ["M51", "M52", "M53", "M54", "M55", "57 checks", "19 safety areas"]) {
     if (!handoff.includes(snippet)) {
       findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
     }
@@ -229,6 +229,8 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M51"],
     ["docs/MVP_STATUS.md", "M52"],
     ["docs/MVP_STATUS.md", "M53"],
+    ["docs/MVP_STATUS.md", "M54"],
+    ["docs/MVP_STATUS.md", "M55"],
     ["docs/PHASE-1.5.md", "57 checks"],
     ["README.md", "npm run db:smoke"]
   ];
