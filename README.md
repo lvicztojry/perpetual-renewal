@@ -88,4 +88,5 @@ npm --cache .\.npm-cache audit --audit-level=high
 - [DEPLOYMENT](docs/DEPLOYMENT.md)
 - [QA](docs/QA.md)
 - [RELEASE_ACCEPTANCE](docs/RELEASE_ACCEPTANCE.md)
+- [RELEASE_HANDOFF](docs/RELEASE_HANDOFF.md)
 - [ERROR_COPY](docs/ERROR_COPY.md)

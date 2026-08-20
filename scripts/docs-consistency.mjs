@@ -15,6 +15,7 @@ checkPackageJson();
 checkEnvExample();
 checkCi();
 checkDeploymentDocs();
+checkReleaseHandoff();
 
 if (findings.length > 0) {
   console.error("Documentation consistency check failed:");
@@ -161,6 +162,15 @@ function checkCi() {
   ]) {
     if (!content.includes(required)) {
       findings.push(`.github/workflows/ci.yml should include ${required}.`);
+    }
+  }
+}
+
+function checkReleaseHandoff() {
+  const requiredFiles = [".github/pull_request_template.md", "docs/RELEASE_HANDOFF.md"];
+  for (const file of requiredFiles) {
+    if (!readText(file)) {
+      findings.push(`${file} is missing.`);
     }
   }
 }
