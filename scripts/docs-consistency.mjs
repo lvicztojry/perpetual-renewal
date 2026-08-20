@@ -201,7 +201,8 @@ function checkTaskbookDecisions() {
     "数据库：是否优先 PostgreSQL",
     "部署：是否先用单机/云托管快速上线",
     "现实替代素材：第一版是否允许少量手动语气样例",
-    "沉浸边界：创建页、设置页和高风险场景分别怎样表达 AI 能力边界"
+    "沉浸边界：创建页、设置页和高风险场景分别怎样表达 AI 能力边界",
+    "后续需由账号/session 模块把真实 userId 接入 renewal API"
   ];
 
   for (const snippet of staleDecisionSnippets) {
@@ -210,7 +211,7 @@ function checkTaskbookDecisions() {
     }
   }
 
-  for (const snippet of ["已决策基线", "仍需用户决策", "M54 施工决策点收束"]) {
+  for (const snippet of ["已决策基线", "仍需用户决策", "M54 施工决策点收束", "M55 Session 接入状态收束"]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }

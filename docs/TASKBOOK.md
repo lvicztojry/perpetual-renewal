@@ -578,7 +578,7 @@
 
 - 已新增 Prisma-backed renewal repository，并保留 in-memory fallback。
 - 已补充 `docs/DATABASE.md` 说明本地数据库、fallback 和当前限制。
-- 后续需由账号/session 模块把真实 userId 接入 renewal API。
+- 账号/session 模块已把当前 session `userId` 接入 renewal API，开发 fallback 继续使用 demo session。
 
 ### M2 关系对象创建与设定流
 
@@ -797,6 +797,7 @@
 | M52 语音 shared-LLM 兼容性加固 | integrated | M-VOICE-SHARED-LLM | `src/lib/voice/*`、`src/app/api/voice/*`、`src/components/renewal-workspace.tsx`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/LLM.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 语音 STT/TTS 响应补充脱敏 runtime metadata：`requestedProvider`、`credentialSource`、`fallbackKind`、`missingConfig`；API 剥离内部 raw 字段且不返回 key/baseUrl；兼容 OpenAI 风格二进制 TTS 和常见 JSON base64 TTS/STT 变体；设置页与工作台展示 shared-LLM/mock fallback 状态 |
 | M53 主动回响成本护栏 | integrated | 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/app/api/proactive/run/route.ts`、`tests/smoke.mjs`、`docs/QA.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `POST /api/proactive/run` 新增 `maxDrafts`，在 `limit` 控制扫描对象之外限制单轮最多生成/保存草稿数量；响应返回归一化上限和裁剪原因，不暴露 cron secret、key、Base URL 或 prompt |
 | M54 施工决策点收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 Taskbook 末尾旧的技术栈/模型/数据库/部署疑问收束为“已决策基线”和“仍需用户决策”，并用 docs check 拦截旧决策项回流 |
+| M55 Session 接入状态收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 M1 里“后续接入真实 userId”的旧状态更新为已接入当前 session `userId`，并用 docs check 拦截该旧表述回流 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
