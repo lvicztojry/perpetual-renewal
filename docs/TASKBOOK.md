@@ -291,7 +291,7 @@
 
 ### DEV-8 记忆管理界面
 
-状态：planned
+状态：integrated
 
 目标：
 
@@ -347,7 +347,7 @@
 
 ### DEV-9 关系状态引擎
 
-状态：planned
+状态：integrated
 
 目标：
 
@@ -367,7 +367,7 @@
 
 ### DEV-10 主动回响
 
-状态：planned
+状态：integrated
 
 目标：
 
@@ -403,7 +403,7 @@
 
 ### SAFE-1 沉浸边界与安全规则
 
-状态：planned
+状态：integrated
 
 目标：
 
@@ -502,7 +502,7 @@
 
 ### QA-3 内测反馈闭环
 
-状态：planned
+状态：deferred
 
 目标：
 
@@ -543,7 +543,7 @@
 | DEV-11 安全策略接入 | integrated | 已接入输入/输出/主动消息过滤与脱敏安全事件日志 |
 | QA-1 质量评估集 | integrated | 已建立第一版机器可读样例集，覆盖 10 类关系和 14 类安全/越界风险域 |
 | QA-2 端到端测试 | integrated | 已接入 Playwright 浏览器 E2E，覆盖登录、创建关系、聊天、记忆确认、主动回响草稿和登出 |
-| QA-3 内测反馈闭环 | planned | 等 QA-2 完成后启动 |
+| QA-3 内测反馈闭环 | deferred | 用户已决策第一版暂不做反馈问卷、内测邀请机制或内容审核后台；后续需要真实内测运营时再恢复 |
 
 ## Phase 1.5 并行施工模块
 
@@ -790,6 +790,7 @@
 | M47 PR/发布候选交接材料 | integrated | 主控 | `.github/pull_request_template.md`、`docs/RELEASE_HANDOFF.md`、`scripts/docs-consistency.mjs`、`README.md`、`docs/README.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 新增 PR 模板与发布候选交接文档，记录当前分支、baseline/status 提交、push 前验证、CI 预期、生产配置缺口和不得写入 PR 的 secret 范围；`docs:check` 会确认交接文件存在 |
 | M48 Pre-push 发布验证 | integrated | 主控 | `docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | push 前重新跑关键外部门禁：`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities；结果已写入发布交接文档 |
 | M49 Next typed routes 稳定化 | integrated | 主控 | `scripts/next-typegen.mjs`、`package.json`、`tests/e2e/run-e2e.mjs`、`scripts/docs-consistency.mjs`、`scripts/git-boundary-check.mjs`、`README.md`、`docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | 新增 `npm run next:typegen` 并让 `npm run typecheck` 前置生成 Next route types；E2E 结束后重新 typegen，避免 `next-env.d.ts` 被 dev server 留在 `.next/dev/types` 状态 |
+| M50 发布门禁增强 | integrated | 主控 | `scripts/git-boundary-check.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `npm run git:boundary` 新增 `next-env.d.ts` 内容检查，阻止 `.next/dev/types` 引用进入提交；若触发则提示先运行 `npm run next:typegen` |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |

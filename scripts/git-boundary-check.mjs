@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 
 const forbiddenPathPatterns = [
@@ -49,6 +50,7 @@ const committableFiles = readGitFiles(["ls-files", "--cached", "--others", "--ex
 checkForbiddenFiles("tracked", trackedFiles);
 checkForbiddenFiles("committable", committableFiles);
 checkRequiredFiles(committableFiles);
+checkNextEnvTypeImports();
 
 if (findings.length > 0) {
   console.error("Git boundary check failed:");
@@ -94,5 +96,21 @@ function checkRequiredFiles(files) {
     if (!fileSet.has(file)) {
       findings.push(`required project file is missing from Git scope: ${file}`);
     }
+  }
+}
+
+function checkNextEnvTypeImports() {
+  let content = "";
+  try {
+    content = readFileSync("next-env.d.ts", "utf8");
+  } catch (error) {
+    findings.push(
+      `next-env.d.ts could not be read: ${error instanceof Error ? error.message : String(error)}`
+    );
+    return;
+  }
+
+  if (content.includes("./.next/dev/types/")) {
+    findings.push("next-env.d.ts references .next/dev/types; run npm run next:typegen before committing.");
   }
 }
