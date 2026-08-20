@@ -1,6 +1,14 @@
 # Commit Plan
 
-本文件记录首次提交前的建议分组。它不要求现在立刻提交，只用于你确认提交策略后快速执行。
+本文件记录首次提交前的建议分组和执行结果。首次发布候选 baseline 已经完成。
+
+## 当前执行结果
+
+- 分支：`codex/mvp-release-candidate`
+- 提交：`ef4939e feat: build relationship ai mvp baseline`
+- 策略：一个发布候选 baseline commit
+- 提交后状态：工作区仅剩 `.next/`、`.npm-cache/`、`node_modules/`、`test-results/`、`tsconfig.tsbuildinfo` 等 ignored 产物。
+- 提交后验证：`npm run git:boundary` 与 `npm run secrets:check` 通过。
 
 ## 当前建议
 

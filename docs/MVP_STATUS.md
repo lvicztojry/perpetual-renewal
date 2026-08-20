@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、安全事件日志、响应式工作台和上线前隐私/安全清单均已集成。
 
-当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -40,6 +40,8 @@
 ```bash
 npm run typecheck
 npm run lint
+npm run docs:check
+npm run git:boundary
 npm run secrets:check
 npm run smoke
 npm run qa:samples
@@ -53,6 +55,8 @@ npm --cache .\.npm-cache audit --audit-level=high
 结果摘要：
 
 - `smoke`：49 checks passed。
+- `docs:check`：18 docs/readme files passed。
+- `git:boundary`：144 tracked/committable files passed。
 - `e2e`：2 tests passed。
 - `qa:samples`：10 relationship kinds、14 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -95,7 +99,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M33 发布候选 README 精简：已把 README 和 docs README 整理成新协作者入口。
 - M34 真实配置向导文档收束：已把配置状态面板补进部署文档和发布候选人工验收脚本。
 - M35 首次提交前检查清单：已新增 commit/push 前文件边界、密钥扫描、质量门禁、真实配置和人工验收清单。
-- M36 首次提交准备：已新增首次提交计划，整理推荐提交策略、文件范围和提交前命令。
+- M36 首次提交准备与执行：已创建 `codex/mvp-release-candidate` 分支并提交 `ef4939e feat: build relationship ai mvp baseline`。
 - M37 GitHub Actions CI 基线：已新增 push/PR 门禁，覆盖 install、密钥扫描、类型、lint、QA、Prisma、smoke 和 build。
 - M38 命令行环境就绪检查：已新增 `npm run env:readiness`，本地提示缺失配置，strict 模式用于生产门禁，输出保持脱敏。
 - M39 本地顺序验证脚本：已新增 `npm run verify:local` 和 `npm run verify:release`，顺序跑质量门禁，避免 smoke/e2e 抢 dev server 锁。
@@ -105,10 +109,11 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M43 发布文档命令一致性：已将文档入口、协作者说明和数据库文档中的安装/迁移命令统一到 `npm ci`、本地 `prisma:migrate`、生产 `prisma:migrate:deploy` 的口径。
 - M44 发布口径自动检查：已新增 `npm run docs:check` 并接入 CI 与本地 verify，自动检查旧安装命令、裸 audit、旧 smoke 数字、生产迁移口径、`latest` 依赖、危险 `.env.example` 和 CI 文档门禁。
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
+- M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 
-当前需要你确认后才能继续的模块：
+当前需要你确认后才能执行的外部动作：
 
-- M36 是否执行首次提交：确认是否创建 `codex/mvp-release-candidate` 分支，以及采用一个发布候选基线提交还是拆成多个提交。
+- 是否 push `codex/mvp-release-candidate` 到远端仓库并发起 PR。当前本地分支和提交已完成，但没有默认推送远端。
 
 需要你后续决策后再做的模块：
 

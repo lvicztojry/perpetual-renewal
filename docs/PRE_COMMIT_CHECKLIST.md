@@ -121,7 +121,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 - 未配置 `DATABASE_URL`，因此 `db:smoke` 显示安全跳过。
 - 未配置真实 LLM key，聊天走 mock fallback。
-- Git 显示很多 untracked 文件，因为项目尚未首次 commit。
+- Baseline commit 后，正常情况下不应出现大量 untracked 源码文件；如果出现，先确认是否只是缓存、构建产物或测试结果。
 
 当前上线前不应接受：
 

@@ -13,6 +13,12 @@ npm run dev
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
 
+## 当前发布候选
+
+- 分支：`codex/mvp-release-candidate`
+- Baseline：`ef4939e feat: build relationship ai mvp baseline`
+- 推远端前建议运行：`npm run verify:local -- --skip-e2e`、`npm run verify:release`、`git status --short --ignored`
+
 ## 真实配置
 
 真实值只放在 `.env.local`、部署平台环境变量或网站设置页的用户级 vault，不写入仓库。
