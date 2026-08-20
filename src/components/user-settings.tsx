@@ -235,6 +235,9 @@ export function UserSettings() {
     Boolean(credentialForm.provider) &&
     (credentialHasSavedKey || Boolean(credentialForm.apiKey.trim())) &&
     (!isCompatibleProvider || Boolean(credentialForm.baseUrl.trim()));
+  const voiceSharedLlmHint = isCompatibleProvider
+    ? "语音输入和朗读会共用这组兼容中转站配置；未单独设置 VOICE_STT_MODEL/VOICE_TTS_MODEL 时使用当前模型，失败会自动回落到 mock。"
+    : "当前文本供应商不是兼容中转站；语音会优先使用服务端 VOICE/LLM 环境变量，缺配置或失败时自动回落到 mock。";
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -645,6 +648,7 @@ export function UserSettings() {
             ) : (
               <div className="status-box">未保存用户密钥，将使用服务端环境变量或 mock。</div>
             )}
+            <div className="status-box">{voiceSharedLlmHint}</div>
             <label className="field">
               <span>供应商</span>
               <select

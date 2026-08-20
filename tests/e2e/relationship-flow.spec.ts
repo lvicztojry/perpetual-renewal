@@ -44,9 +44,16 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: "导入素材" }).click();
   await expect(page.getByRole("heading", { name: "导入素材" })).toBeVisible();
   await page.getByRole("button", { name: "多段" }).click();
-  await page.getByLabel("每行一条").fill("她喜欢把晚安说得很轻\n她会记得雨天要提醒我带伞");
+  await page
+    .getByLabel("每行一条")
+    .fill("她喜欢把晚安说得很轻\n她喜欢把晚安说得很轻\n她会记得雨天要提醒我带伞");
   await page.getByRole("button", { name: "导入为候选" }).click();
   await expect(page.getByText(/已导入 \d+ 条候选记忆/)).toBeVisible();
+  await expect(page.getByText(/本次重复 1 条/)).toBeVisible();
+  await page.getByLabel("每行一条").fill("她喜欢把晚安说得很轻");
+  await page.getByRole("button", { name: "导入为候选" }).click();
+  await expect(page.getByText("这些内容已存在，没有新增候选。")).toBeVisible();
+  await expect(page.getByText(/已存在 1 条/)).toBeVisible();
   await page.getByLabel("选择文本文件").setInputFiles({
     name: "e2e-memories.jsonl",
     mimeType: "application/x-ndjson",

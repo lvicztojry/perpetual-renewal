@@ -1,6 +1,7 @@
 import type {
   VoiceProvider,
   VoiceProviderName,
+  VoiceRuntimeMetadata,
   VoiceSynthesis,
   VoiceSynthesisOptions,
   VoiceTranscription,
@@ -14,7 +15,10 @@ const SILENT_WAV_BASE64 =
 export class MockVoiceProvider implements VoiceProvider {
   readonly name: VoiceProviderName = "mock";
 
-  constructor(private readonly fallbackReason?: string) {}
+  constructor(
+    private readonly fallbackReason?: string,
+    private readonly metadata: VoiceRuntimeMetadata = {}
+  ) {}
 
   async transcribe(options: VoiceTranscriptionOptions): Promise<VoiceTranscription> {
     const text =
@@ -27,7 +31,8 @@ export class MockVoiceProvider implements VoiceProvider {
       provider: this.name,
       model: "mock-voice-local",
       language: options.language ?? "zh-CN",
-      fallbackReason: this.fallbackReason
+      fallbackReason: this.fallbackReason,
+      ...this.metadata
     };
   }
 
@@ -50,6 +55,7 @@ export class MockVoiceProvider implements VoiceProvider {
       model: "mock-voice-local",
       voice: options.voice?.trim() || "mock-warm",
       fallbackReason: this.fallbackReason,
+      ...this.metadata,
       raw: {
         textPreview: text.slice(0, 80),
         format: options.format ?? "wav",

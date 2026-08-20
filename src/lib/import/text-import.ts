@@ -48,15 +48,19 @@ export function createTextImportPlan(input: {
         confidence: confidenceForSource(sourceKind)
       };
     })
-    .filter((candidate) => candidate !== null)
-    .slice(0, MAX_CANDIDATES);
+    .filter((candidate) => candidate !== null);
 
-  skippedCount += Math.max(0, segments.length - candidates.length);
+  const deduped = dedupeCandidates(candidates);
+  const limitedCandidates = deduped.candidates.slice(0, MAX_CANDIDATES);
+
+  skippedCount += deduped.duplicateCount;
+  skippedCount += Math.max(0, deduped.candidates.length - limitedCandidates.length);
 
   return {
-    candidates,
+    candidates: limitedCandidates,
     redactionCount,
-    skippedCount
+    skippedCount,
+    duplicateCount: deduped.duplicateCount
   };
 }
 
@@ -69,6 +73,7 @@ export function createBatchTextImportPlan(input: {
   let redactionCount = 0;
   let skippedCount = Math.max(0, input.items.length - acceptedItems.length);
   let truncatedCount = 0;
+  let duplicateCount = 0;
 
   const candidates = acceptedItems.flatMap((item, itemIndex) => {
     const rawText = item.text.trim();
@@ -89,6 +94,7 @@ export function createBatchTextImportPlan(input: {
 
     redactionCount += plan.redactionCount;
     skippedCount += plan.skippedCount;
+    duplicateCount += plan.duplicateCount;
 
     return plan.candidates.map((candidate) => ({
       ...candidate,
@@ -96,13 +102,18 @@ export function createBatchTextImportPlan(input: {
     }));
   });
 
-  const limitedCandidates = candidates.slice(0, MAX_CANDIDATES);
-  skippedCount += Math.max(0, candidates.length - limitedCandidates.length);
+  const deduped = dedupeCandidates(candidates);
+  duplicateCount += deduped.duplicateCount;
+  skippedCount += deduped.duplicateCount;
+
+  const limitedCandidates = deduped.candidates.slice(0, MAX_CANDIDATES);
+  skippedCount += Math.max(0, deduped.candidates.length - limitedCandidates.length);
 
   return {
     candidates: limitedCandidates,
     redactionCount,
     skippedCount,
+    duplicateCount,
     inputCount: input.items.length,
     acceptedCount: acceptedItems.length,
     truncatedCount,
@@ -112,6 +123,10 @@ export function createBatchTextImportPlan(input: {
       maxCandidates: MAX_CANDIDATES
     }
   };
+}
+
+export function normalizeImportedMemoryContent(content: string) {
+  return content.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 export function parseJsonLinesImport(text: string): {
@@ -222,6 +237,28 @@ function chunkText(text: string, maxLength: number) {
 
 function normalizeSegment(text: string) {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function dedupeCandidates<T extends { content: string }>(candidates: T[]) {
+  const seen = new Set<string>();
+  const uniqueCandidates: T[] = [];
+  let duplicateCount = 0;
+
+  for (const candidate of candidates) {
+    const key = normalizeImportedMemoryContent(candidate.content);
+    if (seen.has(key)) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    seen.add(key);
+    uniqueCandidates.push(candidate);
+  }
+
+  return {
+    candidates: uniqueCandidates,
+    duplicateCount
+  };
 }
 
 function memoryTypeForSource(sourceKind: TextImportSourceKind): MemoryType {

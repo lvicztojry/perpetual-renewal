@@ -15,6 +15,7 @@ export type ProactiveSchedulerInput = {
   userId?: string;
   dryRun?: boolean;
   limit?: number;
+  maxDrafts?: number;
   now?: Date;
 };
 
@@ -27,6 +28,7 @@ export type ProactiveSchedulerResult = {
   generatedCount: number;
   savedCount: number;
   skippedCount: number;
+  maxDrafts: number;
   results: Array<{
     companionId: string;
     companionName: string;
@@ -40,6 +42,8 @@ export type ProactiveSchedulerResult = {
 
 const DEFAULT_SCHEDULER_LIMIT = 20;
 const MAX_SCHEDULER_LIMIT = 100;
+const DEFAULT_SCHEDULER_MAX_DRAFTS = 50;
+const MAX_SCHEDULER_MAX_DRAFTS = 200;
 
 export async function runProactiveScheduler(
   input: ProactiveSchedulerInput = {}
@@ -48,6 +52,7 @@ export async function runProactiveScheduler(
   const now = input.now ?? new Date();
   const dryRun = input.dryRun ?? true;
   const limit = normalizeLimit(input.limit);
+  const maxDrafts = normalizeMaxDrafts(input.maxDrafts);
   const companions = (await repository.listCompanionsForProactive(input.userId)).slice(0, limit);
   const results: ProactiveSchedulerResult["results"] = [];
   let generatedCount = 0;
@@ -55,6 +60,19 @@ export async function runProactiveScheduler(
   let eligibleCount = 0;
 
   for (const companion of companions) {
+    const remainingDrafts = maxDrafts - generatedCount;
+    if (remainingDrafts <= 0) {
+      results.push({
+        companionId: companion.id,
+        companionName: companion.name,
+        due: false,
+        generatedCount: 0,
+        savedCount: 0,
+        reason: "本轮主动回响生成上限已达到。"
+      });
+      continue;
+    }
+
     const profile = await getUserProfile(companion.userId);
     const proactiveEnabled = companion.proactiveMessagesEnabled && profile.proactiveMessagesEnabled;
 
@@ -90,7 +108,9 @@ export async function runProactiveScheduler(
       now
     });
 
-    if (!drafts.length) {
+    const cappedDrafts = drafts.slice(0, remainingDrafts);
+
+    if (!cappedDrafts.length) {
       results.push({
         companionId: companion.id,
         companionName: companion.name,
@@ -103,11 +123,11 @@ export async function runProactiveScheduler(
     }
 
     eligibleCount += 1;
-    generatedCount += drafts.length;
+    generatedCount += cappedDrafts.length;
     let companionSavedCount = 0;
 
     if (!dryRun) {
-      for (const draft of drafts) {
+      for (const draft of cappedDrafts) {
         await repository.createProactiveMessage(companion.userId, companion.id, {
           kind: draft.kind,
           content: draft.content,
@@ -135,10 +155,17 @@ export async function runProactiveScheduler(
       companionId: companion.id,
       companionName: companion.name,
       due: true,
-      generatedCount: drafts.length,
+      generatedCount: cappedDrafts.length,
       savedCount: companionSavedCount,
-      reason: dryRun ? "到期，dry-run 未保存草稿。" : "到期，已保存站内草稿。",
-      nextCandidateAt: drafts[0]?.nextCandidateAt
+      reason:
+        cappedDrafts.length < drafts.length
+          ? dryRun
+            ? "到期，但已按本轮上限裁剪；dry-run 未保存草稿。"
+            : "到期，但已按本轮上限裁剪并保存站内草稿。"
+          : dryRun
+            ? "到期，dry-run 未保存草稿。"
+            : "到期，已保存站内草稿。",
+      nextCandidateAt: cappedDrafts[0]?.nextCandidateAt
     });
   }
 
@@ -151,6 +178,7 @@ export async function runProactiveScheduler(
     generatedCount,
     savedCount,
     skippedCount: companions.length - eligibleCount,
+    maxDrafts,
     results
   };
 }
@@ -158,6 +186,11 @@ export async function runProactiveScheduler(
 function normalizeLimit(value: number | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_SCHEDULER_LIMIT;
   return Math.min(MAX_SCHEDULER_LIMIT, Math.max(1, Math.floor(value)));
+}
+
+function normalizeMaxDrafts(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_SCHEDULER_MAX_DRAFTS;
+  return Math.min(MAX_SCHEDULER_MAX_DRAFTS, Math.max(1, Math.floor(value)));
 }
 
 function withSchedulerAnchor(

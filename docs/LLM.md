@@ -314,9 +314,11 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `VOICE_CREDENTIAL_SOURCE=user-vault`：表示真实语音请求来自用户 vault；key 加密保存，不写入仓库，也不返回给前端。
 - `.env.local`、`.env.*.local` 已在 `.gitignore`，真实 key 只放本地或部署平台 secret。
 - 如果缺少 key/baseUrl/model，或真实语音请求出现鉴权、限流、网络、超时、供应商响应异常，API 会安全 fallback 到 mock provider。
-- fallback 响应只返回脱敏的 `fallbackReason`、provider、model 等元数据，不返回 API key、Bearer token、baseUrl 或供应商错误正文。
+- fallback 响应只返回脱敏的 `fallbackReason`、`fallbackKind`、`requestedProvider`、`credentialSource`、provider、model、HTTP status 等元数据，不返回 API key、Bearer token、baseUrl、供应商错误正文或 raw payload。
+- `/api/voice/*` 会从 provider 结果中剥离内部 `raw` 调试字段，只把前端需要展示/播放的安全字段返回给浏览器。
 - `VOICE_DEFAULT_VOICE` 会传给 `/audio/speech` 的 `voice`；请求体里传入 `voice` 时优先使用请求值。
 - `format=ogg` 会按兼容 OpenAI 的 `response_format=opus` 请求，响应侧仍返回 `audio/ogg` 语义。
+- 兼容 adapter 默认 30 秒请求超时；OpenAI 风格二进制 TTS 响应和常见 JSON base64 TTS 响应都会被接住，STT 会兼容 `text`、`transcription`、`output_text` 和 segments 形态。
 
 当前 API：
 

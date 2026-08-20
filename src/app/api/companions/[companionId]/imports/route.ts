@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createBatchTextImportPlan,
   createTextImportPlan,
+  normalizeImportedMemoryContent,
   parseJsonLinesImport
 } from "@/lib/import/text-import";
 import {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!plan.candidates.length) {
     return NextResponse.json(
       {
-        error: "No importable candidates found",
+        error: "没有找到可导入候选。",
         redactionCount: plan.redactionCount,
         skippedCount: plan.skippedCount + parseSkippedCount,
         importSummary: buildImportSummary(importRequest.mode, plan, 0, parseSkippedCount)
@@ -66,8 +67,43 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
+  const existingMemoryKeys = new Set(
+    companion.memories
+      .filter((memory) => memory.status !== "deleted")
+      .map((memory) => normalizeImportedMemoryContent(memory.content))
+  );
+  let existingDuplicateCount = 0;
+  const importableCandidates = plan.candidates.filter((candidate) => {
+    const key = normalizeImportedMemoryContent(candidate.content);
+    if (existingMemoryKeys.has(key)) {
+      existingDuplicateCount += 1;
+      return false;
+    }
+
+    existingMemoryKeys.add(key);
+    return true;
+  });
+
+  if (!importableCandidates.length) {
+    return NextResponse.json(
+      {
+        error: "这些内容已存在，没有新增候选。",
+        redactionCount: plan.redactionCount,
+        skippedCount: plan.skippedCount + parseSkippedCount + existingDuplicateCount,
+        importSummary: buildImportSummary(
+          importRequest.mode,
+          plan,
+          0,
+          parseSkippedCount,
+          existingDuplicateCount
+        )
+      },
+      { status: 400 }
+    );
+  }
+
   const memories = [];
-  for (const candidate of plan.candidates) {
+  for (const candidate of importableCandidates) {
     memories.push(
       await repo.createMemory(session.userId, companionId, {
         sourceMessageId: null,
@@ -82,7 +118,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
   return NextResponse.json(
     {
       memories,
-      importSummary: buildImportSummary(importRequest.mode, plan, memories.length, parseSkippedCount),
+      importSummary: buildImportSummary(
+        importRequest.mode,
+        plan,
+        memories.length,
+        parseSkippedCount,
+        existingDuplicateCount
+      ),
       persistence: repo.persistence
     },
     { status: 201 }
@@ -191,7 +233,8 @@ function buildImportSummary(
   mode: "single" | "batch" | "jsonl",
   plan: ReturnType<typeof createTextImportPlan> | ReturnType<typeof createBatchTextImportPlan>,
   createdCount: number,
-  parseSkippedCount = 0
+  parseSkippedCount = 0,
+  existingDuplicateCount = 0
 ) {
   const batchPlan = "inputCount" in plan ? plan : undefined;
 
@@ -199,8 +242,10 @@ function buildImportSummary(
     mode,
     sourceKind: plan.candidates[0]?.sourceKind ?? "memory_candidate",
     createdCount,
-    skippedCount: plan.skippedCount + parseSkippedCount,
+    skippedCount: plan.skippedCount + parseSkippedCount + existingDuplicateCount,
     redactionCount: plan.redactionCount,
+    duplicateCount: plan.duplicateCount,
+    existingDuplicateCount,
     inputCount: batchPlan?.inputCount ?? (mode === "single" ? 1 : 0),
     acceptedCount: batchPlan?.acceptedCount ?? (mode === "single" ? 1 : 0),
     truncatedCount: batchPlan?.truncatedCount ?? 0,

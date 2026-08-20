@@ -5,6 +5,7 @@ import { runProactiveScheduler } from "@/lib/relationship/proactive-scheduler";
 type ProactiveRunRequest = {
   dryRun?: boolean;
   limit?: number;
+  maxDrafts?: number;
   now?: string;
   scope?: "current-user" | "all";
 };
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     userId: session?.userId,
     dryRun: body.dryRun ?? true,
     limit: body.limit,
+    maxDrafts: body.maxDrafts,
     now
   });
 

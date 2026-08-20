@@ -4,6 +4,7 @@ import { createUserVoiceProvider } from "@/lib/voice/user-provider";
 import {
   VoiceProviderError,
   type VoiceSynthesisFormat,
+  type VoiceSynthesis,
   type VoiceSynthesisOptions
 } from "@/lib/voice/types";
 
@@ -26,10 +27,7 @@ export async function POST(request: Request) {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.synthesize(body);
-    return NextResponse.json({
-      ...result,
-      audioDataUrl: `data:${result.mimeType};base64,${result.audioBase64}`
-    });
+    return NextResponse.json(toSafeSynthesisResponse(result));
   } catch (error) {
     if (error instanceof VoiceProviderError) {
       return NextResponse.json(
@@ -47,6 +45,25 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: "Failed to synthesize voice." }, { status: 500 });
   }
+}
+
+function toSafeSynthesisResponse(result: VoiceSynthesis) {
+  return {
+    audioBase64: result.audioBase64,
+    audioDataUrl: `data:${result.mimeType};base64,${result.audioBase64}`,
+    mimeType: result.mimeType,
+    provider: result.provider,
+    requestedProvider: result.requestedProvider,
+    credentialSource: result.credentialSource,
+    model: result.model,
+    voice: result.voice,
+    fallback: result.fallback,
+    fallbackKind: result.fallbackKind,
+    fallbackReason: result.fallbackReason,
+    missingConfig: result.missingConfig,
+    retryable: result.retryable,
+    status: result.status
+  };
 }
 
 function isSynthesisInput(value: unknown): value is VoiceSynthesisOptions {

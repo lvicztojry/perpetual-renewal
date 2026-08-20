@@ -6,6 +6,7 @@ import {
   type VoiceProvider,
   type VoiceProviderConfig,
   type VoiceProviderName,
+  type VoiceRuntimeMetadata,
   type VoiceSynthesis,
   type VoiceSynthesisOptions,
   type VoiceTranscription,
@@ -17,7 +18,13 @@ export function createVoiceProvider(config: Partial<VoiceProviderConfig> = {}): 
   const credentialSource = config.credentialSource ?? readCredentialSource();
 
   if (requestedProvider === "mock") {
-    return new MockVoiceProvider(readMockFallbackReason(process.env.VOICE_PROVIDER));
+    return new MockVoiceProvider(readMockFallbackReason(process.env.VOICE_PROVIDER), {
+      requestedProvider,
+      credentialSource,
+      fallback: true,
+      fallbackKind: "mock_provider",
+      retryable: false
+    });
   }
 
   const apiKey = config.apiKey ?? readSharedApiKey(requestedProvider);
@@ -33,7 +40,15 @@ export function createVoiceProvider(config: Partial<VoiceProviderConfig> = {}): 
 
   if (missingConfig.length > 0) {
     return new MockVoiceProvider(
-      `${requestedProvider} voice provider missing ${missingConfig.join(", ")}; using mock provider.`
+      `${requestedProvider} voice provider missing ${missingConfig.join(", ")}; using mock provider.`,
+      {
+        requestedProvider,
+        credentialSource,
+        fallback: true,
+        fallbackKind: "missing_config",
+        missingConfig,
+        retryable: false
+      }
     );
   }
 
@@ -43,7 +58,14 @@ export function createVoiceProvider(config: Partial<VoiceProviderConfig> = {}): 
   const configuredTtsModel = ttsModel;
 
   if (!configuredApiKey || !configuredBaseUrl || !configuredSttModel || !configuredTtsModel) {
-    return new MockVoiceProvider(`${requestedProvider} voice provider missing required config; using mock provider.`);
+    return new MockVoiceProvider(`${requestedProvider} voice provider missing required config; using mock provider.`, {
+      requestedProvider,
+      credentialSource,
+      fallback: true,
+      fallbackKind: "missing_config",
+      missingConfig: ["required voice config"],
+      retryable: false
+    });
   }
 
   return new FallbackVoiceProvider(
@@ -71,18 +93,48 @@ class FallbackVoiceProvider implements VoiceProvider {
 
   async transcribe(options: VoiceTranscriptionOptions): Promise<VoiceTranscription> {
     try {
-      return await this.primary.transcribe(options);
+      return this.withRuntimeMetadata(await this.primary.transcribe(options));
     } catch (error) {
-      return new MockVoiceProvider(this.readFallbackReason(error)).transcribe(options);
+      return new MockVoiceProvider(this.readFallbackReason(error), this.readFallbackMetadata(error)).transcribe(options);
     }
   }
 
   async synthesize(options: VoiceSynthesisOptions): Promise<VoiceSynthesis> {
     try {
-      return await this.primary.synthesize(options);
+      return this.withRuntimeMetadata(await this.primary.synthesize(options));
     } catch (error) {
-      return new MockVoiceProvider(this.readFallbackReason(error)).synthesize(options);
+      return new MockVoiceProvider(this.readFallbackReason(error), this.readFallbackMetadata(error)).synthesize(options);
     }
+  }
+
+  private withRuntimeMetadata<T extends VoiceTranscription | VoiceSynthesis>(result: T): T {
+    return {
+      ...result,
+      requestedProvider: this.primary.name,
+      credentialSource: this.credentialSource,
+      fallback: false
+    };
+  }
+
+  private readFallbackMetadata(error: unknown): VoiceRuntimeMetadata {
+    if (error instanceof VoiceProviderError) {
+      return {
+        requestedProvider: this.primary.name,
+        credentialSource: this.credentialSource,
+        fallback: true,
+        fallbackKind: error.details.kind,
+        retryable: error.details.retryable,
+        status: error.details.status
+      };
+    }
+
+    return {
+      requestedProvider: this.primary.name,
+      credentialSource: this.credentialSource,
+      fallback: true,
+      fallbackKind: "network",
+      retryable: true
+    };
   }
 
   private readFallbackReason(error: unknown) {

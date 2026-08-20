@@ -21,8 +21,21 @@ type CompatibleVoiceProviderConfig = {
 
 type TranscriptionResponse = {
   text?: unknown;
+  transcription?: unknown;
+  output_text?: unknown;
+  content?: unknown;
+  segments?: unknown;
   language?: unknown;
   duration?: unknown;
+};
+
+type SpeechJsonResponse = {
+  audioBase64?: unknown;
+  audio_base64?: unknown;
+  b64_json?: unknown;
+  data?: unknown;
+  mimeType?: unknown;
+  mime_type?: unknown;
 };
 
 export class CompatibleVoiceProvider implements VoiceProvider {
@@ -77,7 +90,7 @@ export class CompatibleVoiceProvider implements VoiceProvider {
           Authorization: `Bearer ${this.apiKey}`
         },
         body: formData,
-        signal: options.signal
+        signal: withProviderTimeout(options.signal)
       });
     } catch (error) {
       throw toVoiceNetworkError(error, this.name, model);
@@ -88,7 +101,7 @@ export class CompatibleVoiceProvider implements VoiceProvider {
     }
 
     const payload = (await response.json().catch(() => ({}))) as TranscriptionResponse;
-    const text = typeof payload.text === "string" ? payload.text.trim() : "";
+    const text = readTranscriptionText(payload);
 
     if (!text) {
       throw new VoiceProviderError("Voice provider returned an empty transcription.", {
@@ -142,7 +155,7 @@ export class CompatibleVoiceProvider implements VoiceProvider {
           response_format: toProviderSpeechFormat(format),
           speed: options.speed ?? 1
         }),
-        signal: options.signal
+        signal: withProviderTimeout(options.signal)
       });
     } catch (error) {
       throw toVoiceNetworkError(error, this.name, model);
@@ -150,6 +163,12 @@ export class CompatibleVoiceProvider implements VoiceProvider {
 
     if (!response.ok) {
       throw toVoiceHttpError(response.status, this.name, model);
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      return this.readJsonSpeechResponse(response, format, model, voice);
     }
 
     const audio = await response.arrayBuffer();
@@ -176,6 +195,37 @@ export class CompatibleVoiceProvider implements VoiceProvider {
       }
     };
   }
+
+  private async readJsonSpeechResponse(
+    response: Response,
+    format: VoiceSynthesisFormat,
+    model: string,
+    voice: string
+  ): Promise<VoiceSynthesis> {
+    const payload = (await response.json().catch(() => ({}))) as SpeechJsonResponse;
+    const audioBase64 = stripDataUrlPrefix(readSpeechAudioBase64(payload));
+
+    if (!audioBase64) {
+      throw new VoiceProviderError("Voice provider returned JSON without audio data.", {
+        kind: "provider_response",
+        provider: this.name,
+        model,
+        retryable: false
+      });
+    }
+
+    return {
+      audioBase64,
+      mimeType: readSpeechMimeType(payload) || mimeTypeForFormat(format),
+      provider: this.name,
+      model,
+      voice,
+      raw: {
+        responseType: "audio.speech.json",
+        format
+      }
+    };
+  }
 }
 
 function normalizeBaseUrl(baseUrl: string) {
@@ -188,6 +238,79 @@ function stripDataUrlPrefix(value: string | undefined) {
   const marker = "base64,";
   const markerIndex = value.indexOf(marker);
   return markerIndex >= 0 ? value.slice(markerIndex + marker.length).trim() : value.trim();
+}
+
+function readTranscriptionText(payload: TranscriptionResponse) {
+  const direct =
+    readString(payload.text) ||
+    readString(payload.transcription) ||
+    readString(payload.output_text);
+
+  if (direct) return direct;
+
+  if (Array.isArray(payload.segments)) {
+    const text = payload.segments
+      .map((segment) => (isRecord(segment) ? readString(segment.text) : ""))
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    if (text) return text;
+  }
+
+  if (Array.isArray(payload.content)) {
+    const text = payload.content
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (isRecord(item)) return readString(item.text) || readString(item.content);
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    if (text) return text;
+  }
+
+  return "";
+}
+
+function readSpeechAudioBase64(payload: SpeechJsonResponse): string | undefined {
+  const direct =
+    readString(payload.audioBase64) ||
+    readString(payload.audio_base64) ||
+    readString(payload.b64_json);
+
+  if (direct) return direct;
+
+  if (isRecord(payload.data)) {
+    return (
+      readString(payload.data.audioBase64) ||
+      readString(payload.data.audio_base64) ||
+      readString(payload.data.b64_json)
+    );
+  }
+
+  if (Array.isArray(payload.data)) {
+    const first = payload.data.find(isRecord);
+    if (first) {
+      return readString(first.audioBase64) || readString(first.audio_base64) || readString(first.b64_json);
+    }
+  }
+
+  return undefined;
+}
+
+function readSpeechMimeType(payload: SpeechJsonResponse) {
+  return readString(payload.mimeType) || readString(payload.mime_type);
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function decodeBase64Audio(value: string, provider: VoiceProviderName, model: string) {
@@ -257,4 +380,10 @@ function toVoiceNetworkError(error: unknown, provider: VoiceProviderName, model:
       cause: error
     }
   );
+}
+
+function withProviderTimeout(signal: AbortSignal | undefined) {
+  if (signal) return signal;
+
+  return AbortSignal.timeout(30_000);
 }

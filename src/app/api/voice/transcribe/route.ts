@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { createUserVoiceProvider } from "@/lib/voice/user-provider";
-import { VoiceProviderError, type VoiceTranscriptionOptions } from "@/lib/voice/types";
+import {
+  VoiceProviderError,
+  type VoiceTranscription,
+  type VoiceTranscriptionOptions
+} from "@/lib/voice/types";
 
 export const runtime = "nodejs";
 
@@ -22,7 +26,7 @@ export async function POST(request: Request) {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.transcribe(body);
-    return NextResponse.json(result);
+    return NextResponse.json(toSafeTranscriptionResponse(result));
   } catch (error) {
     if (error instanceof VoiceProviderError) {
       return NextResponse.json(
@@ -40,6 +44,24 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: "Failed to transcribe voice." }, { status: 500 });
   }
+}
+
+function toSafeTranscriptionResponse(result: VoiceTranscription) {
+  return {
+    text: result.text,
+    provider: result.provider,
+    requestedProvider: result.requestedProvider,
+    credentialSource: result.credentialSource,
+    model: result.model,
+    language: result.language,
+    durationMs: result.durationMs,
+    fallback: result.fallback,
+    fallbackKind: result.fallbackKind,
+    fallbackReason: result.fallbackReason,
+    missingConfig: result.missingConfig,
+    retryable: result.retryable,
+    status: result.status
+  };
 }
 
 function isTranscriptionInput(value: unknown): value is VoiceTranscriptionOptions {

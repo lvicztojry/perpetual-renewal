@@ -16,6 +16,7 @@ export type TextImportPlan = {
   candidates: TextImportCandidate[];
   redactionCount: number;
   skippedCount: number;
+  duplicateCount: number;
 };
 
 export type BatchTextImportItem = {

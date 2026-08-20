@@ -664,13 +664,19 @@ async function runSmoke() {
     body: JSON.stringify({
       dryRun: true,
       limit: 1,
+      maxDrafts: 2,
       now: schedulerNow
     })
   });
   assert(proactiveDryRun.body.dryRun === true, "proactive scheduler dry-run should be reported");
+  assert(proactiveDryRun.body.maxDrafts === 2, "proactive scheduler should report normalized maxDrafts");
   assert(
     proactiveDryRun.body.generatedCount > 0,
     "proactive scheduler dry-run should generate due draft candidates"
+  );
+  assert(
+    proactiveDryRun.body.generatedCount <= 2,
+    "proactive scheduler dry-run should respect maxDrafts"
   );
   assert(proactiveDryRun.body.savedCount === 0, "proactive scheduler dry-run should not save drafts");
   pass("POST /api/proactive/run dry-run");
@@ -685,6 +691,10 @@ async function runSmoke() {
   });
   assert(proactiveRun.body.dryRun === false, "proactive scheduler run should report dryRun=false");
   assert(proactiveRun.body.savedCount > 0, "proactive scheduler run should save due drafts");
+  assert(
+    proactiveRun.body.savedCount <= proactiveRun.body.maxDrafts,
+    "proactive scheduler run should not save more than maxDrafts"
+  );
   assert(
     !JSON.stringify(proactiveRun.body).includes("PROACTIVE_CRON_SECRET"),
     "proactive scheduler response should not expose cron secret"
@@ -826,9 +836,16 @@ async function runSmoke() {
     "voice synthesis should work when user vault credential is present"
   );
   assert(
+    voiceWithUserCredential.body.credentialSource === "user-vault" &&
+      voiceWithUserCredential.body.requestedProvider === "shared-llm" &&
+      voiceWithUserCredential.body.fallback === true,
+    "voice synthesis should report sanitized shared-LLM user-vault fallback metadata"
+  );
+  assert(
     !JSON.stringify(voiceWithUserCredential.body).includes(fakeKey) &&
       !JSON.stringify(voiceWithUserCredential.body).includes("https://gateway.example.com/v1") &&
-      !JSON.stringify(voiceWithUserCredential.body).includes("baseUrl"),
+      !JSON.stringify(voiceWithUserCredential.body).includes("baseUrl") &&
+      !JSON.stringify(voiceWithUserCredential.body).includes("raw"),
     "voice synthesis with user credential should not expose key or endpoint"
   );
   pass("POST /api/voice/synthesize uses sanitized user vault fallback");
@@ -968,8 +985,15 @@ async function runSmoke() {
     "voice transcription should report a voice provider"
   );
   assert(
+    voiceTranscription.body.credentialSource === "server-env" ||
+      voiceTranscription.body.credentialSource === "user-vault" ||
+      voiceTranscription.body.credentialSource === undefined,
+    "voice transcription should report only a sanitized credential source"
+  );
+  assert(
     !JSON.stringify(voiceTranscription.body).includes("Bearer") &&
-      !JSON.stringify(voiceTranscription.body).includes("baseUrl"),
+      !JSON.stringify(voiceTranscription.body).includes("baseUrl") &&
+      !JSON.stringify(voiceTranscription.body).includes("raw"),
     "voice transcription response should not expose provider credentials"
   );
   pass("POST /api/voice/transcribe safe provider response");
@@ -992,8 +1016,15 @@ async function runSmoke() {
     "voice synthesis should return an audio data URL"
   );
   assert(
+    voiceSynthesis.body.credentialSource === "server-env" ||
+      voiceSynthesis.body.credentialSource === "user-vault" ||
+      voiceSynthesis.body.credentialSource === undefined,
+    "voice synthesis should report only a sanitized credential source"
+  );
+  assert(
     !JSON.stringify(voiceSynthesis.body).includes("Bearer") &&
-      !JSON.stringify(voiceSynthesis.body).includes("baseUrl"),
+      !JSON.stringify(voiceSynthesis.body).includes("baseUrl") &&
+      !JSON.stringify(voiceSynthesis.body).includes("raw"),
     "voice synthesis response should not expose provider credentials"
   );
   pass("POST /api/voice/synthesize safe provider response");
@@ -1022,13 +1053,28 @@ async function runSmoke() {
       `${safetyCase.id} should return ${safetyCase.expectedType}`
     );
     assert(
-        safety.body.data?.action === safetyCase.expectedAction,
+      safety.body.data?.action === safetyCase.expectedAction,
       `${safetyCase.id} should return ${safetyCase.expectedAction}`
     );
+
+    const serializedSafety = JSON.stringify(safety.body);
+    assert(
+      !serializedSafety.includes(safetyCase.input) &&
+        !serializedSafety.includes("Bearer") &&
+        !serializedSafety.includes("baseUrl") &&
+        !serializedSafety.includes("prompt") &&
+        !serializedSafety.includes("apiKey"),
+      `${safetyCase.id} safety response should not expose input, prompt, key or endpoint fields`
+    );
+
     if (safetyCase.expectedAction === "allow") {
       assert(
         safety.body.safetyEvent?.logged === false,
         `${safetyCase.id} should not write an allow safety event`
+      );
+      assert(
+        !safety.body.data?.boundaryReply && !safety.body.data?.revisedText,
+        `${safetyCase.id} allow result should not include boundary or revised text`
       );
     } else {
       assert(
@@ -1041,13 +1087,62 @@ async function runSmoke() {
         `${safetyCase.id} should return only safety event hashes`
       );
       assert(
-        !JSON.stringify(safety.body).includes(safetyCase.input) &&
-          !JSON.stringify(safety.body.safetyEvent).includes("Bearer") &&
+        !JSON.stringify(safety.body.safetyEvent).includes("Bearer") &&
           !JSON.stringify(safety.body.safetyEvent).includes("baseUrl") &&
           !JSON.stringify(safety.body.safetyEvent).includes("prompt"),
         `${safetyCase.id} safety event response should be sanitized`
       );
     }
+
+    if (safetyCase.expectedAction === "boundary_response") {
+      assert(
+        typeof safety.body.data?.boundaryReply === "string" &&
+          safety.body.data.boundaryReply.length > 0,
+        `${safetyCase.id} should include a boundary reply`
+      );
+      assert(
+        !safety.body.data?.revisedText,
+        `${safetyCase.id} boundary response should not include revised text`
+      );
+    }
+
+    if (safetyCase.expectedAction === "revise") {
+      assert(
+        typeof safety.body.data?.revisedText === "string" &&
+          safety.body.data.revisedText.length > 0,
+        `${safetyCase.id} should include revised text`
+      );
+      assert(
+        !safety.body.data?.boundaryReply,
+        `${safetyCase.id} revise result should not include a boundary reply`
+      );
+    }
+
+    for (const fragment of safetyCase.expectedBoundaryIncludes ?? []) {
+      assert(
+        safety.body.data?.boundaryReply?.includes(fragment),
+        `${safetyCase.id} boundary reply should include ${fragment}`
+      );
+    }
+
+    for (const fragment of safetyCase.expectedRevisedIncludes ?? []) {
+      assert(
+        safety.body.data?.revisedText?.includes(fragment),
+        `${safetyCase.id} revised text should include ${fragment}`
+      );
+    }
+
+    const generatedSafetyText = [
+      safety.body.data?.boundaryReply,
+      safety.body.data?.revisedText
+    ].filter(Boolean).join("\n");
+    for (const fragment of safetyCase.forbiddenResponseFragments ?? []) {
+      assert(
+        !generatedSafetyText.includes(fragment),
+        `${safetyCase.id} generated safety text should not include ${fragment}`
+      );
+    }
+
     pass(`POST /api/safety/check ${safetyCase.id}`);
   }
 

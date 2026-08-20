@@ -2,6 +2,21 @@ export type VoiceProviderName = "mock" | "shared-llm" | "compatible";
 
 export type VoiceCredentialSource = "server-env" | "user-vault";
 
+export type VoiceFallbackKind =
+  | VoiceProviderErrorKind
+  | "missing_config"
+  | "mock_provider";
+
+export type VoiceRuntimeMetadata = {
+  requestedProvider?: VoiceProviderName;
+  credentialSource?: VoiceCredentialSource;
+  fallback?: boolean;
+  fallbackKind?: VoiceFallbackKind;
+  missingConfig?: string[];
+  retryable?: boolean;
+  status?: number;
+};
+
 export type VoiceProviderConfig = {
   provider: VoiceProviderName;
   credentialSource: VoiceCredentialSource;
@@ -28,6 +43,13 @@ export type VoiceTranscription = {
   language?: string;
   durationMs?: number;
   fallbackReason?: string;
+  requestedProvider?: VoiceProviderName;
+  credentialSource?: VoiceCredentialSource;
+  fallback?: boolean;
+  fallbackKind?: VoiceFallbackKind;
+  missingConfig?: string[];
+  retryable?: boolean;
+  status?: number;
   raw?: unknown;
 };
 
@@ -48,6 +70,13 @@ export type VoiceSynthesis = {
   model: string;
   voice: string;
   fallbackReason?: string;
+  requestedProvider?: VoiceProviderName;
+  credentialSource?: VoiceCredentialSource;
+  fallback?: boolean;
+  fallbackKind?: VoiceFallbackKind;
+  missingConfig?: string[];
+  retryable?: boolean;
+  status?: number;
   raw?: unknown;
 };
 

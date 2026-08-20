@@ -115,6 +115,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M48 Pre-push 发布验证：已重新执行 E2E 与 high severity audit；`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
+- M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
+- M52 语音 shared-LLM 兼容性加固：语音 API 返回脱敏 runtime metadata，剥离内部 raw 字段，并兼容常见 STT/TTS 响应变体。
+- M53 主动回响成本护栏：`POST /api/proactive/run` 新增 `maxDrafts` 调度上限，默认限制单轮生成/保存草稿数量，降低全量 cron 一次生成过多草稿的风险。
 
 当前需要你确认后才能执行的外部动作：
 

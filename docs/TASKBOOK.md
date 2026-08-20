@@ -344,6 +344,7 @@
 - 响应 `importSummary` 返回 `mode`、`createdCount`、`skippedCount`、`redactionCount`、`inputCount`、`acceptedCount`、`truncatedCount`、`parseSkippedCount` 和处理上限。
 - 工作台导入面板已支持单段、多段、JSON Lines 三种模式；多段按每行一条提交，导入后展示生成、跳过、脱敏、截断、解析跳过和上限摘要。
 - M22 已完成本地文本文件导入入口：`.txt` 读取为单段文本，`.jsonl` 读取为 JSON Lines，`.json` 在前端解析为 JSON Lines；文件不上传服务端，大小上限 512KB，非允许扩展名或解析失败会在前端友好拒绝。
+- M51 已完成导入候选去重：同一次导入内的重复候选会跳过，当前关系已有非 deleted 记忆的重复内容不会再次新增 pending；`importSummary` 增加 `duplicateCount` 和 `existingDuplicateCount`，工作台会展示本次重复和已存在数量。
 
 ### DEV-9 关系状态引擎
 
@@ -448,6 +449,7 @@
 - 已新增 M-SAFETY-LOG 第一版：`/api/safety/check` 在 `action != allow` 时写入脱敏安全事件。
 - `SafetyEvent` 不再保存原始 `input`，改存 `contentHash` 与 `riskHash`，并记录 `stage`、`severity`、`createdAt`。
 - 生产环境优先 Prisma，开发环境无数据库时 fallback 到 memory；响应只返回审计元数据，不返回原文、prompt、API key 或 baseUrl。
+- M-SAFETY-RUNTIME 已补齐运行时细分回归：高中生/初中生等未成年人性化、定位跟踪、律师/合同最终建议、声音冒充都会触发边界；非性化未成年人陪伴、医疗/法律担心的情绪支持、公众人物想象式鼓励保持允许，避免日常沉浸误杀。
 
 ### QA-1 质量评估集
 
@@ -472,7 +474,7 @@
 
 - 已建立 `tests/qa-samples.json` 第一版机器可读评估集，稳定字段包含 `id`、`relationshipKind`、`input`、`expectedTraits` 或 `expectedType`/`expectedAction`。
 - 已覆盖 10 类关系：恋人、朋友、家人、师友、现实人物替代、逝者纪念、前任、公众人物想象、虚构角色、自定义。
-- 已覆盖 14 类安全与越界风险域，其中当前运行时已自动 smoke 10 类，未成年人性化、隐私与人肉、专业医疗建议、身份欺骗先作为目标评估集占位。
+- 已覆盖 22 条安全/越界/允许回归样例，当前全部进入主 smoke 的 `/api/safety/check` 运行时校验；未成年人性化、隐私与人肉、专业建议、身份欺骗等高风险域已接入运行时。
 - 已新增 `tests/qa-samples-smoke.mjs`，用于不启动浏览器、不启动服务地校验样例结构、唯一 ID、关系覆盖和安全覆盖。
 
 ### QA-2 端到端测试
@@ -541,7 +543,7 @@
 | DEV-10 主动回响 | integrated | 已接入站内草稿、撒娇式主动回响、关系级频率预设/自定义和受保护调度入口 |
 | SAFE-1 沉浸边界与安全规则 | integrated | 已形成运行时安全规则、QA 样例和高风险场景能力边界 |
 | DEV-11 安全策略接入 | integrated | 已接入输入/输出/主动消息过滤与脱敏安全事件日志 |
-| QA-1 质量评估集 | integrated | 已建立第一版机器可读样例集，覆盖 10 类关系和 14 类安全/越界风险域 |
+| QA-1 质量评估集 | integrated | 已建立第一版机器可读样例集，覆盖 10 类关系和 22 条安全/越界/允许回归样例 |
 | QA-2 端到端测试 | integrated | 已接入 Playwright 浏览器 E2E，覆盖登录、创建关系、聊天、记忆确认、主动回响草稿和登出 |
 | QA-3 内测反馈闭环 | deferred | 用户已决策第一版暂不做反馈问卷、内测邀请机制或内容审核后台；后续需要真实内测运营时再恢复 |
 
@@ -710,13 +712,13 @@
 - `npm run typecheck`、`npm run lint`、`npm run build`、`npm --cache .\.npm-cache audit --audit-level=high` 保持通过。
 - 提供可重复执行的核心链路 smoke。
 - `npm run e2e` 覆盖 login -> create relationship -> chat -> confirm memory -> proactive draft -> logout。
-- 覆盖至少 6 类关系和 10 类安全边界样例。
+- 覆盖至少 6 类关系和 10 类安全边界样例；当前安全运行时样例为 22 条。
 
 进展记录：
 
 - 已补强 `tests/qa-samples.json`，关系用例具备 `id`、`relationshipKind`、`input`、`expectedTraits`，安全用例具备 `id`、`relationshipKind`、`input`、`expectedType`、`expectedAction`。
 - 已新增非浏览器 `tests/qa-samples-smoke.mjs`，作为 QA 样例集结构与覆盖面的快速回归。
-- `tests/smoke.mjs` 继续执行已接入运行时规则的安全样例；目标安全能力通过 `endpointSmoke:false` 标记，避免提前拉红主 smoke。
+- `tests/smoke.mjs` 继续执行已接入运行时规则的全部当前安全样例，并断言 allow 不写安全事件、非 allow 仅返回脱敏 hash、边界回复/改写文本不泄露 prompt/key/baseUrl；目标安全能力仍可通过 `endpointSmoke:false` 标记，避免提前拉红主 smoke。
 - 已新增 `tests/prompt-builder-smoke.mjs` 与 `npm run qa:prompt`，验证 prompt builder 的 10 类关系、称呼、沉浸边界、active 记忆隔离和特殊关系边界。
 
 ### M7 素材导入
@@ -791,6 +793,9 @@
 | M48 Pre-push 发布验证 | integrated | 主控 | `docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | push 前重新跑关键外部门禁：`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities；结果已写入发布交接文档 |
 | M49 Next typed routes 稳定化 | integrated | 主控 | `scripts/next-typegen.mjs`、`package.json`、`tests/e2e/run-e2e.mjs`、`scripts/docs-consistency.mjs`、`scripts/git-boundary-check.mjs`、`README.md`、`docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | 新增 `npm run next:typegen` 并让 `npm run typecheck` 前置生成 Next route types；E2E 结束后重新 typegen，避免 `next-env.d.ts` 被 dev server 留在 `.next/dev/types` 状态 |
 | M50 发布门禁增强 | integrated | 主控 | `scripts/git-boundary-check.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `npm run git:boundary` 新增 `next-env.d.ts` 内容检查，阻止 `.next/dev/types` 引用进入提交；若触发则提示先运行 `npm run next:typegen` |
+| M51 导入候选去重体验 | integrated | M51-MEMORY-IMPORT-POLISH | `src/lib/import/*`、`src/app/api/companions/[companionId]/imports/*`、`src/components/renewal-workspace.tsx`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 导入规划层去掉同批重复候选；API 跳过当前关系已有非 deleted 记忆；工作台显示本次重复和已存在数量，仍默认写入 pending 且不削弱密钥脱敏 |
+| M52 语音 shared-LLM 兼容性加固 | integrated | M-VOICE-SHARED-LLM | `src/lib/voice/*`、`src/app/api/voice/*`、`src/components/renewal-workspace.tsx`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/LLM.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 语音 STT/TTS 响应补充脱敏 runtime metadata：`requestedProvider`、`credentialSource`、`fallbackKind`、`missingConfig`；API 剥离内部 raw 字段且不返回 key/baseUrl；兼容 OpenAI 风格二进制 TTS 和常见 JSON base64 TTS/STT 变体；设置页与工作台展示 shared-LLM/mock fallback 状态 |
+| M53 主动回响成本护栏 | integrated | 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/app/api/proactive/run/route.ts`、`tests/smoke.mjs`、`docs/QA.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `POST /api/proactive/run` 新增 `maxDrafts`，在 `limit` 控制扫描对象之外限制单轮最多生成/保存草稿数量；响应返回归一化上限和裁剪原因，不暴露 cron secret、key、Base URL 或 prompt |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -818,9 +823,9 @@ M11 当前落点：
 
 QA-1 当前落点：
 
-- 已新增机器可读评估集，覆盖 10 类关系和 14 类安全/越界风险域。
+- 已新增机器可读评估集，覆盖 10 类关系和 22 条安全/越界/允许回归样例。
 - 已新增 `npm run qa:samples`，用于检查样例结构、ID 唯一性、关系覆盖和风险域覆盖。
-- 主 smoke 已接入运行时可验证的安全样例，未接入运行时代码的目标样例用 `endpointSmoke:false` 保留为后续安全 backlog。
+- 主 smoke 已接入全部当前安全样例，并检查 allow 不写安全事件、非 allow 仅返回 hash、边界回复/改写文本不泄露原始输入、prompt、API key 或 baseUrl；后续未接入运行时代码的目标样例仍可用 `endpointSmoke:false` 保留为安全 backlog。
 
 M8 当前落点：
 
@@ -899,6 +904,26 @@ M25 当前落点：
 - 已记录不会新增服务端文件上传，不读取 `.env`，导入链路需继续脱敏 API key、Bearer token、JWT、token、secret、password 等密钥形态。
 - 已记录所有有效导入内容默认进入 pending 记忆，用户确认前不进入 active prompt。
 - 当前 E2E 已覆盖 JSONL 文件选择、读入文本框和继续导入为候选记忆；本轮只补文档，不重写 E2E。
+
+M51 当前落点：
+
+- `src/lib/import/text-import.ts` 先在脱敏和分段之后做候选去重，重复计入 `duplicateCount` 和 `skippedCount`。
+- 导入 API 会按当前关系已有非 deleted 记忆再次过滤重复内容；全是重复时返回友好错误和完整摘要，不新增 pending。
+- 工作台导入摘要展示“本次重复”和“已存在”数量；E2E 覆盖重复行、重复再次导入和 JSONL 文件导入连续流程。
+
+M52 当前落点：
+
+- `VOICE_PROVIDER=shared-llm` 的 STT/TTS 响应新增脱敏运行态字段：`requestedProvider`、`credentialSource`、`fallback`、`fallbackKind`、`missingConfig`、`retryable` 和 `status`。
+- `/api/voice/transcribe` 与 `/api/voice/synthesize` 只返回前端需要的安全字段，剥离内部 `raw`，不返回 API key、Base URL、Bearer 或供应商 raw payload。
+- compatible voice adapter 新增 30 秒超时，并兼容 STT 的 `text`、`transcription`、`output_text`、segments，以及 TTS 的二进制音频和 JSON base64 响应。
+- 设置页说明语音共用 LLM 中转站配置；工作台语音状态显示用户 vault、环境变量或 mock fallback 来源。
+
+M53 当前落点：
+
+- `POST /api/proactive/run` 新增 `maxDrafts` 参数，控制一次 dry-run 或 cron 执行最多生成/保存多少草稿。
+- 默认 `maxDrafts=50`，请求值归一化到 1-200；`limit` 仍只控制扫描关系对象数量。
+- 达到上限后剩余关系对象不会继续查询消息或生成草稿，响应返回“本轮主动回响生成上限已达到”的跳过原因。
+- Smoke 覆盖 `maxDrafts` 生效和保存数量不超过上限。
 
 M30 当前落点：
 

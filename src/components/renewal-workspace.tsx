@@ -52,6 +52,8 @@ type ImportSummary = {
   createdCount: number;
   redactionCount: number;
   skippedCount: number;
+  duplicateCount?: number;
+  existingDuplicateCount?: number;
   inputCount?: number;
   acceptedCount?: number;
   truncatedCount?: number;
@@ -102,6 +104,10 @@ type VoicePreview = {
   provider: string;
   model: string;
   voice?: string;
+  requestedProvider?: string;
+  credentialSource?: "server-env" | "user-vault";
+  fallback?: boolean;
+  fallbackKind?: string;
   fallbackReason?: string;
 };
 
@@ -822,6 +828,7 @@ export function RenewalWorkspace() {
       };
 
       if (!response.ok || !payload.memories?.length) {
+        setImportSummary(payload.importSummary ?? null);
         throw new Error(payload.error ?? "导入失败。");
       }
 
@@ -978,6 +985,10 @@ export function RenewalWorkspace() {
         text?: string;
         provider?: string;
         model?: string;
+        requestedProvider?: string;
+        credentialSource?: "server-env" | "user-vault";
+        fallback?: boolean;
+        fallbackKind?: string;
         error?: string;
       };
 
@@ -986,7 +997,7 @@ export function RenewalWorkspace() {
       }
 
       setDraft(payload.text);
-      setStatus(`语音已转写 · ${payload.provider ?? "unknown"}/${payload.model ?? "unknown"}`);
+      setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
       setError(voiceError instanceof Error ? voiceError.message : "语音转写失败。");
       setStatus("语音转写失败，请稍后重试");
@@ -1024,6 +1035,10 @@ export function RenewalWorkspace() {
         text?: string;
         provider?: string;
         model?: string;
+        requestedProvider?: string;
+        credentialSource?: "server-env" | "user-vault";
+        fallback?: boolean;
+        fallbackKind?: string;
         fallbackReason?: string;
         error?: string;
       };
@@ -1033,11 +1048,7 @@ export function RenewalWorkspace() {
       }
 
       setDraft(payload.text);
-      setStatus(
-        `语音已转写 · ${payload.provider ?? "unknown"}/${payload.model ?? "unknown"}${
-          payload.fallbackReason ? " · mock fallback" : ""
-        }`
-      );
+      setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
       setError(voiceError instanceof Error ? voiceError.message : "语音转写失败。");
       setStatus("语音转写失败，请稍后重试");
@@ -1079,7 +1090,7 @@ export function RenewalWorkspace() {
       }
 
       setVoicePreview(payload);
-      setStatus(`语音回复已生成 · ${payload.provider}/${payload.model}`);
+      setStatus(`语音回复已生成 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
       setError(voiceError instanceof Error ? voiceError.message : "语音回复生成失败。");
       setStatus("语音回复生成失败，请稍后重试");
@@ -1356,9 +1367,10 @@ export function RenewalWorkspace() {
               <div className="voice-preview">
                 <audio controls src={voicePreview.audioDataUrl} />
                 <span>
-                  {voicePreview.provider}/{voicePreview.model}
+                  {formatVoiceProviderStatus(voicePreview)}
                   {voicePreview.voice ? ` · ${voicePreview.voice}` : ""}
                 </span>
+                {voicePreview.fallbackReason ? <span>{voicePreview.fallbackReason}</span> : null}
               </div>
             ) : null}
             <div className="input-row">
@@ -2221,6 +2233,32 @@ function audioExtensionFromMimeType(mimeType: string) {
   return "webm";
 }
 
+function formatVoiceProviderStatus(payload: {
+  provider?: string;
+  requestedProvider?: string;
+  model?: string;
+  credentialSource?: "server-env" | "user-vault";
+  fallback?: boolean;
+  fallbackKind?: string;
+}) {
+  const provider = payload.provider ?? "unknown";
+  const model = payload.model ?? "unknown";
+  const source =
+    payload.credentialSource === "user-vault"
+      ? "用户 vault"
+      : payload.credentialSource === "server-env"
+        ? "环境变量"
+        : "默认配置";
+  const requested = payload.requestedProvider && payload.requestedProvider !== provider
+    ? ` · from ${payload.requestedProvider}`
+    : "";
+  const fallback = payload.fallback
+    ? ` · mock fallback${payload.fallbackKind ? `/${payload.fallbackKind}` : ""}`
+    : "";
+
+  return `${provider}/${model} · ${source}${requested}${fallback}`;
+}
+
 function readImportFileExtension(fileName: string) {
   const normalized = fileName.toLowerCase();
   return allowedImportFileExtensions.find((extension) => normalized.endsWith(extension)) ?? null;
@@ -2329,6 +2367,14 @@ function formatImportSummary(summary: ImportSummary) {
 
   if (summary.parseSkippedCount) {
     parts.push(`解析跳过 ${summary.parseSkippedCount} 行`);
+  }
+
+  if (summary.duplicateCount) {
+    parts.push(`本次重复 ${summary.duplicateCount} 条`);
+  }
+
+  if (summary.existingDuplicateCount) {
+    parts.push(`已存在 ${summary.existingDuplicateCount} 条`);
   }
 
   if (summary.limit) {

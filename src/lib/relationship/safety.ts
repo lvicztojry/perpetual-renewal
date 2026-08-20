@@ -41,7 +41,11 @@ const riskRules: Array<{
     action: "boundary_response",
     severity: "high",
     reason: "涉及金钱承诺、交易或法律身份承诺。",
-    patterns: [/转账|借钱|给我钱|投资|合同|法定|身份证|结婚证|户口|继承|担保|bank transfer/i]
+    patterns: [
+      /转账|借钱|给我钱|法定|身份证|结婚证|户口|继承|担保|bank transfer/i,
+      /(合同|协议).{0,16}(替我签|帮我签|代签|承诺|担保|继承|法定)/,
+      /(投资|交易).{0,16}(替我决定|保证赚钱|借钱|转账)/
+    ]
   },
   {
     type: "MINOR_SEXUAL_CONTENT",
@@ -49,8 +53,8 @@ const riskRules: Array<{
     severity: "critical",
     reason: "涉及未成年人或未成年角色的性化表达，必须拒绝并转向非性化陪伴。",
     patterns: [
-      /(未成年|未成年人|儿童|孩子|学生|幼女|正太|萝莉|小孩|minor|underage).{0,24}(暧昧|恋人|露骨|性|色情|挑逗|裸|亲密|开车|sex|sexual|explicit)/i,
-      /(暧昧|恋人|露骨|性|色情|挑逗|裸|亲密|开车|sex|sexual|explicit).{0,24}(未成年|未成年人|儿童|孩子|学生|幼女|正太|萝莉|小孩|minor|underage)/i
+      /(未成年|未成年人|儿童|孩子|学生|高中生|初中生|小学生|幼女|正太|萝莉|小孩|teen|teenager|minor|underage).{0,24}(暧昧|恋人|露骨|性|色情|挑逗|裸|亲密|开车|sex|sexual|explicit)/i,
+      /(暧昧|恋人|露骨|性|色情|挑逗|裸|亲密|开车|sex|sexual|explicit).{0,24}(未成年|未成年人|儿童|孩子|学生|高中生|初中生|小学生|幼女|正太|萝莉|小孩|teen|teenager|minor|underage)/i
     ]
   },
   {
@@ -60,8 +64,10 @@ const riskRules: Array<{
     reason: "请求获取隐私信息、跟踪或制造偶遇，可能侵犯他人安全与隐私。",
     patterns: [
       /(查到|查出|找出|人肉|获取).{0,16}(住址|地址|手机号|电话|身份证|行踪|定位|家庭住址|私人信息)/,
+      /查一下.{0,24}(住址|地址|手机号|电话|身份证|行踪|定位|几点回家|上下班)/,
       /(住址|地址|手机号|电话|身份证|行踪|定位|家庭住址|私人信息).{0,16}(给我|发我|告诉我|查)/,
       /(制造|安排).{0,12}(偶遇|堵他|堵她|跟踪)/,
+      /(定位|几点回家|上下班).{0,24}(堵他|堵她|跟踪|蹲守|尾随)/,
       /doxx|doxxing|home address|phone number|stalk/i
     ]
   },
@@ -73,6 +79,8 @@ const riskRules: Array<{
     patterns: [
       /(吃什么药|药量|剂量|诊断|处方|别去医院|不用去医院|别看医生|不用看医生)/,
       /(医疗|法律|财务|投资).{0,12}(直接告诉我|替我决定|最终结论)/,
+      /(律师|医生|财务顾问).{0,16}(直接告诉我|替我决定|最终结论|该怎么签|该怎么投)/,
+      /(合同|诉讼|起诉|离婚协议).{0,16}(该怎么签|直接告诉我|替我决定|最终结论|别找律师)/,
       /dosage|prescription|diagnose me|medical advice|legal advice|financial advice/i
     ]
   },
@@ -84,6 +92,7 @@ const riskRules: Array<{
     patterns: [
       /(假装|冒充).{0,12}(现实里的|本人|他|她|公众人物)/,
       /(骗过|伪造|证明|录一段).{0,16}(朋友|家人|本人|身份|声音|视频)/,
+      /(模仿|克隆|伪造).{0,16}(声音|语音|视频|脸).{0,24}(以为|骗过|本人|答应)/,
       /(deepfake|impersonate|pretend to be|fake proof)/i
     ]
   },
