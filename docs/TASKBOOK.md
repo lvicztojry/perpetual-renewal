@@ -45,7 +45,7 @@
 
 ### PM-1 全关系范围确认
 
-状态：active
+状态：completed
 
 目标：
 
@@ -68,7 +68,7 @@
 
 ### PM-2 原型与信息架构
 
-状态：active
+状态：integrated
 
 目标：
 
@@ -176,7 +176,7 @@
 
 ### DEV-3 关系对象创建
 
-状态：active
+状态：integrated
 
 目标：
 
@@ -198,7 +198,7 @@
 
 ### DEV-4 聊天消息闭环
 
-状态：active
+状态：integrated
 
 目标：
 
@@ -219,7 +219,7 @@
 
 ### DEV-5 LLM 适配层
 
-状态：active
+状态：integrated
 
 目标：
 
@@ -426,7 +426,7 @@
 
 ### DEV-11 安全策略接入
 
-状态：active
+状态：integrated
 
 目标：
 

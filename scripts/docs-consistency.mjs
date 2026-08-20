@@ -17,6 +17,7 @@ checkCi();
 checkDeploymentDocs();
 checkReleaseHandoff();
 checkTaskbookDecisions();
+checkTaskbookStatusSync();
 
 if (findings.length > 0) {
   console.error("Documentation consistency check failed:");
@@ -216,6 +217,54 @@ function checkTaskbookDecisions() {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
   }
+}
+
+function checkTaskbookStatusSync() {
+  const taskbook = readText("docs/TASKBOOK.md") ?? "";
+  const expectedStatuses = new Map([
+    ["PM-1 全关系范围确认", "completed"],
+    ["PM-2 原型与信息架构", "integrated"],
+    ["DEV-3 关系对象创建", "integrated"],
+    ["DEV-4 聊天消息闭环", "integrated"],
+    ["DEV-5 LLM 适配层", "integrated"],
+    ["DEV-11 安全策略接入", "integrated"]
+  ]);
+
+  const sections = parseTaskbookDefinitionStatuses(taskbook);
+  for (const [taskName, expectedStatus] of expectedStatuses.entries()) {
+    const actualStatus = sections.get(taskName);
+    if (!actualStatus) {
+      findings.push(`docs/TASKBOOK.md is missing task definition status for ${taskName}.`);
+      continue;
+    }
+
+    if (actualStatus !== expectedStatus) {
+      findings.push(
+        `docs/TASKBOOK.md task definition ${taskName} status should be ${expectedStatus}; found ${actualStatus}.`
+      );
+    }
+  }
+}
+
+function parseTaskbookDefinitionStatuses(taskbook) {
+  const sections = new Map();
+  const lines = taskbook.split(/\r?\n/);
+  let currentTask = null;
+
+  for (const line of lines) {
+    const heading = /^###\s+(.+)$/.exec(line.trim());
+    if (heading) {
+      currentTask = heading[1];
+      continue;
+    }
+
+    const status = /^状态：(.+)$/.exec(line.trim());
+    if (currentTask && status) {
+      sections.set(currentTask, status[1].trim());
+    }
+  }
+
+  return sections;
 }
 
 function checkDeploymentDocs() {
