@@ -47,7 +47,7 @@ npm run smoke
 - `npm run build`：通过。
 - `npm --cache .\.npm-cache audit --audit-level=high`：0 vulnerabilities。
 - `npm run e2e`：通过 2 tests，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout，以及 390px 移动端无横向溢出。
-- `npm run smoke`：当前通过 49 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、用户 vault、模型连接测试、语音 fallback、用量看板、数据导出、安全样例和密钥扫描自测。
+- `npm run smoke`：当前通过 57 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、用户 vault、模型连接测试、语音 fallback、用量看板、数据导出、安全样例和密钥扫描自测。
 - 首页、`/api/companions`、`/api/me`、`/api/chat/complete`、`/api/me/llm-test`：已 smoke 通过。
 
 ## Phase 2 启动记录

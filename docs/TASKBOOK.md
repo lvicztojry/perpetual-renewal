@@ -769,7 +769,7 @@
 | M24 发布候选状态面板 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 独立记录当前 MVP 能力、主控验收命令、上线前真实阻塞项和继续施工队列 |
 | M25 导入体验 QA 补强 | integrated | M25-IMPORT-QA | `docs/QA.md`、`docs/TASKBOOK.md` | 已补充单段文本、批量文本数组、JSON Lines、本地 .txt/.jsonl/.json 文件入口、512KB 上限、非法扩展名拒绝、前端只读文本复用现有 API、不新增服务端上传、密钥形态脱敏和 pending 默认状态的验收说明 |
 | M26 模型连接测试文档收束 | integrated | M26 | `docs/LLM.md`、`docs/DEPLOYMENT.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 已补齐 `POST /api/me/llm-test` 与设置页“测试连接”的文档边界：复用 vault/env key、低成本读取模型列表、无 key 可预测失败、不返回 key/baseUrl/prompt/raw payload、不做订阅扣费 |
-| M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；当前 smoke 基线已在后续模块提升到 49 checks |
+| M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；当前 smoke 基线已在后续模块提升到 57 checks |
 | M28 真实配置状态向导 | integrated | 主控 | `src/lib/config/*`、`src/app/api/me/config-status/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/TASKBOOK.md` | 设置页显示只读配置状态，提示 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl 和语音配置是否就绪；API 只返回状态和下一步，不暴露真实 key、baseUrl 或连接串 |
 | M29 发布候选手动验收脚本 | integrated | M29 | `docs/RELEASE_ACCEPTANCE.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已新增 20 分钟人工演示/验收脚本，覆盖登录、创建全关系对象、聊天、记忆确认/编辑、素材导入含文本文件入口、主动回响草稿和状态筛选、模型设置/连接测试、语音 fallback、用量看板、数据导出和移动端快检 |
 | M30 错误状态文案规范 | integrated | M30 | `docs/ERROR_COPY.md`、`docs/QA.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已统一聊天、导入、语音、模型连接、数据导出、数据库配置缺失和 cron secret 缺失等错误文案原则：说明发生了什么、下一步做什么，并禁止暴露 API key、Base URL、prompt、raw payload、数据库连接串、vault 密文或 secret |

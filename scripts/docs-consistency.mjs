@@ -43,8 +43,8 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
-      if (/\b(?:46|48) checks\b/i.test(line)) {
-        findings.push(`${location} mentions an outdated smoke check count; current baseline is 49 checks.`);
+      if (/\b(?:46|48|49) checks\b/i.test(line)) {
+        findings.push(`${location} mentions an outdated smoke check count; current baseline is 57 checks.`);
       }
 
       if (line.includes("npm audit --audit-level=high")) {
@@ -186,8 +186,8 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", "49 checks"],
-    ["docs/PHASE-1.5.md", "49 checks"]
+    ["docs/MVP_STATUS.md", "57 checks"],
+    ["docs/PHASE-1.5.md", "57 checks"]
   ];
 
   for (const [file, snippet] of requiredSnippets) {

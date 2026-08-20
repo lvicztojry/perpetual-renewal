@@ -19,8 +19,8 @@ Last updated: 2026-08-20
 - `npm run secrets:check`: passed, 147 committable files.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 49 checks.
-- `npm run qa:samples`: passed, 10 relationship kinds and 14 safety areas.
+- `npm run smoke`: passed, 57 checks.
+- `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.

@@ -54,12 +54,12 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：49 checks passed。
+- `smoke`：57 checks passed。
 - `docs:check`：19 docs/readme files passed。
 - `git:boundary`：147 committable files passed。
 - `e2e`：2 tests passed。
 - `pre-push audit`：0 vulnerabilities。
-- `qa:samples`：10 relationship kinds、14 safety areas passed。
+- `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
 - `npm audit`：0 vulnerabilities。
 - `db:smoke`：当前未配置 `DATABASE_URL`，按设计安全跳过。
