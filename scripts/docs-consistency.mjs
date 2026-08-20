@@ -187,7 +187,18 @@ function checkReleaseHandoff() {
   }
 
   const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
-  for (const snippet of ["M51", "M52", "M53", "M54", "M55", "57 checks", "19 safety areas"]) {
+  for (const snippet of [
+    "M51",
+    "M52",
+    "M53",
+    "M54",
+    "M55",
+    "M56",
+    "d7a72f2",
+    "sync taskbook status gates",
+    "57 checks",
+    "19 safety areas"
+  ]) {
     if (!handoff.includes(snippet)) {
       findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
     }
@@ -213,6 +224,12 @@ function checkTaskbookDecisions() {
   }
 
   for (const snippet of ["已决策基线", "仍需用户决策", "M54 施工决策点收束", "M55 Session 接入状态收束"]) {
+    if (!taskbook.includes(snippet)) {
+      findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
+    }
+  }
+
+  for (const snippet of ["M56 Taskbook 状态门禁", "M56 当前落点", "sync taskbook status gates"]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
@@ -280,6 +297,7 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M53"],
     ["docs/MVP_STATUS.md", "M54"],
     ["docs/MVP_STATUS.md", "M55"],
+    ["docs/MVP_STATUS.md", "M56"],
     ["docs/PHASE-1.5.md", "57 checks"],
     ["README.md", "npm run db:smoke"]
   ];

@@ -8,12 +8,14 @@
 - Baseline commit: `ef4939e feat: build relationship ai mvp baseline`
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
-- Recent local commits include M49-M55 stabilization, runtime hardening, and construction-status cleanup.
+- M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
+- Recent local commits include M49-M56 stabilization, runtime hardening, and construction-status cleanup.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
 - M53 scope: proactive scheduler `maxDrafts` guardrail.
 - M54 scope: construction decision points clarified into decided baselines vs. remaining user decisions.
 - M55 scope: session `userId` integration status settled in Taskbook.
+- M56 scope: Taskbook task-definition statuses synced with the current task snapshot and guarded by `docs:check`.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 
 ## Latest Pre-push Verification
@@ -35,6 +37,7 @@ Last updated: 2026-08-20
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
 - `git status --short --ignored`: source tree clean; only ignored generated folders remain.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
+- M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
 
 ## Before Push
 

@@ -798,6 +798,7 @@
 | M53 主动回响成本护栏 | integrated | 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/app/api/proactive/run/route.ts`、`tests/smoke.mjs`、`docs/QA.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `POST /api/proactive/run` 新增 `maxDrafts`，在 `limit` 控制扫描对象之外限制单轮最多生成/保存草稿数量；响应返回归一化上限和裁剪原因，不暴露 cron secret、key、Base URL 或 prompt |
 | M54 施工决策点收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 Taskbook 末尾旧的技术栈/模型/数据库/部署疑问收束为“已决策基线”和“仍需用户决策”，并用 docs check 拦截旧决策项回流 |
 | M55 Session 接入状态收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 M1 里“后续接入真实 userId”的旧状态更新为已接入当前 session `userId`，并用 docs check 拦截该旧表述回流 |
+| M56 Taskbook 状态门禁 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md` | 同步任务定义与当前任务快照的状态口径，并让 docs check 拦截 PM/DEV 关键任务状态漂移 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -926,6 +927,12 @@ M53 当前落点：
 - 默认 `maxDrafts=50`，请求值归一化到 1-200；`limit` 仍只控制扫描关系对象数量。
 - 达到上限后剩余关系对象不会继续查询消息或生成草稿，响应返回“本轮主动回响生成上限已达到”的跳过原因。
 - Smoke 覆盖 `maxDrafts` 生效和保存数量不超过上限。
+
+M56 当前落点：
+
+- 任务定义里的 PM-1、PM-2、DEV-3、DEV-4、DEV-5、DEV-11 状态已与当前任务快照对齐。
+- `npm run docs:check` 会检查这些关键状态，防止后续主控或并行模块把已集成状态误写回早期 `active`。
+- 发布状态面板和交接文档已记录 M56 实现提交：`d7a72f2 docs: sync taskbook status gates`。
 
 M30 当前落点：
 

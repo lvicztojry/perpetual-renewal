@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、安全事件日志、响应式工作台和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -121,6 +121,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M53 主动回响成本护栏：`POST /api/proactive/run` 新增 `maxDrafts` 调度上限，默认限制单轮生成/保存草稿数量，降低全量 cron 一次生成过多草稿的风险。
 - M54 施工决策点收束：Taskbook 末尾旧的技术栈/模型/数据库/部署疑问已改为“已决策基线”和“仍需用户决策”。
 - M55 Session 接入状态收束：Taskbook 中 M1 的旧 userId 待接入状态已更新为当前 session `userId` 已接入 renewal API。
+- M56 Taskbook 状态门禁：已同步任务定义与当前任务快照的状态口径，并让 `npm run docs:check` 拦截关键任务状态漂移。
 
 当前需要你确认后才能执行的外部动作：
 
