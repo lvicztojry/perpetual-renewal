@@ -16,6 +16,7 @@ checkEnvExample();
 checkCi();
 checkDeploymentDocs();
 checkReleaseHandoff();
+checkTaskbookDecisions();
 
 if (findings.length > 0) {
   console.error("Documentation consistency check failed:");
@@ -188,6 +189,30 @@ function checkReleaseHandoff() {
   for (const snippet of ["M51", "M52", "M53", "57 checks", "19 safety areas"]) {
     if (!handoff.includes(snippet)) {
       findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
+    }
+  }
+}
+
+function checkTaskbookDecisions() {
+  const taskbook = readText("docs/TASKBOOK.md") ?? "";
+  const staleDecisionSnippets = [
+    "技术栈：是否采用 Next.js 全栈方案",
+    "模型：第一版接入哪个 LLM 供应商",
+    "数据库：是否优先 PostgreSQL",
+    "部署：是否先用单机/云托管快速上线",
+    "现实替代素材：第一版是否允许少量手动语气样例",
+    "沉浸边界：创建页、设置页和高风险场景分别怎样表达 AI 能力边界"
+  ];
+
+  for (const snippet of staleDecisionSnippets) {
+    if (taskbook.includes(snippet)) {
+      findings.push(`docs/TASKBOOK.md still contains stale decision point: ${snippet}`);
+    }
+  }
+
+  for (const snippet of ["已决策基线", "仍需用户决策", "M54 施工决策点收束"]) {
+    if (!taskbook.includes(snippet)) {
+      findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
   }
 }

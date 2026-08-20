@@ -796,6 +796,7 @@
 | M51 导入候选去重体验 | integrated | M51-MEMORY-IMPORT-POLISH | `src/lib/import/*`、`src/app/api/companions/[companionId]/imports/*`、`src/components/renewal-workspace.tsx`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 导入规划层去掉同批重复候选；API 跳过当前关系已有非 deleted 记忆；工作台显示本次重复和已存在数量，仍默认写入 pending 且不削弱密钥脱敏 |
 | M52 语音 shared-LLM 兼容性加固 | integrated | M-VOICE-SHARED-LLM | `src/lib/voice/*`、`src/app/api/voice/*`、`src/components/renewal-workspace.tsx`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/LLM.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 语音 STT/TTS 响应补充脱敏 runtime metadata：`requestedProvider`、`credentialSource`、`fallbackKind`、`missingConfig`；API 剥离内部 raw 字段且不返回 key/baseUrl；兼容 OpenAI 风格二进制 TTS 和常见 JSON base64 TTS/STT 变体；设置页与工作台展示 shared-LLM/mock fallback 状态 |
 | M53 主动回响成本护栏 | integrated | 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/app/api/proactive/run/route.ts`、`tests/smoke.mjs`、`docs/QA.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `POST /api/proactive/run` 新增 `maxDrafts`，在 `limit` 控制扫描对象之外限制单轮最多生成/保存草稿数量；响应返回归一化上限和裁剪原因，不暴露 cron secret、key、Base URL 或 prompt |
+| M54 施工决策点收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 Taskbook 末尾旧的技术栈/模型/数据库/部署疑问收束为“已决策基线”和“仍需用户决策”，并用 docs check 拦截旧决策项回流 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -970,9 +971,19 @@ M34 当前落点：
 
 ## 后续决策点
 
-- 技术栈：是否采用 Next.js 全栈方案，还是前后端分离。
-- 模型：第一版接入哪个 LLM 供应商。
-- 数据库：是否优先 PostgreSQL。
-- 部署：是否先用单机/云托管快速上线。
-- 现实替代素材：第一版是否允许少量手动语气样例，还是只做结构化设定。
-- 沉浸边界：创建页、设置页和高风险场景分别怎样表达 AI 能力边界。
+已决策基线：
+
+- 技术栈采用 Next.js 全栈、Prisma、PostgreSQL 路线。
+- 模型接入走供应商中立 adapter，默认 compatible 中转站 `https://api.tryanotherone.com/v1`，用户自带 API key。
+- 数据库优先 Neon/PostgreSQL；未配置时本地 fallback，生产不能依赖 memory。
+- 部署路线优先 Vercel + Neon/PostgreSQL + 部署平台 secret。
+- 现实替代第一版支持手动设定、少量语气样例、文本/JSONL/JSON 文件导入；照片、通讯录、多媒体导入后续单独设计。
+- 沉浸边界采用“日常关系内表达，高风险场景才回到能力边界”的原则。
+
+仍需用户决策：
+
+- 是否 push `codex/mvp-release-candidate` 到远端并创建 PR。
+- 是否现在配置真实 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET` 和真实模型 key/model。
+- 是否做账号删除，以及删除前确认、冷静期、导出提醒和级联删除范围。
+- 是否启动移动端 PWA，包括离线 shell、安装图标、推送策略。
+- 是否启动多媒体/照片/通讯录导入，并先制定授权、隐私、删除和素材来源策略。
