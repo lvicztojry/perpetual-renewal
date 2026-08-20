@@ -7,7 +7,28 @@
 - Branch: `codex/mvp-release-candidate`
 - Baseline commit: `ef4939e feat: build relationship ai mvp baseline`
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
+- Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
+
+## Latest Pre-push Verification
+
+Last updated: 2026-08-20
+
+- `npm run docs:check`: passed, 19 docs/readme files.
+- `npm run git:boundary`: passed, 147 committable files.
+- `npm run secrets:check`: passed, 147 committable files.
+- `npm run typecheck`: passed with `next:typegen`.
+- `npm run lint`: passed.
+- `npm run smoke`: passed, 49 checks.
+- `npm run qa:samples`: passed, 10 relationship kinds and 14 safety areas.
+- `npm run qa:prompt`: passed, 10 relationship kinds.
+- `npm run prisma:validate`: passed.
+- `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
+- `npm run build`: passed.
+- `npm run e2e`: passed, 2 tests.
+- `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
+- `git status --short --ignored`: source tree clean; only ignored generated folders remain.
+- M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 
 ## Before Push
 
@@ -15,6 +36,7 @@ Run:
 
 ```bash
 npm run verify:local -- --skip-e2e
+npm run e2e
 npm run verify:release
 git status --short --ignored
 ```

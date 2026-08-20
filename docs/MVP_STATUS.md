@@ -55,9 +55,10 @@ npm --cache .\.npm-cache audit --audit-level=high
 结果摘要：
 
 - `smoke`：49 checks passed。
-- `docs:check`：18 docs/readme files passed。
-- `git:boundary`：144 tracked/committable files passed。
+- `docs:check`：19 docs/readme files passed。
+- `git:boundary`：147 committable files passed。
 - `e2e`：2 tests passed。
+- `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、14 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
 - `npm audit`：0 vulnerabilities。
@@ -111,6 +112,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 - M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、生产配置缺口和后续决策点。
+- M48 Pre-push 发布验证：已重新执行 E2E 与 high severity audit；`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
+- M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 
 当前需要你确认后才能执行的外部动作：
 

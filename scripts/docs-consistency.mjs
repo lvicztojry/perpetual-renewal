@@ -115,6 +115,12 @@ function checkPackageJson() {
   );
   expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
   expectEqual(scripts["git:boundary"], "node scripts/git-boundary-check.mjs", "package.json scripts.git:boundary");
+  expectEqual(scripts["next:typegen"], "node scripts/next-typegen.mjs", "package.json scripts.next:typegen");
+  expectEqual(
+    scripts["typecheck"],
+    "npm run next:typegen && tsc --noEmit",
+    "package.json scripts.typecheck"
+  );
 
   for (const section of ["dependencies", "devDependencies"]) {
     for (const [name, version] of Object.entries(packageJson[section] ?? {})) {

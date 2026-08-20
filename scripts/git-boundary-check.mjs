@@ -32,6 +32,7 @@ const requiredProjectFiles = [
   "scripts/check-env-leaks.mjs",
   "scripts/docs-consistency.mjs",
   "scripts/git-boundary-check.mjs",
+  "scripts/next-typegen.mjs",
   "src/app/page.tsx",
   "tests/smoke.mjs",
   "docs/TASKBOOK.md",

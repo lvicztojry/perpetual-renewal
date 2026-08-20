@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import process from "node:process";
 
 const port = process.env.E2E_PORT ?? "3000";
@@ -108,6 +108,22 @@ try {
   console.error(error);
 } finally {
   await killServer();
+  normalizeNextTypes();
 }
 
 process.exit(exitCode);
+
+function normalizeNextTypes() {
+  const result = spawnSync(process.execPath, [nextBin, "typegen"], {
+    env: {
+      ...process.env,
+      NEXT_TELEMETRY_DISABLED: "1"
+    },
+    stdio: "inherit",
+    windowsHide: true
+  });
+
+  if (result.status !== 0) {
+    exitCode = result.status ?? 1;
+  }
+}
