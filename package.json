@@ -1,0 +1,47 @@
+{
+  "name": "perpetual-renewal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "e2e": "node tests/e2e/run-e2e.mjs",
+    "lint": "eslint .",
+    "smoke": "node tests/smoke.mjs",
+    "qa:samples": "node tests/qa-samples-smoke.mjs",
+    "qa:prompt": "node tests/prompt-builder-smoke.mjs",
+    "db:smoke": "node scripts/db-smoke.mjs",
+    "env:readiness": "node scripts/env-readiness.mjs",
+    "secrets:check": "node scripts/check-env-leaks.mjs",
+    "docs:check": "node scripts/docs-consistency.mjs",
+    "git:boundary": "node scripts/git-boundary-check.mjs",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "node scripts/prisma-validate.mjs",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed",
+    "verify:local": "node scripts/verify-local.mjs",
+    "verify:release": "node scripts/verify-local.mjs --audit"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.12.0",
+    "lucide-react": "1.33.0",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.1",
+    "prisma": "6.12.0",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,281 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RelationshipKind {
+  REAL_PERSON_SUBSTITUTE
+  MEMORIAL
+  EX_PARTNER
+  LOVER
+  FRIEND
+  FAMILY
+  MENTOR
+  PUBLIC_FIGURE_IMAGINED
+  FICTIONAL_CHARACTER
+  ORIGINAL_CHARACTER
+  CUSTOM
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MemoryType {
+  USER_FACT
+  RELATIONSHIP_EVENT
+  COMPANION_PROFILE
+  EMOTIONAL_PREFERENCE
+}
+
+enum MemoryStatus {
+  PENDING
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum ProactiveMessageStatus {
+  DRAFT
+  SENT
+  DISMISSED
+  BLOCKED
+}
+
+enum ProactiveMessageKind {
+  DAILY_GREETING
+  LAST_CONVERSATION_FOLLOWUP
+  ANNIVERSARY
+  EMOTION_CARE
+  PLAYFUL_MISS_YOU
+}
+
+enum SafetyEventType {
+  SELF_HARM
+  HARM_TO_OTHERS
+  COERCIVE_ATTACHMENT
+  REAL_WORLD_COMMITMENT
+  MONEY_OR_LEGAL_IDENTITY
+  PUBLIC_FIGURE_AUTHORIZATION
+  MINOR_SEXUAL_CONTENT
+  PRIVACY_VIOLATION
+  PROFESSIONAL_ADVICE
+  IDENTITY_DECEPTION
+  RELATIONAL_PRESSURE
+  SAFETY_OVERRIDE
+  OTHER
+}
+
+model User {
+  id                       String              @id @default(cuid())
+  email                    String              @unique
+  nickname                 String
+  timezone                 String              @default("Asia/Shanghai")
+  language                 String              @default("zh-CN")
+  proactiveMessagesEnabled Boolean             @default(true)
+  proactiveFrequencyHours  Int                 @default(24)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  companions               Companion[]
+  conversations            Conversation[]
+  memories                 Memory[]
+  relationshipStates       RelationshipState[]
+  proactiveMessages        ProactiveMessage[]
+  safetyEvents             SafetyEvent[]
+  modelUsageLogs           ModelUsageLog[]
+  providerCredentials      ProviderCredential[]
+}
+
+model Companion {
+  id                String              @id @default(cuid())
+  userId            String
+  name              String
+  relationshipKind  RelationshipKind
+  customKind        String?
+  userAddress       String?
+  companionAddress  String?
+  personality       String[]
+  speakingStyle     String
+  background        String?
+  boundaries        String?
+  immersionEnabled  Boolean             @default(true)
+  proactiveMessagesEnabled Boolean       @default(true)
+  proactiveFrequencyPreset String        @default("24h")
+  proactiveFrequencyMinutes Int          @default(1440)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations     Conversation[]
+  memories          Memory[]
+  relationshipState RelationshipState?
+  proactiveMessages ProactiveMessage[]
+  safetyEvents      SafetyEvent[]
+  modelUsageLogs    ModelUsageLog[]
+
+  @@index([userId])
+}
+
+model Conversation {
+  id          String    @id @default(cuid())
+  userId      String
+  companionId String
+  title       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastMessageAt DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion   Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  modelUsageLogs ModelUsageLog[]
+
+  @@index([userId])
+  @@index([companionId])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  memories       Memory[]      @relation("MemorySourceMessage")
+  safetyEvents   SafetyEvent[]
+  modelUsageLogs ModelUsageLog[]
+
+  @@index([conversationId, createdAt])
+}
+
+model Memory {
+  id              String       @id @default(cuid())
+  userId          String
+  companionId     String
+  sourceMessageId String?
+  type            MemoryType
+  status          MemoryStatus @default(PENDING)
+  content         String
+  confidence      Float        @default(0.5)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion       Companion    @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  sourceMessage   Message?     @relation("MemorySourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, companionId, status])
+}
+
+model RelationshipState {
+  id                 String    @id @default(cuid())
+  userId             String
+  companionId        String    @unique
+  familiarityScore   Int       @default(0)
+  closenessScore     Int       @default(0)
+  recentEmotion      String?
+  importantEvents    Json?
+  lastInteractionAt  DateTime?
+  explanation        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion          Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ProactiveMessage {
+  id          String                 @id @default(cuid())
+  userId      String
+  companionId String
+  kind        ProactiveMessageKind   @default(DAILY_GREETING)
+  content     String
+  reason      String?
+  safety      Json?
+  status      ProactiveMessageStatus @default(DRAFT)
+  scheduledAt DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion   Companion              @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([companionId])
+}
+
+model SafetyEvent {
+  id          String          @id @default(cuid())
+  userId      String
+  companionId String?
+  messageId   String?
+  type        SafetyEventType
+  action      String
+  stage       String
+  severity    String
+  contentHash String
+  riskHash    String
+  createdAt   DateTime        @default(now())
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion   Companion?      @relation(fields: [companionId], references: [id], onDelete: SetNull)
+  message     Message?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
+  @@index([riskHash])
+}
+
+model ModelUsageLog {
+  id               String   @id @default(cuid())
+  userId           String
+  companionId      String?
+  conversationId   String?
+  messageId        String?
+  purpose          String
+  provider         String
+  model            String
+  status           String
+  inputTokens      Int?
+  outputTokens     Int?
+  totalTokens      Int?
+  estimatedCostUsd Decimal  @default(0) @db.Decimal(12, 6)
+  latencyMs        Int?
+  errorKind        String?
+  httpStatus       Int?
+  fallbackReason   String?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion        Companion? @relation(fields: [companionId], references: [id], onDelete: SetNull)
+  conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message          Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([provider, model])
+  @@index([status, createdAt])
+}
+
+model ProviderCredential {
+  id                String   @id @default(cuid())
+  userId            String
+  kind              String
+  provider          String
+  baseUrl           String?
+  model             String?
+  encryptedApiKey   String
+  keyIv             String
+  keyAuthTag        String
+  keyFingerprint    String
+  keyPreview        String
+  encryptionVersion String   @default("aes-256-gcm:v1")
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind])
+  @@index([userId, status])
+}

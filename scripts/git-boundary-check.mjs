@@ -1,0 +1,97 @@
+import { execFileSync } from "node:child_process";
+import process from "node:process";
+
+const forbiddenPathPatterns = [
+  /^\.env$/i,
+  /^\.env\.local$/i,
+  /^\.env\..*\.local$/i,
+  /^\.next\//i,
+  /^\.npm-cache\//i,
+  /^node_modules\//i,
+  /^test-results\//i,
+  /^coverage\//i,
+  /^dist\//i,
+  /^prisma\/dev\.db$/i,
+  /(^|\/).*\.log$/i,
+  /(^|\/).*\.tsbuildinfo$/i
+];
+
+const requiredProjectFiles = [
+  ".env.example",
+  ".gitignore",
+  ".github/workflows/ci.yml",
+  "README.md",
+  "package.json",
+  "package-lock.json",
+  "next.config.ts",
+  "tsconfig.json",
+  "eslint.config.mjs",
+  "playwright.config.ts",
+  "next-env.d.ts",
+  "prisma/schema.prisma",
+  "scripts/check-env-leaks.mjs",
+  "scripts/docs-consistency.mjs",
+  "scripts/git-boundary-check.mjs",
+  "src/app/page.tsx",
+  "tests/smoke.mjs",
+  "docs/TASKBOOK.md",
+  "docs/MVP_STATUS.md"
+];
+
+const findings = [];
+
+checkWorkspaceRoot();
+
+const trackedFiles = readGitFiles(["ls-files"]);
+const committableFiles = readGitFiles(["ls-files", "--cached", "--others", "--exclude-standard"]);
+
+checkForbiddenFiles("tracked", trackedFiles);
+checkForbiddenFiles("committable", committableFiles);
+checkRequiredFiles(committableFiles);
+
+if (findings.length > 0) {
+  console.error("Git boundary check failed:");
+  for (const finding of findings) {
+    console.error(`- ${finding}`);
+  }
+  process.exit(1);
+}
+
+console.log(
+  `Git boundary check passed: tracked=${trackedFiles.length} committable=${committableFiles.length}.`
+);
+
+function checkWorkspaceRoot() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  const normalized = process.cwd().replace(/\\/g, "/");
+  if (/^C:\//i.test(normalized)) {
+    findings.push("Project workspace is on C: drive; keep project outputs under D:/github_clone/perpetual-renewal.");
+  }
+}
+
+function readGitFiles(args) {
+  return execFileSync("git", args, { encoding: "utf8" })
+    .split(/\r?\n/)
+    .map((file) => file.trim().replace(/\\/g, "/"))
+    .filter(Boolean);
+}
+
+function checkForbiddenFiles(label, files) {
+  for (const file of files) {
+    if (forbiddenPathPatterns.some((pattern) => pattern.test(file))) {
+      findings.push(`${label} file should not be in Git scope: ${file}`);
+    }
+  }
+}
+
+function checkRequiredFiles(files) {
+  const fileSet = new Set(files);
+  for (const file of requiredProjectFiles) {
+    if (!fileSet.has(file)) {
+      findings.push(`required project file is missing from Git scope: ${file}`);
+    }
+  }
+}
