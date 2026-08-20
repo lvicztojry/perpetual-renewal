@@ -8,6 +8,10 @@
 - Baseline commit: `ef4939e feat: build relationship ai mvp baseline`
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
+- Recent local commits include M49-M53 stabilization and runtime hardening through `c057b92 docs: refresh release verification status`.
+- M51 scope: import candidate dedupe.
+- M52 scope: shared-LLM voice metadata hardening.
+- M53 scope: proactive scheduler `maxDrafts` guardrail.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 
 ## Latest Pre-push Verification

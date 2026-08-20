@@ -43,6 +43,7 @@ npm run lint
 npm run docs:check
 npm run git:boundary
 npm run secrets:check
+npm run db:smoke
 npm run smoke
 npm run qa:samples
 npm run qa:prompt

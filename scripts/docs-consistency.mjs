@@ -47,6 +47,10 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} mentions an outdated smoke check count; current baseline is 57 checks.`);
       }
 
+      if (/14 safety areas/i.test(line) || /14 类安全/.test(line)) {
+        findings.push(`${location} mentions outdated safety coverage; current baseline is 19 safety areas.`);
+      }
+
       if (line.includes("npm audit --audit-level=high")) {
         findings.push(
           `${location} uses bare npm audit; use npm --cache .\\.npm-cache audit --audit-level=high.`
@@ -179,6 +183,13 @@ function checkReleaseHandoff() {
       findings.push(`${file} is missing.`);
     }
   }
+
+  const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
+  for (const snippet of ["M51", "M52", "M53", "57 checks", "19 safety areas"]) {
+    if (!handoff.includes(snippet)) {
+      findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
+    }
+  }
 }
 
 function checkDeploymentDocs() {
@@ -187,7 +198,13 @@ function checkDeploymentDocs() {
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
     ["docs/MVP_STATUS.md", "57 checks"],
-    ["docs/PHASE-1.5.md", "57 checks"]
+    ["docs/MVP_STATUS.md", "19 safety areas"],
+    ["docs/MVP_STATUS.md", "npm run db:smoke"],
+    ["docs/MVP_STATUS.md", "M51"],
+    ["docs/MVP_STATUS.md", "M52"],
+    ["docs/MVP_STATUS.md", "M53"],
+    ["docs/PHASE-1.5.md", "57 checks"],
+    ["README.md", "npm run db:smoke"]
   ];
 
   for (const [file, snippet] of requiredSnippets) {
