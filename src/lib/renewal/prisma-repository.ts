@@ -464,6 +464,39 @@ export class PrismaRenewalRepository implements RenewalRepository {
     return toProactiveMessageRecord(message);
   }
 
+  async updateRelationshipState(
+    userId: string,
+    companionId: string,
+    input: Parameters<RenewalRepository["updateRelationshipState"]>[2]
+  ) {
+    await ensureUser(userId);
+
+    const existing = await prisma.relationshipState.findFirst({
+      where: {
+        companionId,
+        userId,
+        companion: { userId }
+      },
+      select: { id: true }
+    });
+
+    if (!existing) return null;
+
+    const updated = await prisma.relationshipState.update({
+      where: { id: existing.id },
+      data: {
+        familiarityScore: input.familiarityScore,
+        closenessScore: input.closenessScore,
+        recentEmotion: input.recentEmotion ?? null,
+        importantEvents: input.importantEvents.slice(0, 12),
+        lastInteractionAt: input.lastInteractionAt ? new Date(input.lastInteractionAt) : null,
+        explanation: input.explanation ?? null
+      }
+    });
+
+    return toRelationshipStateRecord(updated);
+  }
+
   async updateRelationshipAfterMessage(companionId: string, message: MessageRecord) {
     const current = await prisma.relationshipState.findUnique({
       where: { companionId }

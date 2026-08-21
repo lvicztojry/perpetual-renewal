@@ -610,6 +610,31 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     return message;
   }
 
+  async updateRelationshipState(
+    userId: string,
+    companionId: string,
+    input: Parameters<RenewalRepository["updateRelationshipState"]>[2]
+  ) {
+    const store = getStore();
+    const companion = store.companions.find(
+      (item) => item.userId === userId && item.id === companionId
+    );
+    if (!companion) return null;
+
+    const state = store.relationshipStates.find((item) => item.companionId === companionId);
+    if (!state) return null;
+
+    state.familiarityScore = input.familiarityScore;
+    state.closenessScore = input.closenessScore;
+    state.recentEmotion = input.recentEmotion ?? null;
+    state.importantEvents = input.importantEvents.slice(0, 12);
+    state.lastInteractionAt = input.lastInteractionAt ?? null;
+    state.explanation = input.explanation ?? null;
+    state.updatedAt = now();
+
+    return state;
+  }
+
   async updateRelationshipAfterMessage(companionId: string, message: MessageRecord) {
     const store = getStore();
     const state = store.relationshipStates.find((item) => item.companionId === companionId);

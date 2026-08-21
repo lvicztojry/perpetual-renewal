@@ -683,6 +683,24 @@ async function runSmoke() {
   );
   pass("PATCH /api/memories/:id stores accidental secret fixture for export scrub");
 
+  const relationshipStateRead = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`
+  );
+  assert(
+    relationshipStateRead.body.data?.companionId === created.body.companion.id,
+    "relationship state API should read the current user's persisted state"
+  );
+  assert(
+    relationshipStateRead.body.persistence === "prisma" ||
+      relationshipStateRead.body.persistence === "memory",
+    "relationship state API should report repository persistence"
+  );
+  assert(
+    !JSON.stringify(relationshipStateRead.body).includes("DEV-9") &&
+      relationshipStateRead.body.persistence !== "mock",
+    "relationship state API should not expose stale mock handoff metadata"
+  );
+
   const relationshipStateUpdate = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`,
     {

@@ -210,6 +210,17 @@ class FallbackRenewalRepository implements RenewalRepository {
     );
   }
 
+  updateRelationshipState(
+    userId: string,
+    companionId: string,
+    input: Parameters<RenewalRepository["updateRelationshipState"]>[2]
+  ) {
+    return this.run(
+      () => this.primary.updateRelationshipState(userId, companionId, input),
+      () => this.fallback.updateRelationshipState(userId, companionId, input)
+    );
+  }
+
   updateRelationshipAfterMessage(
     companionId: string,
     message: Parameters<RenewalRepository["updateRelationshipAfterMessage"]>[1]

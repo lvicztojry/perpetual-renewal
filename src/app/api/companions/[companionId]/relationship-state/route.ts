@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  createInitialRelationshipState,
   updateRelationshipState,
   type RelationshipSignal,
   type RelationshipStateSnapshot
 } from "@/lib/relationship";
+import { getCurrentSession } from "@/lib/auth/session";
+import { createRenewalRepository } from "@/lib/renewal/repository";
+import type { RelationshipStateRecord } from "@/lib/renewal/types";
 
 type RelationshipStateRequest = {
   current?: RelationshipStateSnapshot;
@@ -16,11 +18,17 @@ export async function GET(
   context: { params: Promise<{ companionId: string }> }
 ) {
   const { companionId } = await context.params;
+  const session = await getCurrentSession();
+  const repository = createRenewalRepository();
+  const companion = await repository.getCompanion(session.userId, companionId);
+
+  if (!companion) {
+    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+  }
 
   return NextResponse.json({
-    data: createInitialRelationshipState(companionId),
-    persistence: "mock",
-    next: "DEV-9: replace mock with Prisma RelationshipState upsert scoped by userId + companionId."
+    data: toRelationshipSnapshot(companion.relationshipState),
+    persistence: repository.persistence
   });
 }
 
@@ -29,16 +37,87 @@ export async function POST(
   context: { params: Promise<{ companionId: string }> }
 ) {
   const { companionId } = await context.params;
-  const body = (await request.json()) as RelationshipStateRequest;
-  const current = body.current ?? createInitialRelationshipState(companionId);
-  const signal = body.signal ?? {
-    userMessage: "",
-    createdAt: new Date().toISOString()
-  };
+  const body = await readRequest(request);
+  const session = await getCurrentSession();
+  const repository = createRenewalRepository();
+  const companion = await repository.getCompanion(session.userId, companionId);
+
+  if (!companion) {
+    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+  }
+
+  const current = toRelationshipSnapshot(companion.relationshipState);
+  const signal = normalizeSignal(body.signal);
+  const update = updateRelationshipState(current, signal);
+  const persisted = await repository.updateRelationshipState(
+    session.userId,
+    companionId,
+    toRelationshipStateInput(update.state)
+  );
+
+  if (!persisted) {
+    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+  }
 
   return NextResponse.json({
-    data: updateRelationshipState(current, signal),
-    persistence: "mock",
-    next: "DEV-9: call after message persistence and attach sourceMessageId for explainability."
+    data: {
+      ...update,
+      state: toRelationshipSnapshot(persisted)
+    },
+    persistence: repository.persistence
   });
+}
+
+async function readRequest(request: Request): Promise<RelationshipStateRequest> {
+  try {
+    const body = (await request.json()) as RelationshipStateRequest;
+    return body && typeof body === "object" ? body : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSignal(signal: RelationshipStateRequest["signal"]): RelationshipSignal {
+  if (!signal || typeof signal !== "object") {
+    return {
+      userMessage: "",
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  return {
+    userMessage: typeof signal.userMessage === "string" ? signal.userMessage : "",
+    assistantMessage:
+      typeof signal.assistantMessage === "string" ? signal.assistantMessage : undefined,
+    sourceMessageId:
+      typeof signal.sourceMessageId === "string" ? signal.sourceMessageId : undefined,
+    createdAt: typeof signal.createdAt === "string" ? signal.createdAt : new Date().toISOString()
+  };
+}
+
+function toRelationshipStateInput(state: RelationshipStateSnapshot) {
+  return {
+    familiarityScore: state.familiarityScore,
+    closenessScore: state.closenessScore,
+    recentEmotion: state.recentEmotion ?? null,
+    importantEvents: state.importantEvents.map((event) => event.title).slice(0, 12),
+    lastInteractionAt: state.lastInteractionAt ?? null,
+    explanation: state.explanation
+  };
+}
+
+function toRelationshipSnapshot(state: RelationshipStateRecord): RelationshipStateSnapshot {
+  return {
+    companionId: state.companionId,
+    familiarityScore: state.familiarityScore,
+    closenessScore: state.closenessScore,
+    recentEmotion: state.recentEmotion ?? undefined,
+    importantEvents: state.importantEvents.map((title, index) => ({
+      id: `${state.id}-event-${index}`,
+      title,
+      explanation: "来自持久化关系状态。"
+    })),
+    lastInteractionAt: state.lastInteractionAt ?? undefined,
+    explanation: state.explanation ?? "来自持久化关系状态。"
+  };
 }

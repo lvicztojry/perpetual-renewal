@@ -118,6 +118,15 @@ export type RelationshipStateRecord = {
   updatedAt: string;
 };
 
+export type UpdateRelationshipStateInput = {
+  familiarityScore: number;
+  closenessScore: number;
+  recentEmotion?: string | null;
+  importantEvents: string[];
+  lastInteractionAt?: string | null;
+  explanation?: string | null;
+};
+
 export type CompanionProfile = CompanionRecord & {
   conversationId: string;
   relationshipState: RelationshipStateRecord;
@@ -277,6 +286,11 @@ export type RenewalRepository = {
     proactiveMessageId: string,
     input: UpdateProactiveMessageInput
   ): Promise<ProactiveMessageRecord | null>;
+  updateRelationshipState(
+    userId: string,
+    companionId: string,
+    input: UpdateRelationshipStateInput
+  ): Promise<RelationshipStateRecord | null>;
   updateRelationshipAfterMessage(
     companionId: string,
     message: MessageRecord
