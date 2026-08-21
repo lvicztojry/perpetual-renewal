@@ -862,6 +862,28 @@ async function runSmoke() {
     ),
     "memory update"
   );
+  const emptyMemoryEdit = await request(
+    `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ content: "   " })
+    },
+    { allowError: true }
+  );
+  assert(
+    emptyMemoryEdit.response.status === 400 &&
+      emptyMemoryEdit.body.error === "content is required",
+    "memory update should reject empty content"
+  );
+  const memoriesAfterRejectedEmptyEdit = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`
+  );
+  assert(
+    memoriesAfterRejectedEmptyEdit.body.memories?.find(
+      (memory) => memory.id === sent.body.pendingMemory.id
+    )?.content === editedMemoryContent,
+    "rejected empty memory edit should preserve existing content"
+  );
   pass("PATCH /api/memories/:id edit memory content");
 
   const accidentalExportSecret = "accidental-export-secret-value-012345";

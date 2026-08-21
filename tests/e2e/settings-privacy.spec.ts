@@ -75,6 +75,60 @@ test("settings saves and deletes user API key, and shows connection failure with
   await expect(page.getByRole("button", { name: "删除密钥" })).toHaveCount(0);
 });
 
+test("settings reads provider models and keeps API key private", async ({ page }) => {
+  const fakeApiKey = `e2e-model-list-key-${Date.now()}-5678`;
+  let modelListRequests = 0;
+
+  await page.route("**/api/me/llm-models", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    modelListRequests += 1;
+
+    if (modelListRequests === 1) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          provider: "compatible",
+          credentialSource: "user-vault",
+          models: [
+            { id: "tryanotherone/e2e-affection-mini", ownedBy: "tryanotherone" },
+            { id: "tryanotherone/e2e-memory-pro", ownedBy: "tryanotherone" }
+          ]
+        })
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 400,
+      body: JSON.stringify({
+        error: "读取模型列表失败，请检查模型供应商配置或稍后再试。"
+      })
+    });
+  });
+
+  await loginAsFreshUser(page, "settings-models");
+
+  await page.getByLabel("Base URL").fill("https://api.tryanotherone.com/v1");
+  await page.getByLabel("API Key").fill(fakeApiKey);
+  await page.getByRole("button", { name: "读取模型列表" }).click();
+
+  await expect(page.getByText("已保存连接配置")).toBeVisible();
+  await expect(page.getByText(/已读取 2 个模型 · compatible · 用户 vault/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /tryanotherone\/e2e-memory-pro/ })).toBeVisible();
+  await expect(page.getByLabel("API Key")).toHaveValue("");
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+
+  await page.getByRole("button", { name: /tryanotherone\/e2e-memory-pro/ }).click();
+  await expect(page.getByLabel("模型")).toHaveValue("tryanotherone/e2e-memory-pro");
+
+  await page.getByRole("button", { name: "读取模型列表" }).click();
+  await expect(page.getByText("读取模型列表失败，请检查模型供应商配置或稍后再试。")).toBeVisible();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  expect(modelListRequests).toBe(2);
+});
+
 test("settings export downloads a redacted JSON snapshot", async ({ page }) => {
   const fakeApiKey = `e2e-export-key-${Date.now()}-1234`;
   const fakeBaseUrl = "https://provider.example.com/v1";

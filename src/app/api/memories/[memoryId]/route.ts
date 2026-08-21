@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
-import { getRenewalService } from "@/lib/renewal/service";
+import { getRenewalService, MemoryUpdateValidationError } from "@/lib/renewal/service";
 import type { MemoryStatus, MemoryType } from "@/lib/renewal/types";
 
 type RouteContext = {
@@ -40,6 +40,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ memory });
   } catch (error) {
+    if (error instanceof MemoryUpdateValidationError) {
+      return NextResponse.json({ error: memoryUpdateErrorMessage(error) }, { status: 400 });
+    }
+
     return NextResponse.json(
       { error: jsonErrorMessage(error, "Failed to update memory.") },
       { status: 400 }
@@ -75,6 +79,11 @@ function normalizeMemoryStatus(value: string | undefined): MemoryStatus | undefi
   }
 
   return undefined;
+}
+
+function memoryUpdateErrorMessage(error: MemoryUpdateValidationError) {
+  if (error.message === "content is required") return "content is required";
+  return "Failed to update memory.";
 }
 
 function normalizeMemoryType(value: string | undefined): MemoryType | undefined {

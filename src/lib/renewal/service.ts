@@ -30,6 +30,13 @@ export class MemoryCandidateValidationError extends Error {
   }
 }
 
+export class MemoryUpdateValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MemoryUpdateValidationError";
+  }
+}
+
 export function getRenewalService(userId = DEMO_USER_ID) {
   return new RenewalService(repository, userId);
 }
@@ -126,7 +133,12 @@ export class RenewalService {
     status?: MemoryStatus;
     content?: string;
   }) {
-    return this.repo.updateMemory(this.userId, memoryId, normalizeMemoryUpdate(input));
+    const update = normalizeMemoryUpdate(input);
+    if (input.content !== undefined && !update.content) {
+      throw new MemoryUpdateValidationError("content is required");
+    }
+
+    return this.repo.updateMemory(this.userId, memoryId, update);
   }
 
   async deleteMemory(memoryId: string) {
