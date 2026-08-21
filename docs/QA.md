@@ -336,6 +336,7 @@ npm run e2e
 - 文案保持中文、短句、可恢复；聊天和主动回响失败不责备用户，未回复相关表达保持撒娇式想念。
 - 错误提示、toast、接口 `message`、导出内容和日志摘要不暴露 API key、Base URL 原文、Authorization header、prompt、请求 payload、供应商 raw payload、数据库连接串、vault 密文、session secret 或 cron secret。
 - 本地开发 fallback 与生产门禁需要区分：本地可提示使用演示数据或 mock，生产缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名来源或 `PROACTIVE_CRON_SECRET` 时应明确阻止上线或调度。
+- `npm run qa:response` 动态验证 API 响应文本脱敏 helper，覆盖 Bearer、API key、数据库 URL、provider endpoint、audio endpoint、quoted prompt/rawPayload/raw_payload、stack frame 和 authorization 字段。
 
 ## 安全事件日志 QA
 

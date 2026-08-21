@@ -18,8 +18,12 @@ const responseTextPatterns: Array<[RegExp, string]> = [
     "[redacted-provider-endpoint]"
   ],
   [
-    /\b(prompt|rawPayload|stack|authorization)(["']?\s*[:=]\s*)["']?[^"',;<>}]+/gi,
+    /\b(prompt|rawPayload|raw_payload|stack|authorization)(["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^"',;<>}\n]+)/gi,
     "$1$2[redacted]"
+  ],
+  [
+    /\bat\s+[A-Za-z0-9_.$<>]+\s*\([^)"']+\)/g,
+    "[redacted-stack]"
   ]
 ];
 

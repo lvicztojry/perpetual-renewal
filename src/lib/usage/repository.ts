@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { safeLogValue } from "@/lib/logging/sanitize";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { estimateCostUsd } from "./pricing";
 import type { CreateModelUsageLogInput, ModelUsageLog } from "./types";
 
@@ -198,7 +199,7 @@ function normalizeCreateInput(input: CreateModelUsageLogInput): ModelUsageLog {
     latencyMs: normalizeToken(input.latencyMs),
     errorKind: input.errorKind ?? null,
     httpStatus: normalizeToken(input.httpStatus),
-    fallbackReason: input.fallbackReason ?? null,
+    fallbackReason: redactSensitiveResponseText(input.fallbackReason ?? undefined) ?? null,
     createdAt: new Date().toISOString()
   };
 }

@@ -12,7 +12,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M107 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, credential endpoint type validation, export token redaction hardening, settings save-error redaction, voice transcription metadata validation, release wording sync, workspace error redaction, model connection failure privacy coverage, private no-store API response boundaries, signed session cookie hardening, session signing secret readiness gates, verify typegen preflight, env template secret placeholder sync, session secret log-redaction coverage, PR config checklist session-secret sync, exported conversation secret scrubbing, voice fallback display redaction, API private JSON boundary enforcement, and API fallback response redaction.
+- Recent release-candidate commits include M49-M108 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, credential endpoint type validation, export token redaction hardening, settings save-error redaction, voice transcription metadata validation, release wording sync, workspace error redaction, model connection failure privacy coverage, private no-store API response boundaries, signed session cookie hardening, session signing secret readiness gates, verify typegen preflight, env template secret placeholder sync, session secret log-redaction coverage, PR config checklist session-secret sync, exported conversation secret scrubbing, voice fallback display redaction, API private JSON boundary enforcement, API fallback response redaction, response safety QA, and automatic quote redaction.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -71,6 +71,7 @@
 - M105 scope: workspace voice synthesis fallback reasons are redacted before display, with E2E coverage for Bearer, API key, Base URL, rawPayload, and stack-shaped leaks.
 - M106 scope: `git:boundary` blocks API routes from returning JSON through `NextResponse.json()` or `Response.json()` directly; routes must use `privateJson()` so private no-store headers remain universal.
 - M107 scope: chat, voice synthesis, and voice transcription API fallback reasons are redacted before JSON response; smoke statically guards API route JSON parsing, private response helpers, and high-risk fallback redaction.
+- M108 scope: response safety QA dynamically verifies redaction for secret-shaped values, endpoints, prompt/raw payload fields, stack traces, and authorization; proactive drafts, automatic pending memory quotes, and usage fallback reasons sanitize before secondary persistence or response; deployment env docs now include `SESSION_COOKIE_SECRET`.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -90,6 +91,7 @@ Last updated: 2026-08-21
 - `npm run qa:imports`: passed.
 - `npm run qa:vault`: passed.
 - `npm run qa:logging`: passed.
+- `npm run qa:response`: passed.
 - `npm run pwa:check`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
@@ -99,7 +101,7 @@ Last updated: 2026-08-21
 - `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M107 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, and API response-boundary static guards; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, and voice fallback display redaction, while release verification normalizes Next route type imports before boundary checks and docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR materials.
+- M57-M108 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, API response-boundary static guards, and automatic quote redaction; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, response text sanitization, and voice fallback display redaction, while release verification normalizes Next route type imports before boundary checks and docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR/deployment materials.
 
 ## Before Push Or PR Update
 
@@ -155,6 +157,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke

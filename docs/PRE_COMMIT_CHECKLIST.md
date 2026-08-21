@@ -44,6 +44,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run pwa:check
 npm run env:readiness
 npm run prisma:validate
@@ -82,6 +83,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run pwa:check
 npm run docs:check
 npm run next:typegen

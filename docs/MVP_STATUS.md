@@ -53,6 +53,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run pwa:check
 npm run prisma:validate
 npm run build
@@ -72,6 +73,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:imports`：structured media/contact import planner passed。
 - `qa:vault`：vault and config readiness security matrix passed。
 - `qa:logging`：runtime log sanitization passed。
+- `qa:response`：API response text sanitization passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `db:smoke`：当前未配置 `DATABASE_URL`，按设计安全跳过。
@@ -185,6 +187,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M105 语音 fallback 展示脱敏：工作台朗读最近回复成功后展示的 `fallbackReason` 走前端脱敏；E2E 覆盖供应商回退原因夹带 Bearer、API key、Base URL、rawPayload 和 stack 时页面只显示安全占位。
 - M106 API private JSON 门禁：`git:boundary` 拦截 API route 直接 `NextResponse.json()` 或 `Response.json()`，要求统一使用 `privateJson()`，防止新增接口漏掉 private no-store 响应头。
 - M107 API fallback 响应脱敏：聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一走 `redactSensitiveResponseText()`；smoke 增加静态边界检查，防止 API route 绕过 JSON 解析 helper、`privateJson()` 或高风险 fallback 脱敏。
+- M108 响应脱敏 QA 与自动引用脱敏：新增 `qa:response` 动态验证 API 响应文本脱敏；主动回响引用最近用户消息、自动 pending memory 引用用户消息、usage fallbackReason 入库前统一脱敏；部署文档 Vercel env 清单补入 `SESSION_COOKIE_SECRET` 并由 `docs:check` 守住。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

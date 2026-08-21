@@ -1,6 +1,7 @@
 import { LlmProviderError } from "@/lib/llm/types";
 import { generateCompanionReply } from "@/lib/chat";
 import { extractMemoryCandidates } from "@/lib/memory/extractor";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { recordModelUsage } from "@/lib/usage";
 import { createUserLlmProvider } from "@/lib/llm/user-provider";
 import { normalizeProactiveFrequency } from "@/lib/relationship/proactive-frequency";
@@ -186,7 +187,7 @@ export class RenewalService {
           this.userId,
           companion.id,
           userMessage.id,
-          `候选记忆：用户刚刚说过“${trimmed.slice(0, 42)}${trimmed.length > 42 ? "..." : ""}”。`
+          `候选记忆：用户刚刚说过“${trimMemoryQuote(trimmed)}”。`
         )
       : null;
 
@@ -394,6 +395,12 @@ function messagesForPrompt(messages: MessageRecord[]) {
       message.metadata?.status !== "failed" &&
       !message.metadata?.deletedAt
   );
+}
+
+function trimMemoryQuote(text: string) {
+  const sanitized = redactSensitiveResponseText(text) ?? "";
+  if (sanitized.length <= 42) return sanitized;
+  return `${sanitized.slice(0, 42)}...`;
 }
 
 function toAssistantError(error: unknown) {

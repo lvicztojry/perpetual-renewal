@@ -20,6 +20,7 @@
 - [ ] `npm run verify:local -- --skip-e2e`
 - [ ] `npm run qa:imports`
 - [ ] `npm run qa:vault`
+- [ ] `npm run qa:response`
 - [ ] `npm run verify:local`
 - [ ] `npm run verify:release`
 - [ ] `npm run verify:deploy` in the target deployment environment before production release

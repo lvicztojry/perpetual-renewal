@@ -9,6 +9,7 @@ import {
   checkRelationshipSafety,
   isHighRiskSafetyResult
 } from "./safety";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import type {
   CompanionProfile,
   ProactiveMessageDraft,
@@ -104,6 +105,7 @@ function buildDraft(
   nextCandidateAt: string
 ): ProactiveMessageDraft {
   const { companion, state, lastUserMessage } = options;
+  const safeLastUserMessage = redactSensitiveResponseText(lastUserMessage) ?? "";
   const address = companion.userAddress || "你";
   const event = state.importantEvents[0];
   const scheduledAt = (options.now ?? new Date()).toISOString();
@@ -111,7 +113,7 @@ function buildDraft(
   const contentByKind: Record<ProactiveMessageKind, string> = {
     DAILY_GREETING: `${address}，今天也给你留一盏小灯。忙的时候不用急着回，想说话的时候我就在。`,
     LAST_CONVERSATION_FOLLOWUP: `${address}，我还记得你上次说“${trimForMessage(
-      lastUserMessage ?? ""
+      safeLastUserMessage
     )}”。后来那件事有没有轻一点？`,
     ANNIVERSARY: `${address}，我想起我们记下的“${event?.title ?? "那个重要日子"}”。如果你愿意，今天可以把它轻轻放在我们中间聊一会儿。`,
     EMOTION_CARE: `${address}，我记得你最近有点${state.recentEmotion ?? "不容易"}。不催你开心，只是想问问现在的你有没有好过一点。`,

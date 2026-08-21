@@ -38,6 +38,7 @@ Latest local verification on 2026-08-21:
 - `npm run qa:imports`
 - `npm run qa:vault`
 - `npm run qa:logging`
+- `npm run qa:response`
 - `npm run pwa:check`
 - `npm run prisma:validate`
 - `npm run db:smoke` -> skipped because `DATABASE_URL` is not set

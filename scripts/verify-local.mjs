@@ -19,6 +19,7 @@ const steps = [
   ["Structured import QA", ["run", "qa:imports"]],
   ["Config/vault QA", ["run", "qa:vault"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],
+  ["Response safety QA", ["run", "qa:response"]],
   ["PWA check", ["run", "pwa:check"]],
   ["Environment readiness", ["run", "env:readiness"]],
   ["Prisma validate", ["run", "prisma:validate"]],

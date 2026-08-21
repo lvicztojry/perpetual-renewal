@@ -59,6 +59,9 @@ jobs:
       - name: Logging sanitize QA
         run: npm run qa:logging
 
+      - name: Response safety QA
+        run: npm run qa:response
+
       - name: PWA check
         run: npm run pwa:check
 

@@ -186,6 +186,7 @@ VOICE_TTS_MODEL
 VOICE_DEFAULT_VOICE
 VOICE_CREDENTIAL_SOURCE
 USER_KEY_VAULT_SECRET
+SESSION_COOKIE_SECRET
 PROACTIVE_CRON_SECRET
 ```
 
@@ -303,6 +304,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run pwa:check
 npm run prisma:validate
 npm run db:smoke
@@ -370,6 +372,7 @@ npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
 npm run qa:logging
+npm run qa:response
 npm run pwa:check
 npm run env:readiness
 npm run prisma:validate

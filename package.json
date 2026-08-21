@@ -13,6 +13,7 @@
     "qa:imports": "node tests/structured-import-smoke.mjs",
     "qa:vault": "node tests/config-vault-security.mjs",
     "qa:logging": "node tests/logging-sanitize-smoke.mjs",
+    "qa:response": "node tests/response-safety-smoke.mjs",
     "pwa:check": "node scripts/pwa-check.mjs",
     "db:smoke": "node scripts/db-smoke.mjs",
     "env:readiness": "node scripts/env-readiness.mjs",

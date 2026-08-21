@@ -219,6 +219,16 @@ async function runApiBoundaryStaticSmoke() {
       responseSafetySource.includes("redacted-provider-endpoint"),
     "HTTP response text sanitizer should cover log secrets and provider endpoints"
   );
+
+  const usageRepositorySource = await readFile(
+    resolve(ROOT_DIR, "src/lib/usage/repository.ts"),
+    "utf8"
+  );
+  assert(
+    usageRepositorySource.includes("redactSensitiveResponseText") &&
+      /fallbackReason:\s*redactSensitiveResponseText\(/.test(usageRepositorySource),
+    "usage logs should sanitize fallbackReason before persistence"
+  );
   pass("API route response boundaries stay private and sanitized");
 }
 
@@ -1119,6 +1129,11 @@ async function runSmoke() {
     messageWithAccidentalSecrets.body.userMessage?.content.includes(accidentalMessageSecret),
     "message fixture should preserve accidental secret before export scrub"
   );
+  assert(
+    !messageWithAccidentalSecrets.body.pendingMemory?.content?.includes(accidentalMessageSecret) &&
+      !messageWithAccidentalSecrets.body.pendingMemory?.content?.includes(providerEndpointInMessage),
+    "automatic pending memory should not amplify accidental message secrets"
+  );
   pass("POST /api/conversations/:id/messages stores accidental secret fixture for export scrub");
 
   const relationshipStateRead = await request(
@@ -1173,6 +1188,9 @@ async function runSmoke() {
   );
   pass("POST /api/companions/:id/relationship-state updates timeline");
 
+  const proactiveSecret = "proactive-secret-value-012345";
+  const proactiveEndpoint = "https://proactive.gateway.example.com/v1/chat/completions";
+  const proactiveRawPayload = "proactive-raw-payload-should-not-leak";
   const proactive = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/proactive-drafts`,
     {
@@ -1200,7 +1218,12 @@ async function runSmoke() {
           lastInteractionAt: null,
           explanation: "smoke"
         },
-        lastUserMessage: "我今天有点想你。",
+        lastUserMessage: [
+          "我今天有点想你。",
+          `api_key=${proactiveSecret}`,
+          proactiveEndpoint,
+          `rawPayload="${proactiveRawPayload}"`
+        ].join(" "),
         proactiveMessagesEnabled: true,
         frequencyHours: 0
       })
@@ -1219,6 +1242,12 @@ async function runSmoke() {
   assert(
     proactive.body.persistence === "prisma" || proactive.body.persistence === "memory",
     "proactive drafts should report repository persistence"
+  );
+  assert(
+    !JSON.stringify(proactive.body).includes(proactiveSecret) &&
+      !JSON.stringify(proactive.body).includes(proactiveEndpoint) &&
+      !JSON.stringify(proactive.body).includes(proactiveRawPayload),
+    "proactive drafts should not amplify accidental secrets from lastUserMessage"
   );
   assertInvalidJsonResponse(
     await request(
