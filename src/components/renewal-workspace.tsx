@@ -185,6 +185,7 @@ const proactiveDraftFilterOptions: Array<{
 
 const maxVoiceUploadBytes = 4 * 1024 * 1024;
 const maxImportFileBytes = 512 * 1024;
+const proactiveAutoCheckIntervalMs = 60000;
 const allowedImportFileExtensions = [".txt", ".jsonl", ".json"] as const;
 const structuredImportKindLabels: Record<StructuredImportKind, string> = {
   media: "媒体素材",
@@ -336,6 +337,89 @@ export function RenewalWorkspace() {
       mounted = false;
     };
   }, [activeCompanion]);
+
+  useEffect(() => {
+    const companionId = activeCompanion?.id;
+    const proactiveEnabled = activeCompanion?.proactiveMessagesEnabled;
+    if (
+      !companionId ||
+      !proactiveEnabled ||
+      isBooting ||
+      isSending ||
+      isSaving ||
+      isImporting ||
+      isLoadingDrafts
+    ) {
+      return;
+    }
+
+    let disposed = false;
+    let running = false;
+
+    async function checkDueProactiveDrafts() {
+      if (running) return;
+      running = true;
+
+      try {
+        const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
+        const response = await fetch(`/api/companions/${companionId}/proactive-drafts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lastUserMessage: lastUserMessage?.content,
+            proactiveMessagesEnabled: true,
+            force: false
+          })
+        });
+        const payload = (await response.json()) as {
+          data?: ProactiveDraft[];
+          error?: string;
+          persistence?: string;
+          safety?: DraftSafety;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "主动回响自动检查失败。");
+        }
+
+        if (disposed || !payload.data?.length) return;
+
+        setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
+        setProactiveDraftFilter("draft");
+        setProactivePersistence(payload.persistence ?? "persisted");
+        setProactiveSafety(payload.safety ?? null);
+        setStatus("有新的主动回响草稿");
+        if (inspectorMode === "profile" || inspectorMode === "proactive") {
+          setInspectorMode("proactive");
+        }
+      } catch (autoError) {
+        if (!disposed && inspectorMode === "proactive") {
+          setProactiveError(toSafeWorkspaceError(autoError, "主动回响自动检查失败。"));
+        }
+      } finally {
+        running = false;
+      }
+    }
+
+    const timer = window.setInterval(
+      () => void checkDueProactiveDrafts(),
+      proactiveAutoCheckIntervalMs
+    );
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    activeCompanion?.id,
+    activeCompanion?.proactiveMessagesEnabled,
+    inspectorMode,
+    isBooting,
+    isImporting,
+    isLoadingDrafts,
+    isSaving,
+    isSending,
+    messages
+  ]);
 
   function selectCompanion(companion: CompanionProfile) {
     setActiveId(companion.id);
@@ -2678,6 +2762,23 @@ function normalizeDraftStatus(status: string | undefined): ProactiveDraftStatus 
   }
 
   return "draft";
+}
+
+function mergeProactiveDrafts(current: ProactiveDraft[], incoming: ProactiveDraft[]) {
+  const merged = new Map<string, ProactiveDraft>();
+
+  for (const draft of current) {
+    merged.set(draft.id, draft);
+  }
+  for (const draft of incoming) {
+    merged.set(draft.id, draft);
+  }
+
+  return [...merged.values()].sort((left, right) => {
+    const leftTime = new Date(left.createdAt ?? left.scheduledAt ?? 0).getTime();
+    const rightTime = new Date(right.createdAt ?? right.scheduledAt ?? 0).getTime();
+    return rightTime - leftTime;
+  });
 }
 
 function formatDraftFilterLabel(filter: ProactiveDraftFilter) {

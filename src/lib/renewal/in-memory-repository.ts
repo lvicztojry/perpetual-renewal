@@ -49,8 +49,8 @@ function createSeedStore(): InMemoryStore {
       boundaries: "可以亲昵和撒娇，但不能控诉、威胁或制造用户愧疚。",
       immersionEnabled: true,
       proactiveMessagesEnabled: true,
-      proactiveFrequencyPreset: "24h",
-      proactiveFrequencyMinutes: 1440,
+      proactiveFrequencyPreset: "1m",
+      proactiveFrequencyMinutes: 1,
       createdAt,
       updatedAt: createdAt
     },
@@ -68,8 +68,8 @@ function createSeedStore(): InMemoryStore {
       boundaries: "不把未回复包装成过错。",
       immersionEnabled: true,
       proactiveMessagesEnabled: true,
-      proactiveFrequencyPreset: "12h",
-      proactiveFrequencyMinutes: 720,
+      proactiveFrequencyPreset: "1m",
+      proactiveFrequencyMinutes: 1,
       createdAt,
       updatedAt: createdAt
     }
@@ -166,6 +166,15 @@ function createSeedStore(): InMemoryStore {
 function getStore() {
   globalThis.renewalStore ??= createSeedStore();
   globalThis.renewalStore.proactiveMessages ??= [];
+  for (const companion of globalThis.renewalStore.companions) {
+    if (
+      companion.proactiveFrequencyPreset === "24h" &&
+      companion.proactiveFrequencyMinutes === 1440
+    ) {
+      companion.proactiveFrequencyPreset = "1m";
+      companion.proactiveFrequencyMinutes = 1;
+    }
+  }
   return globalThis.renewalStore;
 }
 
@@ -237,8 +246,8 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       boundaries: input.boundaries?.trim() || "保持关系内表达，不承诺现实行动、金钱或身份。",
       immersionEnabled: input.immersionEnabled ?? true,
       proactiveMessagesEnabled: input.proactiveMessagesEnabled ?? true,
-      proactiveFrequencyPreset: input.proactiveFrequencyPreset ?? "24h",
-      proactiveFrequencyMinutes: input.proactiveFrequencyMinutes ?? 1440,
+      proactiveFrequencyPreset: input.proactiveFrequencyPreset ?? "1m",
+      proactiveFrequencyMinutes: input.proactiveFrequencyMinutes ?? 1,
       createdAt: timestamp,
       updatedAt: timestamp
     };

@@ -109,8 +109,8 @@ export class PrismaRenewalRepository implements RenewalRepository {
         boundaries: input.boundaries?.trim() || "保持关系内表达，不承诺现实行动、金钱或身份。",
         immersionEnabled: input.immersionEnabled ?? true,
         proactiveMessagesEnabled: input.proactiveMessagesEnabled ?? true,
-        proactiveFrequencyPreset: input.proactiveFrequencyPreset ?? "24h",
-        proactiveFrequencyMinutes: input.proactiveFrequencyMinutes ?? 1440,
+        proactiveFrequencyPreset: input.proactiveFrequencyPreset ?? "1m",
+        proactiveFrequencyMinutes: input.proactiveFrequencyMinutes ?? 1,
         conversations: {
           create: {
             userId,

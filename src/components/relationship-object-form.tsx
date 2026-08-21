@@ -175,10 +175,10 @@ export function createRelationshipObjectDraft(
     boundaries: defaults.boundaries,
     immersionEnabled: true,
     proactiveMessagesEnabled: true,
-    proactiveFrequencyPreset: "24h",
-    proactiveFrequencyValue: 24,
-    proactiveFrequencyUnit: "hours",
-    proactiveFrequencyMinutes: 1440
+    proactiveFrequencyPreset: "1m",
+    proactiveFrequencyValue: 1,
+    proactiveFrequencyUnit: "minutes",
+    proactiveFrequencyMinutes: 1
   };
 }
 

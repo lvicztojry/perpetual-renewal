@@ -374,7 +374,7 @@
 
 - 在用户允许时生成站内主动消息。
 - 支持低频问候、上次对话承接、纪念日提醒、情绪关怀、撒娇式未回复回响。
-- 支持全局默认频率与单个关系对象覆盖，包含 6/12/24/72 小时预设和分钟、小时、天级自定义。
+- 支持全局默认频率与单个关系对象覆盖，包含 1 分钟、6/12/24/72 小时预设和分钟、小时、天级自定义。
 - 第一版提供受保护调度入口，不在应用进程内常驻后台定时器；生产可由 Vercel Cron、GitHub Actions 或其他外部 cron 调用。
 
 交付物：
@@ -659,8 +659,8 @@
 - 撒娇式未回复回响。
 - 安全过滤：不能责备、控诉、冷暴力、威胁、情绪勒索。
 - 高风险场景触发能力边界，日常场景保持沉浸。
-- 关系对象级主动回响配置：开启/关闭、6/12/24/72 小时预设、自定义分钟/小时/天。
-- 主动回响生成只产出候选时间和草稿，不启动后台定时器。
+- 关系对象级主动回响配置：开启/关闭、1 分钟、6/12/24/72 小时预设、自定义分钟/小时/天。
+- 主动回响生成产出候选时间和草稿；生产 all-user 仍依赖外部 cron，浏览器工作台打开时每分钟检查当前关系对象。
 
 主要文件：
 
@@ -686,6 +686,7 @@
 - 草稿响应新增频率元数据与 `nextCandidateAt`，供当前受保护的 `POST /api/proactive/run` 调度入口读取。
 - M-PROACTIVE-SCHEDULER 已完成第一版：`POST /api/proactive/run` 支持 current-user dry-run/save-run，all-user scope 必须携带 `PROACTIVE_CRON_SECRET`。
 - 调度响应只返回扫描数量、生成数量、保存数量、候选时间和原因，不返回 secret、key、连接串、prompt 或消息正文。
+- M110 已将关系对象默认主动回响节奏改为 1 分钟，并为当前打开的工作台增加前台自动检查。
 
 ### M6 质量与验收
 
@@ -851,6 +852,7 @@
 | M107 API fallback 响应脱敏 | integrated | API 响应边界模块 + 主控 | `src/lib/http/response-safety.ts`、`src/app/api/chat/complete/route.ts`、`src/app/api/voice/synthesize/route.ts`、`src/app/api/voice/transcribe/route.ts`、`tests/smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | 聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一脱敏 provider endpoint、Base URL、prompt、rawPayload、stack 和 authorization；smoke 增加静态边界检查，防止 API route 绕过 JSON helper、`privateJson()` 或 fallback 出口脱敏 |
 | M108 响应脱敏 QA 与自动引用脱敏 | integrated | API 响应边界/发布门禁模块 + 主控 | `src/lib/http/response-safety.ts`、`src/lib/relationship/proactive.ts`、`src/lib/renewal/service.ts`、`src/lib/usage/repository.ts`、`tests/response-safety-smoke.mjs`、`tests/smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`docs/*` | 新增 `qa:response` 动态验证响应文本脱敏；主动回响和自动 pending memory 引用用户消息前脱敏，usage fallbackReason 入库前脱敏；部署文档 Vercel env 清单补入 `SESSION_COOKIE_SECRET` 并由 `docs:check` 守住 |
 | M109 账号删除派生数据回归 | integrated | 数据生命周期模块 + 主控 | `tests/smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md`、`docs/QA.md`、`docs/PR_DRAFT.md` | smoke 覆盖账号删除后重新登录同一邮箱时，旧关系对象、用户 vault、模型调用看板、导出快照中的消息/记忆/主动回响/安全事件/用量计数均不可读回，且不暴露旧 key、endpoint 或 vault 字段 |
+| M110 1 分钟主动回响体验 | integrated | 主动回响体验模块 + 主控 | `src/lib/relationship/proactive-frequency.ts`、`src/components/renewal-workspace.tsx`、`src/app/api/companions/[companionId]/proactive-drafts/route.ts`、`prisma/*`、`tests/*`、`docs/*` | 关系对象默认主动回响节奏改为 1 分钟，浏览器工作台打开时每分钟检查当前关系对象并展示新草稿；单关系草稿接口用历史主动草稿作为节奏锚点，避免自动检查立即重复生成 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |

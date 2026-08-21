@@ -67,6 +67,9 @@ type LlmModelListResponse = {
   credentialSource?: "user-vault" | "server-env";
   models?: LlmModelListItem[];
   error?: string;
+  errorType?: string;
+  httpStatus?: number;
+  retryable?: boolean;
 };
 
 type LlmConnectionTestResponse = {
@@ -357,7 +360,7 @@ export function UserSettings() {
       const payload: LlmModelListResponse = await response.json();
 
       if (!response.ok || !payload.models) {
-        throw new Error(payload.error ?? "读取模型列表失败");
+        throw new Error(formatModelListError(payload));
       }
 
       setModels(payload.models);
@@ -1003,6 +1006,42 @@ function redactCredentialSecrets(message: string, credentialForm: CredentialForm
     if (!secret.value) return current;
     return current.split(secret.value).join(secret.replacement);
   }, message);
+}
+
+function formatModelListError(payload: LlmModelListResponse) {
+  const baseMessage = payload.error ?? "读取模型列表失败";
+  const detail = readModelListErrorDetail(payload);
+  return detail ? `${baseMessage}（${detail}）` : baseMessage;
+}
+
+function readModelListErrorDetail(payload: LlmModelListResponse) {
+  if (payload.errorType === "provider_http_error") {
+    if (payload.httpStatus === 401 || payload.httpStatus === 403) {
+      return `HTTP ${payload.httpStatus}，通常是 API key 无效、权限不足或额度不可用`;
+    }
+
+    if (payload.httpStatus === 404) {
+      return "HTTP 404，模型列表端点不可用；可以先手动填写模型名再测试连接";
+    }
+
+    return typeof payload.httpStatus === "number"
+      ? `HTTP ${payload.httpStatus}${payload.retryable ? "，可以稍后重试" : ""}`
+      : "供应商返回非成功状态";
+  }
+
+  if (payload.errorType === "provider_timeout") {
+    return "请求超时，可以稍后重试";
+  }
+
+  if (payload.errorType === "provider_network_error") {
+    return "网络或供应商地址不可达";
+  }
+
+  if (payload.errorType === "invalid_provider_response") {
+    return "返回格式不是 OpenAI-compatible 模型列表；可以手动填写模型名";
+  }
+
+  return "";
 }
 
 function toFriendlyExportError(error: unknown) {

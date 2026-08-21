@@ -37,7 +37,7 @@ export type ProactiveMessageKind =
   | "EMOTION_CARE"
   | "PLAYFUL_MISS_YOU";
 
-export type ProactiveFrequencyPreset = "6h" | "12h" | "24h" | "72h" | "custom";
+export type ProactiveFrequencyPreset = "1m" | "6h" | "12h" | "24h" | "72h" | "custom";
 
 export type CompanionRecord = {
   id: string;

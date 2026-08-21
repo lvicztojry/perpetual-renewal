@@ -29,6 +29,27 @@ type ProactiveDraftRequest = {
 
 export const dynamic = "force-dynamic";
 
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ companionId: string }> }
+) {
+  const { companionId } = await context.params;
+  const session = await getCurrentSession();
+  const repository = createRenewalRepository();
+  const companion = await repository.getCompanion(session.userId, companionId);
+
+  if (!companion) {
+    return privateJson({ error: "Companion not found." }, { status: 404 });
+  }
+
+  const records = await repository.listProactiveMessages(session.userId, companion.id);
+
+  return privateJson({
+    data: records.map(toProactiveDraftResponse),
+    persistence: repository.persistence
+  });
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ companionId: string }> }
@@ -49,9 +70,10 @@ export async function POST(
   const requestedFrequencyMinutes = readFrequencyMinutes(body);
   const session = await getCurrentSession();
   const repository = createRenewalRepository();
-  const [companion, profile] = await Promise.all([
+  const [companion, profile, proactiveMessages] = await Promise.all([
     repository.getCompanion(session.userId, companionId),
-    getUserProfile(session.userId)
+    getUserProfile(session.userId),
+    repository.listProactiveMessages(session.userId, companionId)
   ]);
 
   if (!companion) {
@@ -59,7 +81,9 @@ export async function POST(
   }
 
   const proactiveCompanion = toProactiveCompanion(companion);
-  const state = toRelationshipSnapshot(companion.relationshipState);
+  const state = forceGenerate
+    ? toRelationshipSnapshot(companion.relationshipState)
+    : withProactiveDraftAnchor(toRelationshipSnapshot(companion.relationshipState), proactiveMessages);
   const safety = checkProactiveContextSafety({
     lastUserMessage: body.lastUserMessage,
     companionInstruction: [
@@ -121,22 +145,7 @@ export async function POST(
   }
 
   return privateJson({
-    data: records.map((record) => ({
-      id: record.id,
-      companionId: record.companionId,
-      kind: record.kind,
-      content: record.content,
-      reason: record.reason,
-      scheduledAt: record.scheduledAt,
-      nextCandidateAt:
-        typeof record.safety?.nextCandidateAt === "string" ? record.safety.nextCandidateAt : null,
-      frequency: record.safety?.frequency ?? null,
-      safety: record.safety?.result ?? null,
-      status: record.status,
-      persistence: repository.persistence,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    })),
+    data: records.map(toProactiveDraftResponse),
     safety,
     persistence: repository.persistence,
     frequency,
@@ -144,6 +153,24 @@ export async function POST(
     generatedCount: drafts.length,
     savedCount: records.length
   });
+}
+
+function toProactiveDraftResponse(record: ProactiveMessageRecord) {
+  return {
+    id: record.id,
+    companionId: record.companionId,
+    kind: record.kind,
+    content: record.content,
+    reason: record.reason,
+    scheduledAt: record.scheduledAt,
+    nextCandidateAt:
+      typeof record.safety?.nextCandidateAt === "string" ? record.safety.nextCandidateAt : null,
+    frequency: record.safety?.frequency ?? null,
+    safety: record.safety?.result ?? null,
+    status: record.status,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
 }
 
 function readFrequencyMinutes(body: ProactiveDraftRequest) {
@@ -198,4 +225,28 @@ function toRelationshipSnapshot(state: RelationshipStateRecord): RelationshipSta
     lastInteractionAt: state.lastInteractionAt ?? undefined,
     explanation: state.explanation ?? "来自持久化关系状态。"
   };
+}
+
+function withProactiveDraftAnchor(
+  state: RelationshipStateSnapshot,
+  proactiveMessages: ProactiveMessageRecord[]
+): RelationshipStateSnapshot {
+  const latestProactiveAt = latestDate(
+    proactiveMessages.flatMap((message) => [message.scheduledAt, message.createdAt])
+  );
+  const latestAnchor = latestDate([state.lastInteractionAt, latestProactiveAt?.toISOString()]);
+
+  return {
+    ...state,
+    lastInteractionAt: latestAnchor?.toISOString() ?? state.lastInteractionAt
+  };
+}
+
+function latestDate(values: Array<string | null | undefined>) {
+  const dates = values
+    .map((value) => (value ? new Date(value) : null))
+    .filter((value): value is Date => !!value && !Number.isNaN(value.getTime()))
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  return dates[0];
 }

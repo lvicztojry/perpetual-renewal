@@ -28,7 +28,7 @@
 | 记忆系统 | integrated | pending、active、archived、deleted 生命周期 |
 | 素材导入 | integrated | 单段文本、批量文本数组、JSON Lines、本地 `.txt/.jsonl/.json` 文件读取、媒体说明、照片/音视频文件摘要、通讯录脱敏摘要，默认 pending 并脱敏密钥形态 |
 | 关系状态 | integrated | 熟悉度、亲密度、近期情绪、重要事件 |
-| 主动回响 | integrated | 站内草稿、撒娇式未回复回响、自定义频率、受保护 cron 入口 |
+| 主动回响 | integrated | 站内草稿、撒娇式未回复回响、1 分钟默认节奏、自定义频率、当前工作台前台自动检查、受保护 cron 入口 |
 | 主动草稿状态 | integrated | draft、sent、dismissed、blocked 状态管理与筛选 |
 | 安全边界 | integrated | 运行时规则、安全 QA 样例、脱敏安全事件日志 |
 | 模型调用看板 | integrated | provider/model/latency/tokens/估算成本，不记录正文或 key |
@@ -189,6 +189,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M107 API fallback 响应脱敏：聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一走 `redactSensitiveResponseText()`；smoke 增加静态边界检查，防止 API route 绕过 JSON 解析 helper、`privateJson()` 或高风险 fallback 脱敏。
 - M108 响应脱敏 QA 与自动引用脱敏：新增 `qa:response` 动态验证 API 响应文本脱敏；主动回响引用最近用户消息、自动 pending memory 引用用户消息、usage fallbackReason 入库前统一脱敏；部署文档 Vercel env 清单补入 `SESSION_COOKIE_SECRET` 并由 `docs:check` 守住。
 - M109 账号删除派生数据回归：smoke 覆盖账号删除后重新登录同一邮箱时，旧关系对象、用户 vault、模型调用看板、导出快照中的消息/记忆/主动回响/安全事件/用量计数均不可读回，且不暴露旧 key、endpoint 或 vault 字段。
+- M110 1 分钟主动回响体验：关系对象默认主动回响节奏改为 1 分钟；浏览器工作台打开时每分钟检查当前关系对象并展示新草稿；单关系草稿接口用历史主动草稿作为节奏锚点，避免自动检查立即重复生成。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

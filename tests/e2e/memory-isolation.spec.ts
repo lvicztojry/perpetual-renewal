@@ -147,8 +147,8 @@ async function createCompanionByApi(page: Page, name: string) {
       boundaries: "不泄露其他用户数据。",
       immersionEnabled: true,
       proactiveMessagesEnabled: true,
-      proactiveFrequencyPreset: "24h",
-      proactiveFrequencyMinutes: 1440
+      proactiveFrequencyPreset: "1m",
+      proactiveFrequencyMinutes: 1
     }
   });
   expect(result.status).toBe(201);

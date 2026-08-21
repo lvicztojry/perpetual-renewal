@@ -1,4 +1,4 @@
-export type ProactiveFrequencyPreset = "6h" | "12h" | "24h" | "72h" | "custom";
+export type ProactiveFrequencyPreset = "1m" | "6h" | "12h" | "24h" | "72h" | "custom";
 
 export type ProactiveFrequencyUnit = "minutes" | "hours" | "days";
 
@@ -20,14 +20,15 @@ export type ProactiveScheduleCandidate = {
 };
 
 export const PROACTIVE_FREQUENCY_PRESETS = [
+  { id: "1m", label: "1 分钟", minutes: 1 },
   { id: "6h", label: "6 小时", minutes: 360 },
   { id: "12h", label: "12 小时", minutes: 720 },
   { id: "24h", label: "24 小时", minutes: 1440 },
   { id: "72h", label: "72 小时", minutes: 4320 }
 ] as const;
 
-export const DEFAULT_PROACTIVE_FREQUENCY_MINUTES = 1440;
-export const MIN_PROACTIVE_FREQUENCY_MINUTES = 5;
+export const DEFAULT_PROACTIVE_FREQUENCY_MINUTES = 1;
+export const MIN_PROACTIVE_FREQUENCY_MINUTES = 1;
 export const MAX_PROACTIVE_FREQUENCY_MINUTES = 43200;
 
 type ProactiveFrequencyInput = {

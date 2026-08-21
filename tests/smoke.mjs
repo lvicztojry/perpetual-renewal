@@ -539,6 +539,11 @@ async function runSmoke() {
   assert(created.response.status === 201, "companion creation should return 201");
   assert(created.body.companion?.relationshipKind === "CUSTOM", "created companion should be custom");
   assert(created.body.companion?.conversationId, "created companion should include conversationId");
+  assert(
+    created.body.companion?.proactiveFrequencyPreset === "1m" &&
+      created.body.companion?.proactiveFrequencyMinutes === 1,
+    "created companion should default proactive cadence to one minute"
+  );
 
   assertInvalidJsonResponse(
     await request(
@@ -1231,6 +1236,11 @@ async function runSmoke() {
   );
   assert(Array.isArray(proactive.body.data), "proactive drafts should return an array");
   assert(proactive.body.data.length > 0, "proactive drafts should include at least one draft");
+  assert(
+    proactive.body.frequency?.everyMinutes === 1 &&
+      proactive.body.frequency?.preset === "1m",
+    "proactive drafts should normalize zero-hour manual requests back to one minute"
+  );
   assert(
     proactive.body.data.every((draft) => draft.safety?.action !== "block"),
     "proactive drafts should pass postflight safety"
