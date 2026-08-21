@@ -33,6 +33,14 @@ import {
   type MessageRecord
 } from "@/lib/renewal/types";
 import { inferCustomFrequencyValue } from "@/lib/relationship/proactive-frequency";
+import {
+  createContactFileImportPlan,
+  createMediaFileImportPlan,
+  createStructuredTextImportPlan,
+  structuredImportLimits,
+  type StructuredImportKind,
+  type StructuredImportPlan
+} from "@/lib/import/structured-client-import";
 
 type InspectorMode =
   | "profile"
@@ -178,6 +186,10 @@ const proactiveDraftFilterOptions: Array<{
 const maxVoiceUploadBytes = 4 * 1024 * 1024;
 const maxImportFileBytes = 512 * 1024;
 const allowedImportFileExtensions = [".txt", ".jsonl", ".json"] as const;
+const structuredImportKindLabels: Record<StructuredImportKind, string> = {
+  media: "媒体素材",
+  contact: "通讯录"
+};
 
 export function RenewalWorkspace() {
   const [companions, setCompanions] = useState<CompanionProfile[]>([]);
@@ -196,6 +208,9 @@ export function RenewalWorkspace() {
   const [importText, setImportText] = useState("");
   const [importMode, setImportMode] = useState<ImportMode>("single");
   const [importSourceKind, setImportSourceKind] = useState<ImportSourceKind>("memory_candidate");
+  const [structuredImportKind, setStructuredImportKind] =
+    useState<StructuredImportKind>("media");
+  const [structuredImportText, setStructuredImportText] = useState("");
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importFileName, setImportFileName] = useState<string | null>(null);
   const [isBooting, setIsBooting] = useState(true);
@@ -885,6 +900,75 @@ export function RenewalWorkspace() {
       setImportError(message);
       setStatus("文件读取失败，请换一个文本文件");
     }
+  }
+
+  async function readStructuredImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (!files.length) return;
+
+    setImportError(null);
+    setImportSummary(null);
+
+    try {
+      if (structuredImportKind === "media") {
+        applyStructuredImportPlan(
+          createMediaFileImportPlan(
+            files.map((file) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified
+            }))
+          ),
+          files.length === 1 ? files[0].name : `${files.length} 个媒体文件`
+        );
+        return;
+      }
+
+      const file = files[0];
+      const text = await file.text();
+      applyStructuredImportPlan(
+        createContactFileImportPlan({
+          fileName: file.name,
+          fileText: text,
+          fileSize: file.size
+        }),
+        file.name
+      );
+    } catch (readError) {
+      const message = readError instanceof Error ? readError.message : "结构化素材读取失败。";
+      setImportError(message);
+      setStatus("结构化素材读取失败，请换一个文件");
+    }
+  }
+
+  function applyStructuredTextImport() {
+    applyStructuredImportPlan(
+      createStructuredTextImportPlan({
+        kind: structuredImportKind,
+        text: structuredImportText
+      }),
+      structuredImportKindLabels[structuredImportKind]
+    );
+  }
+
+  function applyStructuredImportPlan(plan: StructuredImportPlan, sourceName: string) {
+    if (!plan.items.length) {
+      setImportError(plan.warnings[0] ?? "没有发现可导入的结构化素材。");
+      setStatus("结构化素材未导入：没有可用条目");
+      return;
+    }
+
+    setImportMode("jsonl");
+    setImportSourceKind(plan.items[0].sourceKind);
+    setImportText(plan.items.map((item) => JSON.stringify(item)).join("\n"));
+    setImportFileName(sourceName);
+    setStructuredImportText("");
+    setImportError(plan.warnings.length ? plan.warnings.join(" ") : null);
+    setStatus(
+      `已整理 ${plan.items.length} 条${structuredImportKindLabels[structuredImportKind]}，确认后可导入`
+    );
   }
 
   async function toggleVoiceRecording() {
@@ -1669,6 +1753,72 @@ export function RenewalWorkspace() {
                     <div className="status-box">已读取：{importFileName}</div>
                   ) : null}
                 </div>
+                <div className="panel-title compact-title">
+                  <h2>媒体与通讯录</h2>
+                  <span className="pill teal">{structuredImportKindLabels[structuredImportKind]}</span>
+                </div>
+                <div className="segmented import-mode-grid" role="group" aria-label="结构化导入类型">
+                  {(["media", "contact"] as StructuredImportKind[]).map((kind) => (
+                    <button
+                      className={`segment ${structuredImportKind === kind ? "active" : ""}`}
+                      disabled={isImporting}
+                      key={kind}
+                      onClick={() => {
+                        setStructuredImportKind(kind);
+                        setImportError(null);
+                      }}
+                      type="button"
+                    >
+                      {structuredImportKindLabels[kind]}
+                    </button>
+                  ))}
+                </div>
+                <div className="file-import-row">
+                  <label
+                    className={`text-button wide ${isImporting ? "disabled" : ""}`}
+                    htmlFor="structured-material-file"
+                  >
+                    <Upload size={17} />
+                    选择{structuredImportKindLabels[structuredImportKind]}
+                  </label>
+                  <input
+                    accept={
+                      structuredImportKind === "media"
+                        ? "image/*,audio/*,video/*"
+                        : ".vcf,.vcard,.csv,.json,text/vcard,text/csv,application/json"
+                    }
+                    aria-label={`选择${structuredImportKindLabels[structuredImportKind]}`}
+                    className="visually-hidden"
+                    disabled={!activeCompanion || isImporting}
+                    id="structured-material-file"
+                    multiple={structuredImportKind === "media"}
+                    onChange={readStructuredImportFile}
+                    type="file"
+                  />
+                  <div className="status-box">
+                    媒体最多 {structuredImportLimits.maxMediaFiles} 个、单个最大{" "}
+                    {formatBytes(structuredImportLimits.maxMediaFileBytes)}；通讯录最大{" "}
+                    {formatBytes(structuredImportLimits.maxContactFileBytes)}。原文件不会上传或保存。
+                  </div>
+                </div>
+                <label className="field">
+                  <span>{structuredImportKindLabels[structuredImportKind]}说明</span>
+                  <textarea
+                    disabled={!activeCompanion || isImporting}
+                    onChange={(event) => setStructuredImportText(event.target.value)}
+                    placeholder={formatStructuredImportPlaceholder(structuredImportKind)}
+                    value={structuredImportText}
+                  />
+                </label>
+                <button
+                  className="text-button wide"
+                  disabled={!activeCompanion || isImporting || !structuredImportText.trim()}
+                  onClick={applyStructuredTextImport}
+                  type="button"
+                >
+                  <Upload size={17} />
+                  整理为导入文本
+                </button>
                 <label className="field">
                   <span>{formatImportFieldLabel(importMode)}</span>
                   <textarea
@@ -2327,6 +2477,14 @@ function formatImportPlaceholder(mode: ImportMode) {
   }
 
   return "粘贴聊天片段、设定补充、语气样例或想让 TA 记住的事实";
+}
+
+function formatStructuredImportPlaceholder(kind: StructuredImportKind) {
+  if (kind === "contact") {
+    return '可粘贴 vCard、CSV 或 JSON，例如：\n[{"name":"阿澈","relationship":"朋友","phone":"13800000000","note":"高中时总陪我晚自习"}]';
+  }
+
+  return '可粘贴照片/音频/视频说明，例如：\n[{"title":"五月海边","description":"那天 TA 说以后难过就来海边吹风","people":"我和 TA","date":"2024-05-20"}]';
 }
 
 function formatImportModeHint(mode: ImportMode) {

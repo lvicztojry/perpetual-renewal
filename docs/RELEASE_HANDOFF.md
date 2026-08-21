@@ -9,25 +9,28 @@
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
-- Recent local commits include M49-M56 stabilization, runtime hardening, and construction-status cleanup.
+- Recent local commits include M49-M59 stabilization, runtime hardening, and construction-status cleanup.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
 - M53 scope: proactive scheduler `maxDrafts` guardrail.
 - M54 scope: construction decision points clarified into decided baselines vs. remaining user decisions.
 - M55 scope: session `userId` integration status settled in Taskbook.
 - M56 scope: Taskbook task-definition statuses synced with the current task snapshot and guarded by `docs:check`.
+- M57 scope: account deletion confirmation flow, current-user data cleanup, and smoke coverage.
+- M58 scope: PWA manifest, app icons, offline shell, and API-skipping service worker.
+- M59 scope: structured media/photo/contact import planner, privacy-preserving browser-only file summaries, and workspace import UI.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 
 ## Latest Pre-push Verification
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
 
 - `npm run docs:check`: passed, 19 docs/readme files.
 - `npm run git:boundary`: passed, 147 committable files.
 - `npm run secrets:check`: passed, 147 committable files.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 57 checks.
+- `npm run smoke`: passed, 63 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run prisma:validate`: passed.
@@ -38,6 +41,7 @@ Last updated: 2026-08-20
 - `git status --short --ignored`: source tree clean; only ignored generated folders remain.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
+- M57-M59 follow-up: smoke now covers account deletion and PWA static assets; structured import remains browser-only and reuses the existing import API.
 
 ## Before Push
 
@@ -113,8 +117,4 @@ Run once for `USER_KEY_VAULT_SECRET` and once for `PROACTIVE_CRON_SECRET`.
 
 ## Deferred Product Decisions
 
-- Push branch and open PR.
 - Configure production PostgreSQL and secrets.
-- Decide PWA scope.
-- Decide multimedia/photo/contact import scope.
-- Decide account deletion policy and confirmation UX.

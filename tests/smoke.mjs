@@ -264,6 +264,33 @@ async function runSmoke() {
   );
   pass("home page health");
 
+  const manifest = await request("/manifest.webmanifest");
+  const manifestBody =
+    typeof manifest.body === "string" ? JSON.parse(manifest.body) : manifest.body;
+  assert(manifestBody.name === "生生不息", "PWA manifest should use the product name");
+  assert(manifestBody.display === "standalone", "PWA manifest should enable standalone display");
+  assert(
+    manifestBody.icons?.some((icon) => icon.src === "/icons/icon.svg"),
+    "PWA manifest should reference a real app icon"
+  );
+  pass("GET /manifest.webmanifest PWA metadata");
+
+  const offline = await request("/offline.html");
+  assert(
+    typeof offline.body === "string" && offline.body.includes("暂时离线"),
+    "offline page should explain offline state"
+  );
+  pass("GET /offline.html offline shell");
+
+  const serviceWorker = await request("/sw.js");
+  assert(
+    typeof serviceWorker.body === "string" &&
+      serviceWorker.body.includes("perpetual-renewal-pwa-v1") &&
+      serviceWorker.body.includes('url.pathname.startsWith("/api/")'),
+    "service worker should explicitly skip API response caching"
+  );
+  pass("GET /sw.js safe service worker");
+
   const companionsBefore = await request("/api/companions");
   assert(Array.isArray(companionsBefore.body.companions), "companions list should be an array");
   pass("GET /api/companions");
@@ -1162,6 +1189,52 @@ async function runSmoke() {
     "user export should not expose raw safety event text"
   );
   pass("GET /api/me/export safety audit hashes");
+
+  const rejectedAccountDelete = await request(
+    "/api/me/account",
+    {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "delete" })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedAccountDelete.response.status === 400,
+    "account delete should reject an incorrect confirmation phrase"
+  );
+  assert(
+    rejectedAccountDelete.body.confirmationRequired === "删除我的账号",
+    "account delete should return the required confirmation phrase"
+  );
+  pass("DELETE /api/me/account rejects incorrect confirmation");
+
+  const deletedAccount = await request("/api/me/account", {
+    method: "DELETE",
+    body: JSON.stringify({ confirmation: "删除我的账号" })
+  });
+  assert(deletedAccount.body.deleted === true, "account delete should return deleted=true");
+  assert(deletedAccount.body.sessionCleared === true, "account delete should clear the session cookie");
+  assert(
+    deletedAccount.body.counts?.companions >= 1 &&
+      deletedAccount.body.counts?.memories >= 1 &&
+      deletedAccount.body.counts?.modelUsageLogs >= 1,
+    "account delete should report deleted user-owned records"
+  );
+  assert(
+    !JSON.stringify(deletedAccount.body).includes("Bearer") &&
+      !JSON.stringify(deletedAccount.body).includes("baseUrl") &&
+      !JSON.stringify(deletedAccount.body).includes("encryptedApiKey"),
+    "account delete response should not expose provider credentials"
+  );
+  pass("DELETE /api/me/account removes current user data");
+
+  const companionsAfterAccountDelete = await request("/api/companions");
+  assert(
+    Array.isArray(companionsAfterAccountDelete.body.companions) &&
+      companionsAfterAccountDelete.body.companions.length === 0,
+    "account delete should remove current user's relationship objects"
+  );
+  pass("GET /api/companions after account delete returns no relationships");
 }
 
 async function request(pathname, options = {}, behavior = {}) {

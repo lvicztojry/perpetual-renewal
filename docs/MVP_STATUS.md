@@ -6,9 +6,9 @@
 
 ## 当前结论
 
-当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、安全事件日志、响应式工作台和上线前隐私/安全清单均已集成。
+当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。用户已允许 push 和 PR，待最终验证后执行。
 
 ## 已集成能力
 
@@ -21,9 +21,10 @@
 | 用户级 key vault | integrated | 设置页保存/删除/查看摘要；AES-256-GCM 加密；不返回 key 原文 |
 | 模型列表与连接测试 | integrated | 通过用户 vault 或服务端 env 读取兼容中转站 `/models`，设置页可测试连接 |
 | 配置状态向导 | integrated | 设置页只读展示数据库、vault secret、cron secret、LLM 和语音配置状态，不暴露真实值 |
+| 账号删除 | integrated | 设置页危险区确认短语删除；后端清理当前用户关系、消息、记忆、日志、vault 并清除 session |
 | Prompt 上下文预算 | integrated | 角色设定固定保留，记忆与最近消息按预算裁剪 |
 | 记忆系统 | integrated | pending、active、archived、deleted 生命周期 |
-| 素材导入 | integrated | 单段文本、批量文本数组、JSON Lines、本地 `.txt/.jsonl/.json` 文件读取，默认 pending 并脱敏密钥形态 |
+| 素材导入 | integrated | 单段文本、批量文本数组、JSON Lines、本地 `.txt/.jsonl/.json` 文件读取、媒体说明、照片/音视频文件摘要、通讯录脱敏摘要，默认 pending 并脱敏密钥形态 |
 | 关系状态 | integrated | 熟悉度、亲密度、近期情绪、重要事件 |
 | 主动回响 | integrated | 站内草稿、撒娇式未回复回响、自定义频率、受保护 cron 入口 |
 | 主动草稿状态 | integrated | draft、sent、dismissed、blocked 状态管理与筛选 |
@@ -31,7 +32,7 @@
 | 模型调用看板 | integrated | provider/model/latency/tokens/估算成本，不记录正文或 key |
 | 语音能力 | integrated | 浏览器录音入口、shared-LLM compatible STT/TTS、mock fallback |
 | 数据导出 | integrated | 当前用户 JSON 快照，排除 key/baseUrl/vault 密文 |
-| 响应式体验 | integrated | 390px 移动端 E2E 覆盖无横向溢出 |
+| 响应式/PWA 体验 | integrated | 390px 移动端 E2E 覆盖无横向溢出；manifest、图标、离线页和安全 service worker 已接入 |
 
 ## 最近主控验收
 
@@ -55,7 +56,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：57 checks passed。
+- `smoke`：63 checks passed。
 - `docs:check`：19 docs/readme files passed。
 - `git:boundary`：147 committable files passed。
 - `e2e`：2 tests passed。
@@ -122,14 +123,16 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M54 施工决策点收束：Taskbook 末尾旧的技术栈/模型/数据库/部署疑问已改为“已决策基线”和“仍需用户决策”。
 - M55 Session 接入状态收束：Taskbook 中 M1 的旧 userId 待接入状态已更新为当前 session `userId` 已接入 renewal API。
 - M56 Taskbook 状态门禁：已同步任务定义与当前任务快照的状态口径，并让 `npm run docs:check` 拦截关键任务状态漂移。
+- M57 账号删除：新增 `/api/me/account` 与设置页危险区，确认短语为“删除我的账号”，删除当前用户数据、vault、日志并清除 session；smoke 覆盖错误确认和正确删除。
+- M58 移动端 PWA：新增 `manifest.webmanifest`、SVG 图标、离线页和 service worker；service worker 明确跳过 `/api/*`，不缓存用户数据或密钥相关响应。
+- M59 多媒体/照片/通讯录导入：工作台导入面板新增媒体/通讯录结构化入口，原文件只在浏览器读取为说明或脱敏摘要，继续复用导入 API 写入 pending 记忆。
 
-当前需要你确认后才能执行的外部动作：
+当前已获允许、待最终验证后执行的外部动作：
 
-- 是否 push `codex/mvp-release-candidate` 到远端仓库并发起 PR。当前本地分支和提交已完成，但没有默认推送远端。
+- push `codex/mvp-release-candidate` 到远端仓库，并发起 PR。
 
-需要你后续决策后再做的模块：
+仍需外部配置后再做的模块：
 
-- 账号删除：会级联删除用户全部关系、消息、记忆、日志，属于高风险破坏性能力。
-- 移动端 PWA：需要决定是否做离线 shell、安装图标、推送策略。
-- 多媒体/照片/通讯录导入：涉及隐私、授权、格式和删除策略，需要单独设计。
+- 生产数据库和 secret：`DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`。
+- 真实 LLM 模型 key/model：可由用户在设置页 vault 保存，或由部署平台 secret 提供服务端 fallback。
 - 内容审核后台、用户反馈问卷、内测邀请机制：你已决定暂不进入当前第一版。

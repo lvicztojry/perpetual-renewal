@@ -98,6 +98,15 @@ type ConfigReadinessSnapshot = {
   items: ConfigReadinessItem[];
 };
 
+type DeleteAccountResponse = {
+  deleted?: boolean;
+  sessionCleared?: boolean;
+  persistence?: "prisma" | "memory";
+  counts?: Record<string, number>;
+  confirmationRequired?: string;
+  error?: string;
+};
+
 const timezoneOptions = ["Asia/Shanghai", "Asia/Tokyo", "Europe/London", "America/New_York"];
 const languageOptions = [
   { label: "简体中文", value: "zh-CN" },
@@ -144,10 +153,15 @@ export function UserSettings() {
   const [exportStatus, setExportStatus] = useState<"idle" | "exporting" | "success" | "error">(
     "idle"
   );
+  const [deleteStatus, setDeleteStatus] = useState<"idle" | "deleting" | "success" | "error">(
+    "idle"
+  );
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [exportFileName, setExportFileName] = useState("");
   const [error, setError] = useState("");
   const [credentialError, setCredentialError] = useState("");
   const [exportError, setExportError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     let ignore = false;
@@ -423,6 +437,34 @@ export function UserSettings() {
     } catch (exportFailure) {
       setExportError(toFriendlyExportError(exportFailure));
       setExportStatus("error");
+    }
+  }
+
+  async function deleteAccount() {
+    setDeleteStatus("deleting");
+    setDeleteError("");
+
+    try {
+      const response = await fetch("/api/me/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmation })
+      });
+      const payload: DeleteAccountResponse = await response.json();
+
+      if (!response.ok || !payload.deleted) {
+        throw new Error(payload.error ?? "删除账号失败");
+      }
+
+      setDeleteStatus("success");
+      router.push("/login");
+    } catch (deleteFailure) {
+      setDeleteError(
+        deleteFailure instanceof Error
+          ? deleteFailure.message
+          : "删除账号没有成功，请重新输入确认文字后再试。"
+      );
+      setDeleteStatus("error");
     }
   }
 
@@ -823,6 +865,37 @@ export function UserSettings() {
               >
                 <Download size={17} />
                 {exportStatus === "exporting" ? "导出中" : "导出数据"}
+              </button>
+            </div>
+            <div className="status-box">
+              删除账号会清除当前账号下的关系对象、对话、记忆、主动回响草稿、模型调用日志、安全事件和已保存模型密钥。建议先导出数据。
+            </div>
+            <label className="field">
+              <span>删除确认</span>
+              <input
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                placeholder="输入：删除我的账号"
+                value={deleteConfirmation}
+              />
+            </label>
+            <div aria-live="polite">
+              {deleteError ? <span className="error-state">{deleteError}</span> : null}
+              {deleteStatus === "success" ? (
+                <span className="save-state">
+                  <Check size={16} />
+                  账号已删除
+                </span>
+              ) : null}
+            </div>
+            <div className="settings-actions">
+              <button
+                className="text-button"
+                disabled={deleteStatus === "deleting" || deleteConfirmation !== "删除我的账号"}
+                onClick={deleteAccount}
+                type="button"
+              >
+                <Trash2 size={17} />
+                {deleteStatus === "deleting" ? "删除中" : "删除账号"}
               </button>
             </div>
           </div>

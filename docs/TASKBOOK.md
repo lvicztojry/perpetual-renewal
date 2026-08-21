@@ -51,7 +51,7 @@
 
 - 确认 MVP 支持所有关系类型，内置模板只是入口，自定义关系是核心。
 - 明确支持现实人物替代、逝者纪念、前任投射、公众人物想象、虚构角色、原创角色和完全自定义关系。
-- 确认第一版素材输入范围：支持手动粘贴文本导入为素材、语气样例和记忆候选；素材导入二期支持轻量批量文本数组与 JSON Lines；本地文本文件仅支持 .txt、.jsonl、.json，照片、通讯录和多媒体导入作为独立后续模块。
+- 确认第一版素材输入范围：支持手动粘贴文本导入为素材、语气样例和记忆候选；支持轻量批量文本数组与 JSON Lines；本地文本文件支持 .txt、.jsonl、.json；媒体/照片/通讯录支持浏览器本地整理为说明或脱敏摘要后导入，不上传原文件。
 - 确认沉浸模式原则：日常对话不频繁打断身份边界，高风险场景才触发能力边界。
 
 交付物：
@@ -321,7 +321,7 @@
 - 复用现有记忆生命周期：pending -> active / archived / deleted。
 - 对疑似 API key、Bearer token、token、secret、password 片段做写入前脱敏。
 - 限制单次条数、单条长度和候选数量，返回 created/skipped/redaction summary。
-- 本地文本文件入口只在浏览器读取 .txt、.jsonl、.json 后复用现有导入 API；照片、通讯录和多媒体导入暂不进入第一版实现。
+- 本地文本文件入口只在浏览器读取 .txt、.jsonl、.json 后复用现有导入 API；媒体/照片/通讯录第一版只在浏览器本地整理为说明或脱敏摘要，不上传或保存原文件。
 
 交付物：
 
@@ -538,7 +538,7 @@
 | DEV-6 Prompt 与角色组装 | integrated | 已接入 prompt builder 与 Prompt QA smoke，覆盖 10 类关系和特殊关系边界 |
 | DEV-7 记忆提取与存储 | integrated | 已支持聊天记忆候选、pending/active/archived/deleted 生命周期 |
 | DEV-8 记忆管理界面 | integrated | 已支持记忆查看、确认、编辑、归档、删除 |
-| DEV-8.5 素材导入入口 | integrated | 已支持手动粘贴、批量文本数组、JSON Lines 导入为 pending 记忆；批量文件/多媒体后续单独开发 |
+| DEV-8.5 素材导入入口 | integrated | 已支持手动粘贴、批量文本数组、JSON Lines、文本文件、媒体说明和通讯录脱敏摘要导入为 pending 记忆；原始媒体/通讯录文件不上传 |
 | DEV-9 关系状态引擎 | integrated | 已维护熟悉度、亲密度、最近情绪、重要事件和状态解释 |
 | DEV-10 主动回响 | integrated | 已接入站内草稿、撒娇式主动回响、关系级频率预设/自定义和受保护调度入口 |
 | SAFE-1 沉浸边界与安全规则 | integrated | 已形成运行时安全规则、QA 样例和高风险场景能力边界 |
@@ -741,7 +741,7 @@
 验收标准：
 
 - 导入后记忆生命周期与现有记忆管理一致。
-- 文本文件导入已作为 M22 集成；照片、通讯录和多媒体导入仍作为后续独立模块。
+- 文本文件导入已作为 M22 集成；媒体/照片/通讯录导入已作为 M59 集成，仍不新增服务端文件上传。
 
 ## Phase 1.6 主控施工队列
 
@@ -752,7 +752,7 @@
 | M7 密钥与供应商安全 | integrated | 主控 | `.env.example`、`README.md`、`docs/LLM.md`、`scripts/*`、`src/lib/credentials/*` | 真实 LLM 可通过环境变量或用户级加密 vault 注入；仓库扫描能拦截明显 API key |
 | M8 模型调用日志与成本看板 | integrated | M-COST | `src/lib/llm`、`src/lib/usage`、相关 API/UI | 已记录 provider、model、延迟、token/估算成本，前端可查看 |
 | M9 主动频率自定义与调度入口 | integrated | 主控 | `src/lib/relationship/proactive*`、`src/app/api/proactive/run/*`、关系设置 UI/API、`.env.example`、部署文档 | 支持多预设和完全自定义频率；提供受 `PROACTIVE_CRON_SECRET` 保护的 all-user 调度入口，不在应用进程内常驻后台定时器 |
-| M10 素材导入 | integrated | M-IMPORT-BATCH + 主控 | `src/lib/import`、导入 API/UI | 已支持手动粘贴、批量文本数组、JSON Lines 导入为 pending 记忆；工作台有单段/多段/JSONL 模式切换；批量文件/多媒体后续 |
+| M10 素材导入 | integrated | M-IMPORT-BATCH + 主控 | `src/lib/import`、导入 API/UI | 已支持手动粘贴、批量文本数组、JSON Lines、文本文件、媒体说明和通讯录脱敏摘要导入为 pending 记忆；工作台有单段/多段/JSONL/结构化素材入口 |
 | M11 语音消息/语音回复 | integrated | M-VOICE + 主控 | `src/lib/voice`、语音 API/UI | 已接入 shared-LLM/compatible HTTP STT/TTS adapter；聊天输入支持浏览器真实录音转写，不可录音时安全 fallback 到 mock |
 | M12 上线文档与环境清单 | integrated | M-DEPLOY-DOCS | `docs/DEPLOYMENT.md`、`README.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已明确 Vercel + Supabase/Neon、真实 PostgreSQL migrate、兼容 LLM 中转站 env、密钥安全检查 |
 | M13 模型供应商设置体验 | integrated | M13-LLM-SETTINGS-UX | `src/components/user-settings.tsx`、`src/app/api/me/llm-credential/route.ts`、`src/lib/credentials/*`、`tests/smoke.mjs`、部署/任务文档 | 已支持先保存用户 API key，再读取兼容中转站模型列表；已保存 key 后可只更新 provider/baseUrl/model，不需要重新输入 key |
@@ -769,7 +769,7 @@
 | M24 发布候选状态面板 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 独立记录当前 MVP 能力、主控验收命令、上线前真实阻塞项和继续施工队列 |
 | M25 导入体验 QA 补强 | integrated | M25-IMPORT-QA | `docs/QA.md`、`docs/TASKBOOK.md` | 已补充单段文本、批量文本数组、JSON Lines、本地 .txt/.jsonl/.json 文件入口、512KB 上限、非法扩展名拒绝、前端只读文本复用现有 API、不新增服务端上传、密钥形态脱敏和 pending 默认状态的验收说明 |
 | M26 模型连接测试文档收束 | integrated | M26 | `docs/LLM.md`、`docs/DEPLOYMENT.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 已补齐 `POST /api/me/llm-test` 与设置页“测试连接”的文档边界：复用 vault/env key、低成本读取模型列表、无 key 可预测失败、不返回 key/baseUrl/prompt/raw payload、不做订阅扣费 |
-| M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；当前 smoke 基线已在后续模块提升到 57 checks |
+| M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；当前 smoke 基线已在后续模块提升到 63 checks |
 | M28 真实配置状态向导 | integrated | 主控 | `src/lib/config/*`、`src/app/api/me/config-status/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/TASKBOOK.md` | 设置页显示只读配置状态，提示 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl 和语音配置是否就绪；API 只返回状态和下一步，不暴露真实 key、baseUrl 或连接串 |
 | M29 发布候选手动验收脚本 | integrated | M29 | `docs/RELEASE_ACCEPTANCE.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已新增 20 分钟人工演示/验收脚本，覆盖登录、创建全关系对象、聊天、记忆确认/编辑、素材导入含文本文件入口、主动回响草稿和状态筛选、模型设置/连接测试、语音 fallback、用量看板、数据导出和移动端快检 |
 | M30 错误状态文案规范 | integrated | M30 | `docs/ERROR_COPY.md`、`docs/QA.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已统一聊天、导入、语音、模型连接、数据导出、数据库配置缺失和 cron secret 缺失等错误文案原则：说明发生了什么、下一步做什么，并禁止暴露 API key、Base URL、prompt、raw payload、数据库连接串、vault 密文或 secret |
@@ -799,11 +799,14 @@
 | M54 施工决策点收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 Taskbook 末尾旧的技术栈/模型/数据库/部署疑问收束为“已决策基线”和“仍需用户决策”，并用 docs check 拦截旧决策项回流 |
 | M55 Session 接入状态收束 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs` | 将 M1 里“后续接入真实 userId”的旧状态更新为已接入当前 session `userId`，并用 docs check 拦截该旧表述回流 |
 | M56 Taskbook 状态门禁 | integrated | 主控 | `docs/TASKBOOK.md`、`scripts/docs-consistency.mjs`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md` | 同步任务定义与当前任务快照的状态口径，并让 docs check 拦截 PM/DEV 关键任务状态漂移 |
+| M57 账号删除 | integrated | 主控 | `src/lib/users/delete-account.ts`、`src/app/api/me/account/route.ts`、`src/components/user-settings.tsx`、`tests/smoke.mjs` | 设置页危险区要求输入“删除我的账号”；后端只删除当前 session 用户数据、vault、日志并清除 session；smoke 覆盖错误确认和正确删除 |
+| M58 移动端 PWA | integrated | 主控 | `src/app/manifest.ts`、`src/components/pwa-register.tsx`、`public/*`、`tests/smoke.mjs` | 新增 manifest、SVG 图标、离线页和 service worker；生产 HTTPS 注册，service worker 跳过 `/api/*`，不缓存用户数据响应 |
+| M59 多媒体/照片/通讯录导入 | integrated | 主控 | `src/lib/import/structured-client-import.ts`、`src/components/renewal-workspace.tsx`、`tests/smoke.mjs`、`docs/*` | 工作台可把媒体文件摘要、媒体说明、vCard/CSV/JSON 通讯录整理为 JSONL，复用导入 API 写入 pending 记忆；原文件不上传，电话/邮箱脱敏 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
 
-暂不进入第一版：付费订阅/额度系统、内容审核后台、用户反馈问卷、内测邀请机制。移动端 PWA 在响应式质量稳定后再按开发成本决策。
+暂不进入第一版：付费订阅/额度系统、内容审核后台、用户反馈问卷、内测邀请机制。移动端 PWA、账号删除和媒体/通讯录结构化导入已按用户最新授权进入第一版。
 
 M19 当前落点：
 
@@ -934,6 +937,27 @@ M56 当前落点：
 - `npm run docs:check` 会检查这些关键状态，防止后续主控或并行模块把已集成状态误写回早期 `active`。
 - 发布状态面板和交接文档已记录 M56 实现提交：`d7a72f2 docs: sync taskbook status gates`。
 
+M57 当前落点：
+
+- `/api/me/account` 支持 `DELETE`，必须提交确认短语“删除我的账号”。
+- Prisma 环境依赖 schema cascade 删除当前用户关系、会话、消息、记忆、关系状态、主动草稿、安全事件、模型调用日志和 provider credential；本地 memory fallback 会清理对应全局 store。
+- 设置页“数据与隐私”危险区提供导出提醒、确认输入和删除按钮；删除成功后清除 session 并回到登录页。
+- Smoke 覆盖错误确认返回 400、正确确认删除、响应不泄露 key/baseUrl/vault 密文，以及删除后关系列表为空。
+
+M58 当前落点：
+
+- Next manifest 使用产品名、standalone display、主题色和 SVG 图标。
+- `public/offline.html` 提供离线 shell；`public/sw.js` 只缓存应用壳和图标，对非 GET 或 `/api/*` 请求直接跳过。
+- `PwaRegister` 仅在 production + HTTPS 环境注册 service worker，避免本地开发缓存干扰。
+- Smoke 覆盖 manifest、离线页和 service worker 安全跳过 API 的静态边界。
+
+M59 当前落点：
+
+- `src/lib/import/structured-client-import.ts` 在浏览器侧把媒体文件 metadata、媒体说明、vCard/CSV/JSON 通讯录整理为导入条目。
+- 工作台导入面板新增媒体/通讯录切换、文件选择和结构化文本整理入口，生成 JSONL 后复用现有导入 API。
+- 媒体原文件不上传或保存；通讯录电话只保留尾号，邮箱只保留域名或脱敏摘要。
+- 导入结果仍默认 pending，继续由记忆管理确认、归档或删除。
+
 M30 当前落点：
 
 - 已新增 `docs/ERROR_COPY.md`，统一错误文案目标、总原则、推荐句式、禁止暴露清单、场景文案矩阵、API 响应建议和 QA 检查。
@@ -970,7 +994,7 @@ M34 当前落点：
 | --- | --- | --- |
 | 依赖漏洞 | npm audit 曾报告 Prisma 链路 3 个 high 漏洞 | 已将 prisma 与 @prisma/client 固定到 6.12.0，npm audit 确认 0 vulnerabilities |
 | 情感依赖 | 关系型 AI 可能强化用户对虚拟关系的依赖 | 允许沉浸和撒娇，但限制威胁、控诉、冷暴力和情感勒索 |
-| 现实人物替代 | 用户可能希望复刻现实中的某个人 | 支持手动设定和情感替代；素材导入、授权、隐私和删除机制后续单独设计 |
+| 现实人物替代 | 用户可能希望复刻现实中的某个人 | 支持手动设定和情感替代；素材导入走本地整理/脱敏摘要，不上传原文件；用户可通过账号删除清理当前账号数据 |
 | 角色失真 | 模型可能偏离设定或忘记关系 | Prompt builder、记忆层、评估集共同约束 |
 | 记忆冒犯 | AI 记住不该记的内容或错误提及 | 记忆 pending 确认、用户可删改 |
 | 成本膨胀 | 长上下文和频繁主动消息增加调用成本 | 已接入模型调用日志与成本看板；后续继续做摘要、检索、频率限制 |
@@ -985,13 +1009,11 @@ M34 当前落点：
 - 模型接入走供应商中立 adapter，默认 compatible 中转站 `https://api.tryanotherone.com/v1`，用户自带 API key。
 - 数据库优先 Neon/PostgreSQL；未配置时本地 fallback，生产不能依赖 memory。
 - 部署路线优先 Vercel + Neon/PostgreSQL + 部署平台 secret。
-- 现实替代第一版支持手动设定、少量语气样例、文本/JSONL/JSON 文件导入；照片、通讯录、多媒体导入后续单独设计。
+- 现实替代第一版支持手动设定、少量语气样例、文本/JSONL/JSON 文件导入，以及媒体/照片/通讯录的浏览器本地整理与脱敏摘要导入。
 - 沉浸边界采用“日常关系内表达，高风险场景才回到能力边界”的原则。
+- 用户已允许账号删除、移动端 PWA、媒体/照片/通讯录导入、push 和 PR。
 
 仍需用户决策：
 
-- 是否 push `codex/mvp-release-candidate` 到远端并创建 PR。
 - 是否现在配置真实 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET` 和真实模型 key/model。
-- 是否做账号删除，以及删除前确认、冷静期、导出提醒和级联删除范围。
-- 是否启动移动端 PWA，包括离线 shell、安装图标、推送策略。
-- 是否启动多媒体/照片/通讯录导入，并先制定授权、隐私、删除和素材来源策略。
+- 是否在本轮继续进入内容审核后台、用户反馈问卷和内测邀请机制；此前用户已决定暂不进入当前第一版。

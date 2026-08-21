@@ -94,6 +94,8 @@ npm run db:smoke
 | 模型连接测试 | `POST /api/me/llm-test` | 无 key 时返回可预测失败；响应只包含状态、provider/model、credentialSource、latencyMs 和友好错误，不返回 API key、Base URL 原文、prompt 或供应商 raw payload |
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
 | 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
+| 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
+| PWA 静态资源 | `/manifest.webmanifest`、`/offline.html`、`/sw.js` | manifest 使用产品名与 standalone；离线页可访问；service worker 明确跳过 `/api/*`，不缓存用户数据响应 |
 
 主动回响调度还需要确认 `POST /api/proactive/run` 的 `limit` 和 `maxDrafts` 同时生效：`limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量。响应可以返回归一化后的 `maxDrafts` 和每个关系对象的裁剪原因，但不能返回 cron secret、API key、Base URL、prompt 或供应商 raw payload。
 
@@ -253,6 +255,39 @@ npm run e2e
 - 非 `.txt`、`.jsonl`、`.json` 文件会被前端拒绝。
 - 大于 512KB 的文件会被前端拒绝。
 - 导入流程不读取 `.env`，不展示 API key、Base URL、vault 密文或任何真实供应商凭据。
+
+媒体/照片/通讯录结构化导入第一版：
+
+- 媒体文件只读取文件名、MIME type、大小和本地修改时间，不上传或保存原始照片、音频、视频。
+- 媒体说明可用 JSON 或逐行文本整理为素材。
+- 通讯录支持 vCard、CSV、JSON 或粘贴文本；电话只保留尾号，邮箱只保留域名或脱敏摘要。
+- 生成的导入文本仍经过现有密钥脱敏、重复过滤和 pending 生命周期。
+- 前端限制媒体数量、媒体大小和通讯录文件大小；超限或不支持格式应给出友好错误。
+
+## 账号删除 QA
+
+账号删除 API 位于 `DELETE /api/me/account`，设置页“数据与隐私”危险区会要求用户输入确认短语“删除我的账号”。
+
+自动 smoke 会校验：
+
+- 错误确认短语返回 400，并返回所需确认短语。
+- 正确确认会删除当前 session 用户的数据并清除 session cookie。
+- 删除摘要只返回计数和状态，不返回 API key、Base URL、vault 密文、prompt 或数据库连接串。
+- 删除后再次读取当前 session 的关系列表为空，证明当前用户关系对象已清理。
+
+人工验收时应先导出数据，再执行删除；删除操作不可用普通按钮误触发。
+
+## PWA QA
+
+第一版 PWA 只提供安装元数据、图标、离线 shell 和安全 service worker，不承诺离线聊天或离线读取私密数据。
+
+自动 smoke 会校验：
+
+- `/manifest.webmanifest` 返回产品名、standalone display 和真实图标引用。
+- `/offline.html` 可访问，并解释当前离线状态。
+- `/sw.js` 使用固定 cache version，且明确跳过 `/api/*`，避免缓存用户数据、聊天内容、模型密钥或配置状态响应。
+
+人工验收时应在 HTTPS 生产/预览环境检查浏览器安装入口；本地开发不会注册 service worker，以避免缓存干扰。
 
 ## 安全边界 QA 样例
 

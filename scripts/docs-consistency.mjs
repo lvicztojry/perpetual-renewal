@@ -45,8 +45,8 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
-      if (/\b(?:46|48|49) checks\b/i.test(line)) {
-        findings.push(`${location} mentions an outdated smoke check count; current baseline is 57 checks.`);
+      if (/\b(?:46|48|49|57) checks\b/i.test(line)) {
+        findings.push(`${location} mentions an outdated smoke check count; current baseline is 63 checks.`);
       }
 
       if (/14 safety areas/i.test(line) || /14 类安全/.test(line)) {
@@ -194,9 +194,12 @@ function checkReleaseHandoff() {
     "M54",
     "M55",
     "M56",
+    "M57",
+    "M58",
+    "M59",
     "d7a72f2",
     "sync taskbook status gates",
-    "57 checks",
+    "63 checks",
     "19 safety areas"
   ]) {
     if (!handoff.includes(snippet)) {
@@ -229,7 +232,14 @@ function checkTaskbookDecisions() {
     }
   }
 
-  for (const snippet of ["M56 Taskbook 状态门禁", "M56 当前落点", "sync taskbook status gates"]) {
+  for (const snippet of [
+    "M56 Taskbook 状态门禁",
+    "M56 当前落点",
+    "M57 账号删除",
+    "M58 移动端 PWA",
+    "M59 多媒体/照片/通讯录导入",
+    "sync taskbook status gates"
+  ]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
@@ -289,7 +299,7 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", "57 checks"],
+    ["docs/MVP_STATUS.md", "63 checks"],
     ["docs/MVP_STATUS.md", "19 safety areas"],
     ["docs/MVP_STATUS.md", "npm run db:smoke"],
     ["docs/MVP_STATUS.md", "M51"],
@@ -298,7 +308,10 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M54"],
     ["docs/MVP_STATUS.md", "M55"],
     ["docs/MVP_STATUS.md", "M56"],
-    ["docs/PHASE-1.5.md", "57 checks"],
+    ["docs/MVP_STATUS.md", "M57"],
+    ["docs/MVP_STATUS.md", "M58"],
+    ["docs/MVP_STATUS.md", "M59"],
+    ["docs/PHASE-1.5.md", "63 checks"],
     ["README.md", "npm run db:smoke"]
   ];
 
