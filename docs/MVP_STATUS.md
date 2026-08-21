@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。用户已允许 push 和 PR，待最终验证后执行。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。分支已 push 到 `origin/codex/mvp-release-candidate`，PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate 。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -127,9 +127,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M58 移动端 PWA：新增 `manifest.webmanifest`、SVG 图标、离线页和 service worker；service worker 明确跳过 `/api/*`，不缓存用户数据或密钥相关响应。
 - M59 多媒体/照片/通讯录导入：工作台导入面板新增媒体/通讯录结构化入口，原文件只在浏览器读取为说明或脱敏摘要，继续复用导入 API 写入 pending 记忆。
 
-当前已获允许、待最终验证后执行的外部动作：
+当前已获允许、但本机缺少认证工具的外部动作：
 
-- push `codex/mvp-release-candidate` 到远端仓库，并发起 PR。
+- PR 自动创建：本机未安装 `gh`，且没有 `GITHUB_TOKEN` / `GH_TOKEN`；已提供 GitHub PR 创建页和 [PR_DRAFT.md](PR_DRAFT.md)。
 
 仍需外部配置后再做的模块：
 

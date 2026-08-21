@@ -5,6 +5,7 @@
 ## Current Candidate
 
 - Branch: `codex/mvp-release-candidate`
+- Remote branch: `origin/codex/mvp-release-candidate`
 - Baseline commit: `ef4939e feat: build relationship ai mvp baseline`
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
@@ -20,6 +21,8 @@
 - M58 scope: PWA manifest, app icons, offline shell, and API-skipping service worker.
 - M59 scope: structured media/photo/contact import planner, privacy-preserving browser-only file summaries, and workspace import UI.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
+- PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
+- PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
 
 ## Latest Pre-push Verification
 
@@ -58,15 +61,16 @@ Expected local status after commit should only show ignored generated folders su
 
 ## Push And PR
 
-Push command:
+Push status:
 
 ```bash
-git push -u origin codex/mvp-release-candidate
+codex/mvp-release-candidate -> origin/codex/mvp-release-candidate
 ```
 
 PR checklist:
 
 - Use `.github/pull_request_template.md`.
+- Use [PR_DRAFT.md](PR_DRAFT.md) as the prefilled summary and verification notes.
 - Link `docs/MVP_STATUS.md` for current capability status.
 - Link `docs/RELEASE_ACCEPTANCE.md` for manual demo acceptance.
 - Link `docs/DEPLOYMENT.md` for production configuration.
