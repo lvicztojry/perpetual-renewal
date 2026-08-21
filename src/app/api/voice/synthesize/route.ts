@@ -10,6 +10,11 @@ import {
 
 export const runtime = "nodejs";
 
+const maxSynthesisTextChars = 4_000;
+const maxVoiceNameChars = 80;
+const minSpeechSpeed = 0.25;
+const maxSpeechSpeed = 4;
+
 export async function POST(request: Request) {
   let body: unknown;
 
@@ -21,6 +26,11 @@ export async function POST(request: Request) {
 
   if (!isSynthesisInput(body)) {
     return NextResponse.json({ error: "Missing text for voice synthesis." }, { status: 400 });
+  }
+
+  const validationError = validateSynthesisInput(body);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   try {
@@ -80,6 +90,22 @@ function isSynthesisInput(value: unknown): value is VoiceSynthesisOptions {
     (candidate.format === undefined || isVoiceFormat(candidate.format)) &&
     (candidate.speed === undefined || typeof candidate.speed === "number")
   );
+}
+
+function validateSynthesisInput(input: VoiceSynthesisOptions) {
+  if (input.text.trim().length > maxSynthesisTextChars) {
+    return "Voice synthesis text is too long.";
+  }
+
+  if (input.voice && input.voice.trim().length > maxVoiceNameChars) {
+    return "Voice name is too long.";
+  }
+
+  if (input.speed !== undefined && (input.speed < minSpeechSpeed || input.speed > maxSpeechSpeed)) {
+    return "Voice speed is out of range.";
+  }
+
+  return null;
 }
 
 function isVoiceFormat(value: unknown): value is VoiceSynthesisFormat {

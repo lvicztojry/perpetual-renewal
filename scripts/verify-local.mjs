@@ -15,6 +15,7 @@ const steps = [
   ["Lint", ["run", "lint"]],
   ["QA samples", ["run", "qa:samples"]],
   ["Prompt QA", ["run", "qa:prompt"]],
+  ["PWA check", ["run", "pwa:check"]],
   ["Environment readiness", ["run", "env:readiness"]],
   ["Prisma validate", ["run", "prisma:validate"]],
   ["DB smoke", ["run", "db:smoke"]],

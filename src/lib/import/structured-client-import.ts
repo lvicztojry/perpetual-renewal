@@ -30,6 +30,22 @@ export const structuredImportLimits = {
 } as const;
 
 const allowedMediaMimePrefixes = ["image/", "audio/", "video/"] as const;
+const allowedMediaExtensions = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".heic",
+  ".heif",
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".ogg",
+  ".mp4",
+  ".mov",
+  ".webm"
+] as const;
 const allowedContactExtensions = [".vcf", ".vcard", ".csv", ".json"] as const;
 
 export function createMediaFileImportPlan(files: StructuredImportFile[]): StructuredImportPlan {
@@ -117,7 +133,12 @@ export function createContactFileImportPlan(input: {
 }
 
 export function isAllowedMediaFile(file: StructuredImportFile) {
-  return allowedMediaMimePrefixes.some((prefix) => file.type.startsWith(prefix));
+  const type = file.type.trim().toLowerCase();
+  if (allowedMediaMimePrefixes.some((prefix) => type.startsWith(prefix))) {
+    return true;
+  }
+
+  return allowedMediaExtensions.some((extension) => file.name.toLowerCase().endsWith(extension));
 }
 
 export function readContactFileExtension(fileName: string) {
@@ -247,9 +268,9 @@ function parseCsvContacts(text: string) {
 
   if (!rows.length) return [];
 
-  const headers = rows[0].map((header) => header.toLowerCase());
+  const headers = rows[0].map(normalizeContactKey);
   const hasHeader = headers.some((header) =>
-    ["name", "displayname", "姓名", "关系", "relationship", "phone", "email", "备注", "note"].includes(
+    ["name", "displayname", "fullname", "姓名", "关系", "relationship", "phone", "mobilephone", "email", "emailaddress", "备注", "note", "notes"].includes(
       header
     )
   );
@@ -349,8 +370,8 @@ function formatContactRecord(record: Record<string, unknown> | string) {
   const relationship = readRecordString(record, ["relationship", "relation", "关系", "身份"]);
   const address = readRecordString(record, ["address", "称呼"]);
   const note = readRecordString(record, ["note", "notes", "memo", "备注", "content"]);
-  const phone = readRecordString(record, ["phone", "tel", "mobile", "电话", "手机号"]);
-  const email = readRecordString(record, ["email", "mail", "邮箱"]);
+  const phone = readRecordString(record, ["phone", "phones", "tel", "telephone", "mobile", "mobilePhone", "电话", "手机号"]);
+  const email = readRecordString(record, ["email", "emails", "mail", "emailAddress", "eMailAddress", "邮箱"]);
   const contactSummary = [maskPhone(phone), maskEmail(email)].filter(Boolean).join("、");
 
   return [
@@ -366,14 +387,52 @@ function formatContactRecord(record: Record<string, unknown> | string) {
 }
 
 function readRecordString(record: Record<string, unknown>, keys: string[]) {
+  const normalizedEntries = new Map(
+    Object.entries(record).map(([key, value]) => [normalizeContactKey(key), value])
+  );
+
   for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
+    const value = record[key] ?? normalizedEntries.get(normalizeContactKey(key));
+    const text = readStructuredValue(value);
+    if (text) return text;
   }
 
   return undefined;
+}
+
+function readStructuredValue(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const text = readStructuredValue(item);
+      if (text) return text;
+    }
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      readStructuredValue(record.value) ??
+      readStructuredValue(record.number) ??
+      readStructuredValue(record.phone) ??
+      readStructuredValue(record.email) ??
+      readStructuredValue(record.address) ??
+      readStructuredValue(record.text)
+    );
+  }
+
+  return undefined;
+}
+
+function normalizeContactKey(key: string) {
+  return key.replace(/[\s_\-./]+/g, "").toLowerCase();
 }
 
 function maskPhone(value: string | undefined) {

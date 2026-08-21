@@ -17,7 +17,7 @@ npm run dev
 
 - 分支：`codex/mvp-release-candidate`
 - Baseline：`ef4939e feat: build relationship ai mvp baseline`
-- 推远端前建议运行：`npm run verify:local -- --skip-e2e`、`npm run verify:release`、`git status --short --ignored`；`verify:release` 会包含 E2E 和 high audit。
+- 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；真实部署前在目标环境运行 `npm run verify:deploy`。
 - 类型检查：`npm run typecheck` 会先运行 `npm run next:typegen`，确保 Next route types 已生成且 `next-env.d.ts` 保持稳定。
 
 ## 真实配置
@@ -58,10 +58,22 @@ VOICE_PROVIDER="shared-llm"
 npm run verify:local
 ```
 
+PR 快速验证：
+
+```bash
+npm run verify:pr
+```
+
 发布前需要额外跑依赖漏洞扫描：
 
 ```bash
 npm run verify:release
+```
+
+生产部署前严格验证：
+
+```bash
+npm run verify:deploy
 ```
 
 也可以逐条执行：

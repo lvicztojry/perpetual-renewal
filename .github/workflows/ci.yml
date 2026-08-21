@@ -47,6 +47,9 @@ jobs:
       - name: Prompt QA
         run: npm run qa:prompt
 
+      - name: PWA check
+        run: npm run pwa:check
+
       - name: Environment readiness
         run: npm run env:readiness
 

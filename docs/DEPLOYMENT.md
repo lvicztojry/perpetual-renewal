@@ -120,6 +120,14 @@ npm run db:smoke
 
 `npm run db:smoke` 会在 `DATABASE_URL` 未配置时安全跳过；配置后会先执行 Prisma generate/validate，再创建测试用户、关系对象、会话、消息、记忆、关系状态、主动草稿、安全事件和模型调用日志，并在结束时清理测试数据。脚本输出会脱敏，不打印真实连接串。
 
+生产部署前优先运行：
+
+```bash
+npm run verify:deploy
+```
+
+该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET` 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
+
 生产环境不要依赖内存 fallback。部署环境必须配置可访问的 `DATABASE_URL`，让 Prisma 错误在上线时直接暴露。Preview/production 目标库迁移使用后文 Vercel Deployment 里的 `npm run prisma:migrate:deploy`，不要使用交互式 `prisma migrate dev`。
 
 ## LLM Gateway Setup
@@ -257,6 +265,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - [ ] 生产数据库优先使用 Neon PostgreSQL；连接串只放平台 secret。
 - [ ] 首次上线或 schema 变更后，对目标数据库执行迁移。
 - [ ] `npm run prisma:validate` 通过。
+- [ ] `npm run verify:deploy` 在目标环境通过。
 - [ ] `npm run db:smoke` 在目标 `DATABASE_URL` 下通过；无数据库环境中允许显示安全跳过，但不能把跳过结果当作生产验收。
 - [ ] `db:smoke` 输出中未出现真实连接串、密码、API key、token 或 Bearer header。
 

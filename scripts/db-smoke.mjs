@@ -34,6 +34,24 @@ try {
   });
   assert(user.id === userId, "user should be created");
 
+  const providerCredential = await prisma.providerCredential.create({
+    data: {
+      userId,
+      kind: "llm",
+      provider: "compatible",
+      baseUrl: null,
+      model: "db-smoke-model",
+      encryptedApiKey: "placeholder",
+      keyIv: "iv",
+      keyAuthTag: "tag",
+      keyFingerprint: "fingerprint",
+      keyPreview: "...test",
+      encryptionVersion: "aes-256-gcm:v1",
+      status: "active"
+    }
+  });
+  assert(providerCredential.kind === "llm", "provider credential should be created");
+
   const companion = await prisma.companion.create({
     data: {
       id: companionId,
@@ -166,10 +184,10 @@ try {
     include: {
       conversations: { include: { messages: true, modelUsageLogs: true } },
       memories: true,
-      relationshipState: true,
-      proactiveMessages: true,
-      safetyEvents: true,
-      modelUsageLogs: true
+    relationshipState: true,
+    proactiveMessages: true,
+    safetyEvents: true,
+    modelUsageLogs: true
     }
   });
 
@@ -184,6 +202,8 @@ try {
     loaded?.conversations[0]?.modelUsageLogs[0]?.messageId === assistantMessage.id,
     "model usage log should be readable through conversation"
   );
+  const credentialCount = await prisma.providerCredential.count({ where: { userId } });
+  assert(credentialCount === 1, "provider credential should be readable through user");
 
   await cleanup();
   await assertCleanup();
@@ -214,7 +234,8 @@ async function assertCleanup() {
     relationshipStates,
     proactiveMessages,
     safetyEvents,
-    modelUsageLogs
+    modelUsageLogs,
+    providerCredentials
   ] = await Promise.all([
     prisma.user.count({ where: { id: userId } }),
     prisma.companion.count({ where: { id: companionId } }),
@@ -224,7 +245,8 @@ async function assertCleanup() {
     prisma.relationshipState.count({ where: { userId } }),
     prisma.proactiveMessage.count({ where: { userId } }),
     prisma.safetyEvent.count({ where: { userId } }),
-    prisma.modelUsageLog.count({ where: { userId } })
+    prisma.modelUsageLog.count({ where: { userId } }),
+    prisma.providerCredential.count({ where: { userId } })
   ]);
 
   assert(users === 0, "test user should be cleaned up");
@@ -236,6 +258,7 @@ async function assertCleanup() {
   assert(proactiveMessages === 0, "test proactive drafts should be cleaned up");
   assert(safetyEvents === 0, "test safety events should be cleaned up");
   assert(modelUsageLogs === 0, "test model usage logs should be cleaned up");
+  assert(providerCredentials === 0, "test provider credentials should be cleaned up");
 }
 
 function runPrismaCommand(label, command) {

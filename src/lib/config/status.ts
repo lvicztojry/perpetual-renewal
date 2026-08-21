@@ -27,11 +27,11 @@ export async function getConfigReadinessSnapshot(
   userId: string
 ): Promise<ConfigReadinessSnapshot> {
   const credential = await getLlmCredentialStatus(userId);
-  const llmProvider = normalizeProvider(process.env.LLM_PROVIDER);
+  const llmProvider = normalizeProvider(credential.provider ?? process.env.LLM_PROVIDER);
   const llmKeyConfigured = Boolean(credential.configured || readAnyLlmApiKey(llmProvider));
   const llmBaseUrlConfigured =
     llmProvider === "compatible"
-      ? Boolean(credential.configured || process.env.LLM_BASE_URL?.trim())
+      ? Boolean(credential.baseUrl?.trim() || process.env.LLM_BASE_URL?.trim())
       : true;
   const llmModelConfigured = Boolean(credential.model || process.env.LLM_MODEL?.trim());
   const voiceProvider = process.env.VOICE_PROVIDER?.trim() || "shared-llm";
@@ -165,7 +165,11 @@ function secretItem(input: {
   };
 }
 
-function normalizeProvider(value: string | undefined) {
+function normalizeProvider(value: string | null | undefined) {
+  if (value === "openai-compatible") {
+    return "compatible";
+  }
+
   if (value === "anthropic" || value === "gemini" || value === "openai-responses") {
     return value;
   }

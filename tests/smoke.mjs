@@ -359,6 +359,26 @@ async function runSmoke() {
   );
   pass("POST /api/companions/:id/imports text import");
 
+  const rejectedImportJson = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/imports`,
+    {
+      method: "POST",
+      body: "{not valid json"
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedImportJson.response.status === 400,
+    "text import should reject invalid JSON bodies"
+  );
+  assert(
+    !JSON.stringify(rejectedImportJson.body).includes("Bearer") &&
+      !JSON.stringify(rejectedImportJson.body).includes("baseUrl") &&
+      !JSON.stringify(rejectedImportJson.body).includes("stack"),
+    "text import invalid JSON response should stay sanitized"
+  );
+  pass("POST /api/companions/:id/imports rejects invalid JSON");
+
   const batchSecret = "batch-secret-value-that-should-not-leak";
   const batchImported = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/imports`,
@@ -1025,6 +1045,56 @@ async function runSmoke() {
   );
   pass("POST /api/voice/transcribe safe provider response");
 
+  const rejectedVoiceTranscription = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        language: "zh-CN"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedVoiceTranscription.response.status === 400,
+    "voice transcription should reject requests without audio or mock transcript"
+  );
+  assert(
+    !JSON.stringify(rejectedVoiceTranscription.body).includes("Bearer") &&
+      !JSON.stringify(rejectedVoiceTranscription.body).includes("baseUrl") &&
+      !JSON.stringify(rejectedVoiceTranscription.body).includes("raw"),
+    "voice transcription validation error should stay sanitized"
+  );
+  pass("POST /api/voice/transcribe rejects empty input");
+
+  const rejectedVoiceBase64 = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        audioBase64: "not-base64!",
+        mimeType: "audio/wav"
+      })
+    },
+    { allowError: true }
+  );
+  assert(rejectedVoiceBase64.response.status === 400, "voice transcription should reject invalid base64");
+  pass("POST /api/voice/transcribe rejects invalid base64");
+
+  const rejectedVoiceMime = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        audioBase64: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+        mimeType: "text/plain"
+      })
+    },
+    { allowError: true }
+  );
+  assert(rejectedVoiceMime.response.status === 400, "voice transcription should reject non-audio MIME");
+  pass("POST /api/voice/transcribe rejects non-audio MIME");
+
   const voiceSynthesis = await request("/api/voice/synthesize", {
     method: "POST",
     body: JSON.stringify({
@@ -1055,6 +1125,33 @@ async function runSmoke() {
     "voice synthesis response should not expose provider credentials"
   );
   pass("POST /api/voice/synthesize safe provider response");
+
+  const rejectedLongSynthesis = await request(
+    "/api/voice/synthesize",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        text: "太长".repeat(2_001)
+      })
+    },
+    { allowError: true }
+  );
+  assert(rejectedLongSynthesis.response.status === 400, "voice synthesis should reject overlong text");
+  pass("POST /api/voice/synthesize rejects overlong text");
+
+  const rejectedSpeedSynthesis = await request(
+    "/api/voice/synthesize",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        text: "速度参数测试",
+        speed: -1
+      })
+    },
+    { allowError: true }
+  );
+  assert(rejectedSpeedSynthesis.response.status === 400, "voice synthesis should reject invalid speed");
+  pass("POST /api/voice/synthesize rejects invalid speed");
 
   const usage = await request("/api/usage/model-calls?rangeDays=7");
   assert(usage.body.dashboard?.summary?.calls >= 1, "usage dashboard should include model calls");

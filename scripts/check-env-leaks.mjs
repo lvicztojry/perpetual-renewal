@@ -16,14 +16,14 @@ const allowedPlaceholderValues = new Set([
   "postgresql://user:password@host:port/database?schema=public"
 ]);
 const envKeyPattern =
-  /^(DATABASE_URL|LLM_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|USER_KEY_VAULT_SECRET|PROACTIVE_CRON_SECRET)\s*=\s*(.*)$/i;
+  /^\s*([A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)|DATABASE_URL|CLIENT_SECRET|PRIVATE_KEY|PROACTIVE_CRON_SECRET|USER_KEY_VAULT_SECRET)\s*=\s*(.*)$/i;
 const secretLikePatterns = [
   /\bsk-[A-Za-z0-9_-]{20,}\b/,
   /\bsk-ant-[A-Za-z0-9_-]{20,}\b/,
   /\bAIza[0-9A-Za-z_-]{20,}\b/,
   /Bearer\s+(?!<|\[?REDACTED\]?|placeholder\b|token\b)[A-Za-z0-9._~+/=-]{16,}/i,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
-  /\b(?:vaultCiphertext|encryptedKey|encryptedValue|ciphertext)\s*[:=]\s*["'][A-Za-z0-9+/=_-]{32,}["']/i
+  /\b(?:vaultCiphertext|encryptedKey|encryptedValue|ciphertext|encryptedApiKey|keyIv|keyAuthTag)\s*[:=]\s*["'][A-Za-z0-9+/=_-]{24,}["']/i
 ];
 
 const files = readTargetFiles();

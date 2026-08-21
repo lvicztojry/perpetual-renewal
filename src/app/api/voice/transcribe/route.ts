@@ -9,6 +9,8 @@ import {
 
 export const runtime = "nodejs";
 
+const maxVoiceInputBytes = 4 * 1024 * 1024;
+
 export async function POST(request: Request) {
   let body: unknown;
 
@@ -20,6 +22,11 @@ export async function POST(request: Request) {
 
   if (!isTranscriptionInput(body)) {
     return NextResponse.json({ error: "Missing voice transcription input." }, { status: 400 });
+  }
+
+  const validationError = validateTranscriptionInput(body);
+  if (validationError) {
+    return NextResponse.json({ error: validationError.message }, { status: validationError.status });
   }
 
   try {
@@ -70,10 +77,16 @@ function isTranscriptionInput(value: unknown): value is VoiceTranscriptionOption
   }
 
   const candidate = value as Partial<VoiceTranscriptionOptions>;
+  const hasAudio = typeof candidate.audioBase64 === "string" && candidate.audioBase64.trim().length > 0;
+  const hasMockTranscript =
+    typeof candidate.mockTranscript === "string" && candidate.mockTranscript.trim().length > 0;
 
   return (
-    candidate.audioBase64 === undefined ||
-    typeof candidate.audioBase64 === "string"
+    (hasAudio || hasMockTranscript) &&
+    (
+      candidate.audioBase64 === undefined ||
+      typeof candidate.audioBase64 === "string"
+    )
   ) && (
     candidate.mimeType === undefined ||
     typeof candidate.mimeType === "string"
@@ -87,4 +100,33 @@ function isTranscriptionInput(value: unknown): value is VoiceTranscriptionOption
     candidate.mockTranscript === undefined ||
     typeof candidate.mockTranscript === "string"
   );
+}
+
+function validateTranscriptionInput(input: VoiceTranscriptionOptions): { message: string; status: number } | null {
+  const audioBase64 = input.audioBase64?.trim();
+  if (!audioBase64) {
+    return null;
+  }
+
+  if (input.mimeType && !input.mimeType.toLowerCase().startsWith("audio/")) {
+    return { message: "Voice input must use an audio MIME type.", status: 400 };
+  }
+
+  const compact = stripDataUrlPrefix(audioBase64).replace(/\s+/g, "");
+  if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
+    return { message: "Voice input must be valid base64 audio.", status: 400 };
+  }
+
+  const decodedBytes = Math.floor((compact.length * 3) / 4) - (compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0);
+  if (decodedBytes > maxVoiceInputBytes) {
+    return { message: "Voice input is too large.", status: 413 };
+  }
+
+  return null;
+}
+
+function stripDataUrlPrefix(value: string) {
+  const marker = "base64,";
+  const markerIndex = value.indexOf(marker);
+  return markerIndex >= 0 ? value.slice(markerIndex + marker.length).trim() : value.trim();
 }

@@ -15,6 +15,7 @@ checkPackageJson();
 checkEnvExample();
 checkCi();
 checkDeploymentDocs();
+checkPrdScopeSync();
 checkReleaseHandoff();
 checkTaskbookDecisions();
 checkTaskbookStatusSync();
@@ -45,8 +46,8 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
-      if (/\b(?:46|48|49|57) checks\b/i.test(line)) {
-        findings.push(`${location} mentions an outdated smoke check count; current baseline is 63 checks.`);
+      if (/\b(?:46|48|49|57|63) checks\b/i.test(line)) {
+        findings.push(`${location} mentions an outdated smoke check count; current baseline is 69 checks.`);
       }
 
       if (/14 safety areas/i.test(line) || /14 类安全/.test(line)) {
@@ -120,12 +121,23 @@ function checkPackageJson() {
     "package.json scripts.prisma:migrate:deploy"
   );
   expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
+  expectEqual(scripts["pwa:check"], "node scripts/pwa-check.mjs", "package.json scripts.pwa:check");
   expectEqual(scripts["git:boundary"], "node scripts/git-boundary-check.mjs", "package.json scripts.git:boundary");
   expectEqual(scripts["next:typegen"], "node scripts/next-typegen.mjs", "package.json scripts.next:typegen");
   expectEqual(
     scripts["typecheck"],
     "npm run next:typegen && tsc --noEmit",
     "package.json scripts.typecheck"
+  );
+  expectEqual(
+    scripts["verify:pr"],
+    "npm run verify:local -- --skip-e2e",
+    "package.json scripts.verify:pr"
+  );
+  expectEqual(
+    scripts["verify:deploy"],
+    "npm run env:readiness -- --strict && npm run prisma:validate && npm run db:smoke",
+    "package.json scripts.verify:deploy"
   );
 
   for (const section of ["dependencies", "devDependencies"]) {
@@ -169,6 +181,7 @@ function checkCi() {
     "npm run secrets:check",
     "npm run docs:check",
     "npm run git:boundary",
+    "npm run pwa:check",
     "npm run env:readiness",
     "npm run db:smoke"
   ]) {
@@ -199,7 +212,7 @@ function checkReleaseHandoff() {
     "M59",
     "d7a72f2",
     "sync taskbook status gates",
-    "63 checks",
+    "69 checks",
     "19 safety areas"
   ]) {
     if (!handoff.includes(snippet)) {
@@ -299,9 +312,11 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", "63 checks"],
+    ["docs/MVP_STATUS.md", "69 checks"],
     ["docs/MVP_STATUS.md", "19 safety areas"],
     ["docs/MVP_STATUS.md", "npm run db:smoke"],
+    ["docs/MVP_STATUS.md", "npm run verify:deploy"],
+    ["docs/MVP_STATUS.md", "npm run pwa:check"],
     ["docs/MVP_STATUS.md", "M51"],
     ["docs/MVP_STATUS.md", "M52"],
     ["docs/MVP_STATUS.md", "M53"],
@@ -311,7 +326,7 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M57"],
     ["docs/MVP_STATUS.md", "M58"],
     ["docs/MVP_STATUS.md", "M59"],
-    ["docs/PHASE-1.5.md", "63 checks"],
+    ["docs/PHASE-1.5.md", "69 checks"],
     ["README.md", "npm run db:smoke"]
   ];
 
@@ -319,6 +334,37 @@ function checkDeploymentDocs() {
     const content = readText(file);
     if (!content?.includes(snippet)) {
       findings.push(`${file} should mention ${snippet}.`);
+    }
+  }
+}
+
+function checkPrdScopeSync() {
+  const prd = readText("docs/PRD.md") ?? "";
+  const staleSnippets = [
+    "批量导入聊天记录、照片、通讯录、社交平台资料等能力作为独立模块后续开发",
+    "第一版预留语音消息和语音回复能力",
+    "MVP 不做自动批量导入聊天记录、照片、通讯录等现实人物素材",
+    "现实人物替代的素材输入第一版做到什么程度",
+    "第一版是否做本地模型支持？建议架构预留，但先接一个主模型供应商"
+  ];
+
+  for (const snippet of staleSnippets) {
+    if (prd.includes(snippet)) {
+      findings.push(`docs/PRD.md still contains stale MVP scope wording: ${snippet}`);
+    }
+  }
+
+  for (const snippet of [
+    "# 生生不息 PRD v0.3",
+    "用户自带模型 API key",
+    "媒体、照片、音视频文件只在浏览器本地整理为文件说明或用户补充描述",
+    "通讯录只在浏览器本地整理为脱敏摘要",
+    "VOICE_PROVIDER=shared-llm",
+    "响应式/PWA",
+    "已决策基线与仍需外部配置"
+  ]) {
+    if (!prd.includes(snippet)) {
+      findings.push(`docs/PRD.md should mention ${snippet}.`);
     }
   }
 }

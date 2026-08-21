@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 
 const algorithm = "aes-256-gcm";
 const encryptionVersion = "aes-256-gcm:v1";
@@ -20,7 +20,8 @@ export function encryptSecret(plainText: string): EncryptedSecret {
   }
 
   const iv = randomBytes(12);
-  const cipher = createCipheriv(algorithm, readVaultKey(), iv);
+  const vaultKey = readVaultKey();
+  const cipher = createCipheriv(algorithm, vaultKey, iv);
   const encrypted = Buffer.concat([cipher.update(normalized, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
@@ -28,7 +29,7 @@ export function encryptSecret(plainText: string): EncryptedSecret {
     encrypted: encrypted.toString("base64"),
     iv: iv.toString("base64"),
     authTag: authTag.toString("base64"),
-    fingerprint: createHash("sha256").update(normalized).digest("hex").slice(0, 16),
+    fingerprint: createHmac("sha256", vaultKey).update(normalized).digest("hex").slice(0, 16),
     preview: previewSecret(normalized),
     version: encryptionVersion
   };
@@ -62,6 +63,10 @@ function readVaultKey() {
     throw new Error("USER_KEY_VAULT_SECRET is required in production.");
   }
 
+  if (secret && process.env.NODE_ENV === "production" && Buffer.byteLength(secret, "utf8") < 32) {
+    throw new Error("USER_KEY_VAULT_SECRET must be at least 32 bytes in production.");
+  }
+
   return createHash("sha256").update(secret || devSecret).digest();
 }
 
@@ -69,4 +74,3 @@ function previewSecret(secret: string) {
   const tail = secret.slice(-4);
   return `...${tail}`;
 }
-

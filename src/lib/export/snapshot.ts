@@ -154,7 +154,18 @@ function scrubSensitiveValue(value: unknown): unknown {
 
 function isSensitiveKey(key: string) {
   const normalized = key.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase();
-  return sensitiveKeyNames.has(normalized);
+  return (
+    sensitiveKeyNames.has(normalized) ||
+    normalized.includes("apikey") ||
+    normalized.includes("authorization") ||
+    normalized.includes("credential") ||
+    normalized.includes("password") ||
+    normalized.includes("privatekey") ||
+    normalized.includes("secret") ||
+    normalized.includes("token") ||
+    normalized.includes("baseurl") ||
+    normalized.includes("endpointurl")
+  );
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

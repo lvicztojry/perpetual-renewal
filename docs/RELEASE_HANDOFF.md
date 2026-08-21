@@ -10,7 +10,7 @@
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
-- Recent local commits include M49-M59 stabilization, runtime hardening, and construction-status cleanup.
+- Recent local commits include M49-M62 stabilization, runtime hardening, PRD scope sync, and release gate cleanup.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
 - M53 scope: proactive scheduler `maxDrafts` guardrail.
@@ -20,6 +20,9 @@
 - M57 scope: account deletion confirmation flow, current-user data cleanup, and smoke coverage.
 - M58 scope: PWA manifest, app icons, offline shell, and API-skipping service worker.
 - M59 scope: structured media/photo/contact import planner, privacy-preserving browser-only file summaries, and workspace import UI.
+- M60 scope: PRD v0.3 scope sync and docs consistency guardrails.
+- M61 scope: import/voice API input hardening and expanded smoke coverage.
+- M62 scope: vault fingerprint hardening, broader secret scanning, PWA check, PR/deploy verification scripts.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -28,14 +31,15 @@
 
 Last updated: 2026-08-21
 
-- `npm run docs:check`: passed, 19 docs/readme files.
-- `npm run git:boundary`: passed, 147 committable files.
-- `npm run secrets:check`: passed, 147 committable files.
+- `npm run docs:check`: passed, 20 docs/readme files.
+- `npm run git:boundary`: passed, 158 committable files.
+- `npm run secrets:check`: passed, 158 committable files.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 63 checks.
+- `npm run smoke`: passed, 69 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
+- `npm run pwa:check`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
 - `npm run build`: passed.
@@ -44,7 +48,7 @@ Last updated: 2026-08-21
 - `git status --short --ignored`: source tree clean; only ignored generated folders remain.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M59 follow-up: smoke now covers account deletion and PWA static assets; structured import remains browser-only and reuses the existing import API.
+- M57-M62 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, and vault/secret hardening; structured import remains browser-only and reuses the existing import API.
 
 ## Before Push
 
@@ -54,6 +58,7 @@ Run:
 npm run verify:local -- --skip-e2e
 npm run e2e
 npm run verify:release
+npm run verify:deploy
 git status --short --ignored
 ```
 
@@ -92,11 +97,14 @@ npm run qa:prompt
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
+npm run pwa:check
 npm run smoke
 npm run build
 ```
 
 CI intentionally does not require real `DATABASE_URL`, real LLM key, E2E browser availability, or network audit.
+
+Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, Prisma validation, and DB smoke, so it must not be treated as passed when `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, or `PROACTIVE_CRON_SECRET` are missing.
 
 ## Production Configuration Still Required
 

@@ -21,14 +21,19 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { companionId } = await context.params;
-  const body = await request.json();
+  let body: unknown;
   let importRequest: ReturnType<typeof readImportRequest>;
 
   try {
+    body = await request.json();
     importRequest = readImportRequest(body);
   } catch (error) {
     if (error instanceof ImportRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
     }
 
     throw error;
@@ -131,7 +136,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   );
 }
 
-function readImportRequest(body: Record<string, unknown>):
+function readImportRequest(body: unknown):
   | {
       mode: "single";
       text: string;
@@ -149,13 +154,14 @@ function readImportRequest(body: Record<string, unknown>):
       sourceKind?: string;
       skippedCount: number;
     } {
-  if (!body || typeof body !== "object") {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new ImportRequestError("JSON object body is required");
   }
 
-  const sourceKind = readString(body.sourceKind);
+  const record = body as Record<string, unknown>;
+  const sourceKind = readString(record.sourceKind);
   const batchPayload =
-    readBatchPayload(body.batchTexts) ?? readBatchPayload(body.texts) ?? readBatchPayload(body.batch);
+    readBatchPayload(record.batchTexts) ?? readBatchPayload(record.texts) ?? readBatchPayload(record.batch);
 
   if (batchPayload) {
     return {
@@ -166,7 +172,7 @@ function readImportRequest(body: Record<string, unknown>):
     };
   }
 
-  const jsonLines = readString(body.jsonLines) ?? readString(body.jsonl);
+  const jsonLines = readString(record.jsonLines) ?? readString(record.jsonl);
   if (jsonLines) {
     const parsed = parseJsonLinesImport(jsonLines);
     return {
@@ -177,7 +183,7 @@ function readImportRequest(body: Record<string, unknown>):
     };
   }
 
-  const text = readString(body.text);
+  const text = readString(record.text);
   if (!text) {
     throw new ImportRequestError("text, batchTexts, texts, batch, jsonLines, or jsonl is required");
   }

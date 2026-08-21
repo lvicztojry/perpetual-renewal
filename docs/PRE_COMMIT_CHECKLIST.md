@@ -61,6 +61,12 @@ npm run verify:local
 npm run verify:release
 ```
 
+生产部署前严格验证：
+
+```bash
+npm run verify:deploy
+```
+
 等价的完整顺序：
 
 ```bash
@@ -82,6 +88,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 说明：
 
 - `db:smoke` 在未配置 `DATABASE_URL` 时会安全跳过；上线前不能把跳过当作生产数据库验收。
+- `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret 或 cron secret 的部署候选误判通过。
 - `npm run e2e` 仍保留为本地发布前检查；当前 Playwright 使用系统 Edge，默认不放入 GitHub Actions。
 - `npm audit` 需要网络，使用项目内 `.npm-cache`，避免把 npm 缓存写到系统盘。
 - `npm run verify:local` 和 `npm run verify:release` 会顺序运行 `smoke` 与 `e2e`，避免它们抢同一个 Next dev server 项目锁。

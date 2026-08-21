@@ -48,6 +48,7 @@ npm run db:smoke
 npm run smoke
 npm run qa:samples
 npm run qa:prompt
+npm run pwa:check
 npm run prisma:validate
 npm run build
 npm run e2e
@@ -56,13 +57,14 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：63 checks passed。
-- `docs:check`：19 docs/readme files passed。
-- `git:boundary`：147 committable files passed。
+- `smoke`：69 checks passed。
+- `docs:check`：20 docs/readme files passed。
+- `git:boundary`：158 committable files passed。
 - `e2e`：2 tests passed。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
+- `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `db:smoke`：当前未配置 `DATABASE_URL`，按设计安全跳过。
 - C 盘可视化目录无项目产物；npm audit cache 使用项目内 `.npm-cache`。
@@ -76,7 +78,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 | `PROACTIVE_CRON_SECRET` | 另一段强随机值，不能和 vault secret 或数据库密码相同 |
 | LLM 配置 | 默认 `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1`；key 放用户 vault 或服务端 secret |
 | Voice 配置 | 默认 `VOICE_PROVIDER=shared-llm`，语音模型用 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` |
-| 数据库迁移 | 本地开发用 `npm run prisma:migrate`；生产目标数据库用 `npm run prisma:migrate:deploy` 后跑 `npm run db:smoke` |
+| 数据库迁移 | 本地开发用 `npm run prisma:migrate`；生产目标数据库用 `npm run prisma:migrate:deploy` 后跑 `npm run verify:deploy` |
 | 推送前检查 | 必跑 `npm run secrets:check` 与 `npm --cache .\.npm-cache audit --audit-level=high` |
 
 生成 secret 的建议命令：
@@ -105,7 +107,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M36 首次提交准备与执行：已创建 `codex/mvp-release-candidate` 分支并提交 `ef4939e feat: build relationship ai mvp baseline`。
 - M37 GitHub Actions CI 基线：已新增 push/PR 门禁，覆盖 install、密钥扫描、类型、lint、QA、Prisma、smoke 和 build。
 - M38 命令行环境就绪检查：已新增 `npm run env:readiness`，本地提示缺失配置，strict 模式用于生产门禁，输出保持脱敏。
-- M39 本地顺序验证脚本：已新增 `npm run verify:local` 和 `npm run verify:release`，顺序跑质量门禁，避免 smoke/e2e 抢 dev server 锁。
+- M39 本地顺序验证脚本：已新增 `npm run verify:local`、`npm run verify:pr`、`npm run verify:release` 和 `npm run verify:deploy`，顺序跑质量门禁；deploy 版本使用 strict readiness 与真实 DB smoke，避免缺生产配置时误判通过。
 - M40 协作者开发说明：已新增 `docs/CONTRIBUTING.md`，说明模块边界、fallback、密钥规则、常用命令和文档更新方式。
 - M41 命令行本地 env 加载一致性：已新增共享 `.env.local`/`.env` 加载 helper，让 `env:readiness` 与 `db:smoke` 的命令行检查和 Next.js 本地配置习惯对齐，同时保持脱敏输出。
 - M42 发布迁移与密钥扫描补强：已新增生产迁移脚本 `prisma:migrate:deploy`，固定依赖版本，清空 `.env.example` 数据库示例值，CI 增加 readiness/db smoke，并扩展密钥扫描到数据库连接串、vault/cron secret、Bearer/JWT 和 vault 密文形态。
@@ -126,6 +128,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M57 账号删除：新增 `/api/me/account` 与设置页危险区，确认短语为“删除我的账号”，删除当前用户数据、vault、日志并清除 session；smoke 覆盖错误确认和正确删除。
 - M58 移动端 PWA：新增 `manifest.webmanifest`、SVG 图标、离线页和 service worker；service worker 明确跳过 `/api/*`，不缓存用户数据或密钥相关响应。
 - M59 多媒体/照片/通讯录导入：工作台导入面板新增媒体/通讯录结构化入口，原文件只在浏览器读取为说明或脱敏摘要，继续复用导入 API 写入 pending 记忆。
+- M60 PRD 范围回写门禁：PRD 升级到 v0.3，第一版范围同步用户自带 key、结构化导入、语音基础链路、PWA 和账号删除，并由 docs check 拦截旧范围表述回流。
+- M61 接口输入护栏：导入 API 坏 JSON 返回 400；STT 要求音频或 mock 文本并校验 base64/MIME/大小；TTS 限制文本长度、voice 名称和 speed 范围；smoke 基线提升到 69 checks。
+- M62 密钥与发布门禁：vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；secret scan 泛化到 `*_API_KEY`、`*_SECRET`、`*_TOKEN`、vault 密文字段；新增 `pwa:check`、`verify:pr` 和 `verify:deploy`。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 
