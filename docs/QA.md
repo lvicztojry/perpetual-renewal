@@ -118,8 +118,9 @@ npm run db:smoke
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 | 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误且不泄露完整 key |
 | 工作台错误脱敏 | 调用看板错误态 | 后端错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时，工作台只显示脱敏占位，不展示敏感原文 |
+| 语音 fallback 展示脱敏 | 朗读最近回复 | 语音合成成功但回退到 mock/provider fallback 时，页面展示的 fallback reason 先脱敏；Bearer、API key、Base URL、rawPayload 和 stack 不展示原文 |
 
-当前基线：`npm run e2e` 已通过 11 tests。
+当前基线：`npm run e2e` 已通过 12 tests。
 
 当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
 

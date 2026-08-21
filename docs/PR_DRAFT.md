@@ -32,7 +32,7 @@ Latest local verification on 2026-08-21:
 - `npm run secrets:check`
 - `npm run git:boundary`
 - `npm run build`
-- `npm run smoke` -> 87 checks
+- `npm run smoke` -> 88 checks
 - `npm run qa:samples`
 - `npm run qa:prompt`
 - `npm run qa:imports`
@@ -41,7 +41,7 @@ Latest local verification on 2026-08-21:
 - `npm run pwa:check`
 - `npm run prisma:validate`
 - `npm run db:smoke` -> skipped because `DATABASE_URL` is not set
-- `npm run e2e` -> 11 tests
+- `npm run e2e` -> 12 tests
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
 Before creating or updating the PR, use the current wrapper sequence `npm run verify:local -- --skip-e2e`, `npm run e2e`, and `npm run verify:release`, then re-check live branch state with `git status --short --branch` and push with `git push origin codex/mvp-release-candidate` if needed. Do not hard-code ahead/pushed status in the PR body.
@@ -50,6 +50,7 @@ Before creating or updating the PR, use the current wrapper sequence `npm run ve
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
+- `SESSION_COOKIE_SECRET`: optional dedicated session signing secret, at least 32 bytes; if omitted, production must use a strong `USER_KEY_VAULT_SECRET` fallback.
 - `PROACTIVE_CRON_SECRET`: separate strong random secret for all-user proactive scheduling.
 - LLM: `LLM_PROVIDER=compatible`, `LLM_BASE_URL=https://api.tryanotherone.com/v1`, model selected in settings or deployment secret fallback; API key should be saved in the user vault or deployment secret, never in Git.
 - Voice: `VOICE_PROVIDER=shared-llm`; set `VOICE_STT_MODEL` and `VOICE_TTS_MODEL` only when the shared gateway requires audio-specific models.

@@ -62,10 +62,10 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：87 checks passed。
+- `smoke`：88 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
-- `e2e`：11 tests passed。
+- `e2e`：12 tests passed。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -125,7 +125,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 - M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、生产配置缺口和后续动作。
-- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 11 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
+- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 12 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
 - M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
@@ -160,26 +160,29 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M80 主动回响重复生成门禁：smoke 覆盖调度器保存站内草稿后，在同一 `now` 再次执行不会立刻重复生成或保存草稿，并以已保存草稿作为下一次候选时间锚点。
 - M81 手动记忆输入边界补强：smoke 覆盖手动创建记忆保留 `sourceMessageId` 链接，未知 `sourceMessageId` 与空白 `content` 返回稳定 400，且不写入悬挂/空 pending 记忆。
 - M82 记忆编辑空内容护栏：`PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；smoke 覆盖拒绝后保留原记忆内容，不把 active/pending 记忆覆盖为空。
-- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案稳定，且页面不回显完整 key；当前 E2E 基线 11 tests。
+- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案稳定，且页面不回显完整 key；当前 E2E 基线 12 tests。
 - M84 聊天消息输入错误边界：`POST /api/conversations/:id/messages` 空白内容返回稳定 400；`regenerate` 拒绝用户消息并返回稳定文案，不透传异常对象。
 - M85 导入错误恢复 E2E 覆盖：主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复，确认友好错误、导入按钮不可用，并可重新选择有效 `.jsonl` 文件继续导入候选。
 - M86 关系对象校验错误边界：`POST/PATCH /api/companions` 对空名称、空语气、非法关系类型返回稳定白名单 400；非法关系不会创建记录，失败编辑不会部分写入其他字段。
 - M87 用量看板查询范围边界：`GET /api/usage/model-calls` 只接受 1-90 天有限 `rangeDays`；非法 query 返回稳定 400，不回显 key、Base URL、prompt 或 raw payload。
-- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当前 E2E 基线 11 tests。
+- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当前 E2E 基线 12 tests。
 - M89 运营反馈机制暂缓口径：PRD、Taskbook 和部署清单明确内容审核后台、反馈问卷、内测邀请机制不进入第一版，后续恢复时单独设计运营反馈模块。
 - M90 用户模型端点类型校验：`PUT /api/me/llm-credential` 对非字符串 `baseUrl` 返回稳定 400，不静默忽略异常类型，也不回显用户 API key 或端点字段。
 - M91 导出常见外部 token 脱敏：用户误把 GitHub PAT/`ghp_` 等常见外部 token 写入记忆时，导出快照会替换为 `[REDACTED_KEY]`，不把 token 原文带出。
 - M92 设置页保存错误脱敏 E2E：模型列表、连接测试和保存失败错误会在前端再次脱敏当前 API key/Base URL；失败后草稿保留、按钮恢复可重试。
 - M93 语音转写元数据边界：STT 输入拒绝异常文件名、语言标签和过长 mock 文本，错误响应不回显 Bearer、prompt、raw payload 或用户配置。
-- M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步 85 smoke checks / 10 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
+- M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步 88 smoke checks / 12 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
 - M95 工作台错误展示脱敏：聊天、记忆、主动回响、导入、语音和用量看板错误展示统一走前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时不显示原文。
-- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 87 checks。
+- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 88 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
 - M100 Verify typegen 预检：`verify:local`、`verify:pr` 和 `verify:release` 在 `git:boundary` 前先执行 `next:typegen`，让 release gate 自行恢复 `next-env.d.ts` 的 production route type imports。
 - M101 Session secret env 模板同步：`.env.example` 新增空的 `SESSION_COOKIE_SECRET` 占位；`docs:check` 要求 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 都保持空占位，不把真实配置写入仓库。
 - M102 Session secret 日志脱敏覆盖：运行时日志脱敏显式覆盖 `SESSION_COOKIE_SECRET=...`；logging QA 与 secret scan smoke 同步验证 session signing secret 不会进入日志或可提交文件。
+- M103 PR 配置清单 session secret 同步：PR 模板和 PR 草稿的生产配置清单补入 `SESSION_COOKIE_SECRET` 或强 `USER_KEY_VAULT_SECRET` fallback；`docs:check` 防止 PR 交接材料漏写 session 签名 secret 来源。
+- M104 导出关系子树脱敏覆盖：导出 snapshot 对 companion 子树统一执行敏感字符串脱敏，覆盖消息正文、主动回响内容、关系状态和设定文本；smoke 覆盖用户误贴 API key 与 provider endpoint 时 `/api/me/export` 不泄露原文。
+- M105 语音 fallback 展示脱敏：工作台朗读最近回复成功后展示的 `fallbackReason` 走前端脱敏；E2E 覆盖供应商回退原因夹带 Bearer、API key、Base URL、rawPayload 和 stack 时页面只显示安全占位。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

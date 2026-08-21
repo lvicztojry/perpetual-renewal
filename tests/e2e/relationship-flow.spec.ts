@@ -230,3 +230,118 @@ test("workspace usage errors redact provider secrets before display", async ({ p
   await expect(page.getByText("rawPayload")).toHaveCount(0);
   await expect(page.getByText("src/lib/provider.ts")).toHaveCount(0);
 });
+
+test("voice synthesis fallback reason is redacted before display", async ({ page }) => {
+  const unique = Date.now();
+  const companionName = `语音回响${unique}`;
+  const fakeApiKey = `sk-voice-preview-${unique}-redaction-key`;
+  const fakeBaseUrl = "https://voice-preview.failure.example.com/v1";
+  const leakedReason = [
+    "语音供应商回退",
+    `Authorization: Bearer ${fakeApiKey}`,
+    `endpoint ${fakeBaseUrl}`,
+    "prompt rawPayload stack",
+    "at voice.fetch (src/lib/voice/provider.ts:22:5)"
+  ].join(" ");
+  let synthesizeRequests = 0;
+
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        userMessage: {
+          id: `user-message-${unique}`,
+          conversationId: "voice-redaction-conversation",
+          role: "user",
+          content: "今天想听一段声音。",
+          metadata: null,
+          createdAt: now
+        },
+        assistantMessage: {
+          id: `assistant-message-${unique}`,
+          conversationId: "voice-redaction-conversation",
+          role: "assistant",
+          content: "我在这里，慢慢听你说。",
+          metadata: {
+            provider: "mock",
+            model: "mock-local"
+          },
+          createdAt: now
+        },
+        pendingMemory: null,
+        relationshipState: {
+          id: `relationship-state-${unique}`,
+          companionId: "voice-redaction-companion",
+          familiarityScore: 12,
+          closenessScore: 10,
+          recentEmotion: "想念",
+          importantEvents: [],
+          lastInteractionAt: now,
+          explanation: "语音脱敏 E2E",
+          createdAt: now,
+          updatedAt: now
+        },
+        completion: {
+          provider: "mock",
+          model: "mock-local"
+        }
+      })
+    });
+  });
+
+  await page.route("**/api/voice/synthesize", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    synthesizeRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        audioDataUrl: "data:audio/wav;base64,UklGRg==",
+        provider: "mock",
+        requestedProvider: "shared-llm",
+        credentialSource: "user-vault",
+        model: "mock-voice",
+        voice: "warm",
+        fallback: true,
+        fallbackKind: "provider_error",
+        fallbackReason: leakedReason
+      })
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`voice-redaction-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("语音脱敏 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await page.getByLabel("名字").fill(companionName);
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
+
+  await page.getByPlaceholder("把想说的话放在这里").fill("今天想听一段声音。");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByText("我在这里，慢慢听你说。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "朗读最近回复" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "朗读最近回复" }).click();
+  await expect(page.getByText("语音回复已生成")).toBeVisible();
+  await expect(page.getByText("语音供应商回退")).toBeVisible();
+  await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
+  await expect(page.getByText("[已隐藏 Base URL]")).toBeVisible();
+  await expect(page.getByText("[已隐藏调试字段]").first()).toBeVisible();
+  await expect(page.getByText("[已隐藏堆栈]")).toBeVisible();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
+  await expect(page.getByText("rawPayload")).toHaveCount(0);
+  await expect(page.getByText("src/lib/voice/provider.ts")).toHaveCount(0);
+  expect(synthesizeRequests).toBe(1);
+});

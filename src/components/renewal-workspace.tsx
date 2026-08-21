@@ -1457,7 +1457,9 @@ export function RenewalWorkspace() {
                   {formatVoiceProviderStatus(voicePreview)}
                   {voicePreview.voice ? ` · ${voicePreview.voice}` : ""}
                 </span>
-                {voicePreview.fallbackReason ? <span>{voicePreview.fallbackReason}</span> : null}
+                {voicePreview.fallbackReason ? (
+                  <span>{redactWorkspaceError(voicePreview.fallbackReason)}</span>
+                ) : null}
               </div>
             ) : null}
             <div className="input-row">
