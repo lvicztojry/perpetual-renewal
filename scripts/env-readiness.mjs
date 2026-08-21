@@ -11,6 +11,7 @@ loadLocalEnv();
 const checks = [
   databaseCheck(),
   secretCheck("USER_KEY_VAULT_SECRET", "用户 API key vault 加密主密钥"),
+  sessionCookieSecretCheck(),
   secretCheck("PROACTIVE_CRON_SECRET", "主动回响 all-user cron 密钥"),
   llmProviderCheck(),
   llmCredentialCheck(),
@@ -92,6 +93,50 @@ function secretCheck(name, label) {
     strictWarning: false,
     detail: `${label} is configured with sufficient length.`,
     next: "Keep the value out of source control and screenshots."
+  };
+}
+
+function sessionCookieSecretCheck() {
+  const dedicated = process.env.SESSION_COOKIE_SECRET?.trim();
+  const fallback = process.env.USER_KEY_VAULT_SECRET?.trim();
+  const source = dedicated ? "SESSION_COOKIE_SECRET" : fallback ? "USER_KEY_VAULT_SECRET" : null;
+  const value = dedicated || fallback;
+
+  if (!value) {
+    return {
+      label: "SESSION_COOKIE_SECRET",
+      status: "missing",
+      required: true,
+      strictWarning: false,
+      detail: "No session signing secret found.",
+      next: "Set a 32-byte-or-longer SESSION_COOKIE_SECRET, or configure a strong USER_KEY_VAULT_SECRET fallback."
+    };
+  }
+
+  if (Buffer.byteLength(value, "utf8") < minimumSecretBytes) {
+    return {
+      label: "SESSION_COOKIE_SECRET",
+      status: "warning",
+      required: true,
+      strictWarning: true,
+      detail: `${source} is present but too short for session cookie signing.`,
+      next: "Replace it with a 32-byte-or-longer random value before production."
+    };
+  }
+
+  return {
+    label: "SESSION_COOKIE_SECRET",
+    status: "ready",
+    required: true,
+    strictWarning: false,
+    detail:
+      source === "SESSION_COOKIE_SECRET"
+        ? "A dedicated session signing secret is configured."
+        : "Session signing will reuse the strong USER_KEY_VAULT_SECRET fallback.",
+    next:
+      source === "SESSION_COOKIE_SECRET"
+        ? "Keep the value out of source control and screenshots."
+        : "Optionally set SESSION_COOKIE_SECRET separately to split signing and vault responsibilities."
   };
 }
 

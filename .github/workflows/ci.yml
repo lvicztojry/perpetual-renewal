@@ -32,6 +32,9 @@ jobs:
       - name: Docs consistency
         run: npm run docs:check
 
+      - name: Next typegen
+        run: npm run next:typegen
+
       - name: Git boundary
         run: npm run git:boundary
 

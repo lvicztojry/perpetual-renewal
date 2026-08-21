@@ -5,6 +5,7 @@ import * as ts from "typescript";
 
 const VAULT_PATH = new URL("../src/lib/credentials/vault.ts", import.meta.url);
 const CONFIG_STATUS_PATH = new URL("../src/lib/config/status.ts", import.meta.url);
+const SESSION_SECRET_PATH = new URL("../src/lib/auth/session-secret.ts", import.meta.url);
 const errors = [];
 
 const originalEnv = { ...process.env };
@@ -12,6 +13,7 @@ const originalNodeEnv = process.env.NODE_ENV;
 
 try {
   await runVaultChecks();
+  await runSessionSecretChecks();
   await runConfigReadinessChecks();
 } finally {
   process.env = { ...originalEnv };
@@ -30,7 +32,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("Config/vault security smoke passed: production secret, HMAC fingerprint, and readiness matrix.");
+console.log("Config/vault security smoke passed: production secret, session signing, HMAC fingerprint, and readiness matrix.");
 
 async function runVaultChecks() {
   const { encryptSecret, decryptSecret } = await loadVaultModule();
@@ -81,6 +83,10 @@ async function runConfigReadinessChecks() {
       loadedStatusModule.setCredentialStatus(emptyCredential());
       const snapshot = await getSnapshot("user-compatible");
       assert(itemStatus(snapshot, "llm_base_url") === "missing", "compatible provider should require baseUrl");
+      assert(
+        itemStatus(snapshot, "session_cookie_secret") === "ready",
+        "config status should mark session signing ready when vault fallback is strong"
+      );
     }
   );
 
@@ -153,6 +159,84 @@ async function runConfigReadinessChecks() {
   );
 }
 
+async function runSessionSecretChecks() {
+  const { getSessionSigningSecret, getSessionSecretReadiness } = await loadSessionSecretModule();
+
+  withEnv(
+    {
+      NODE_ENV: "production",
+      SESSION_COOKIE_SECRET: "",
+      USER_KEY_VAULT_SECRET: ""
+    },
+    () => {
+      assertThrows(
+        () => getSessionSigningSecret(),
+        "production session signing should reject missing SESSION_COOKIE_SECRET and vault fallback"
+      );
+      assert(
+        getSessionSecretReadiness().status === "missing",
+        "session secret readiness should report missing when no signing source exists"
+      );
+    }
+  );
+
+  withEnv(
+    {
+      NODE_ENV: "production",
+      SESSION_COOKIE_SECRET: "short-secret",
+      USER_KEY_VAULT_SECRET: "a".repeat(32)
+    },
+    () => {
+      assertThrows(
+        () => getSessionSigningSecret(),
+        "production session signing should reject short dedicated SESSION_COOKIE_SECRET"
+      );
+      assert(
+        getSessionSecretReadiness().status === "warning",
+        "short dedicated SESSION_COOKIE_SECRET should produce a readiness warning"
+      );
+    }
+  );
+
+  withEnv(
+    {
+      NODE_ENV: "production",
+      SESSION_COOKIE_SECRET: "",
+      USER_KEY_VAULT_SECRET: "a".repeat(32)
+    },
+    () => {
+      assert(
+        getSessionSigningSecret() === "a".repeat(32),
+        "production session signing should allow strong USER_KEY_VAULT_SECRET fallback"
+      );
+      const readiness = getSessionSecretReadiness();
+      assert(readiness.status === "ready", "strong vault fallback should make session readiness ready");
+      assert(
+        readiness.source === "USER_KEY_VAULT_SECRET",
+        "session readiness should identify vault fallback source without exposing the value"
+      );
+    }
+  );
+
+  withEnv(
+    {
+      NODE_ENV: "production",
+      SESSION_COOKIE_SECRET: "s".repeat(32),
+      USER_KEY_VAULT_SECRET: "a".repeat(32)
+    },
+    () => {
+      assert(
+        getSessionSigningSecret() === "s".repeat(32),
+        "dedicated SESSION_COOKIE_SECRET should take precedence over vault fallback"
+      );
+      assert(
+        getSessionSecretReadiness().source === "SESSION_COOKIE_SECRET",
+        "session readiness should identify dedicated secret source"
+      );
+    }
+  );
+}
+
 async function loadVaultModule() {
   const crypto = await import("node:crypto");
   return loadTsModule(VAULT_PATH, {
@@ -165,12 +249,16 @@ async function loadVaultModule() {
 
 async function loadConfigStatusModule() {
   let credentialStatus = emptyCredential();
+  const sessionSecretModule = await loadSessionSecretModule();
   const loadedModule = await loadTsModule(CONFIG_STATUS_PATH, {
     require(specifier) {
       if (specifier === "@/lib/credentials") {
         return {
           getLlmCredentialStatus: async () => credentialStatus
         };
+      }
+      if (specifier === "@/lib/auth/session-secret") {
+        return sessionSecretModule;
       }
       throw new Error(`Unexpected require while loading config status module: ${specifier}`);
     }
@@ -182,6 +270,14 @@ async function loadConfigStatusModule() {
       credentialStatus = next;
     }
   };
+}
+
+async function loadSessionSecretModule() {
+  return loadTsModule(SESSION_SECRET_PATH, {
+    require(specifier) {
+      throw new Error(`Unexpected require while loading session secret module: ${specifier}`);
+    }
+  });
 }
 
 async function loadTsModule(path, options) {

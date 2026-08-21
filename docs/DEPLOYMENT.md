@@ -51,6 +51,7 @@ LLM_API_KEY=""
 LLM_BASE_URL="https://api.tryanotherone.com/v1"
 LLM_MODEL="provider-model-name"
 USER_KEY_VAULT_SECRET="generate-a-long-random-secret"
+SESSION_COOKIE_SECRET=""
 PROACTIVE_CRON_SECRET="generate-a-different-long-random-secret"
 
 LLM_INPUT_COST_USD_PER_1M="0"
@@ -67,11 +68,12 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 
 - `LLM_PROVIDER=compatible` 是默认真实接入路线，不绑定 OpenAI。
 - `USER_KEY_VAULT_SECRET` 用于用户级 API key vault 加密。生产必须配置强随机值，泄露后应轮换用户密钥。
+- `SESSION_COOKIE_SECRET` 可单独用于 HMAC 签名 session cookie。为空时会复用强 `USER_KEY_VAULT_SECRET`，但生产更推荐单独配置以拆分职责。
 - `PROACTIVE_CRON_SECRET` 用于保护 `/api/proactive/run` 的 all-user 调度入口。不要和 `USER_KEY_VAULT_SECRET` 复用。
 - `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
 - 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
-- 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、cron secret 或 Base URL 原文。
+- 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、session secret、cron secret 或 Base URL 原文。
 
 本地或 CI 也可以运行命令行就绪检查：
 
@@ -81,7 +83,7 @@ npm run env:readiness
 
 该命令会读取项目根目录的 `.env.local`/`.env`，便于本地真实配置和 Next.js 开发习惯保持一致；如果环境变量已由 shell、CI 或部署平台注入，则优先使用已存在的进程环境变量。
 
-生产前可加 strict 模式，让缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET` 时直接失败：
+生产前可加 strict 模式，让缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 或 `PROACTIVE_CRON_SECRET` 时直接失败：
 
 ```bash
 npm run env:readiness -- --strict
@@ -126,7 +128,7 @@ npm run db:smoke
 npm run verify:deploy
 ```
 
-该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET` 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
+该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 来源或 `PROACTIVE_CRON_SECRET` 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
 
 生产环境不要依赖内存 fallback。部署环境必须配置可访问的 `DATABASE_URL`，让 Prisma 错误在上线时直接暴露。Preview/production 目标库迁移使用后文 Vercel Deployment 里的 `npm run prisma:migrate:deploy`，不要使用交互式 `prisma migrate dev`。
 
@@ -204,6 +206,7 @@ npm run prisma:migrate:deploy
 ```bash
 npm run secrets:check
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run typecheck
 npm run lint
@@ -218,7 +221,7 @@ npm run smoke
 - 创建关系对象成功。
 - 聊天能调用真实 LLM。
 - `npm run db:smoke` 在相同 `DATABASE_URL` 下通过。
-- 设置页“配置状态”面板可打开并可重新检查；数据库、vault secret、cron secret、LLM 与语音配置项显示符合当前环境预期，页面不展示任何真实 secret、连接串或 Base URL 原文。
+- 设置页“配置状态”面板可打开并可重新检查；数据库、vault secret、session 签名 secret、cron secret、LLM 与语音配置项显示符合当前环境预期，页面不展示任何真实 secret、连接串或 Base URL 原文。
 - 模型调用看板不展示 key、baseUrl、prompt、用户消息正文或 AI 回复正文。
 
 ## Proactive Scheduler
@@ -355,6 +358,7 @@ CI 默认执行：
 npm ci
 npm run secrets:check
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run typecheck
 npm run lint

@@ -70,6 +70,10 @@ function runEnvReadinessSmoke() {
   assert(output.includes("Environment readiness"), "env readiness should print a summary");
   assert(output.includes("[missing] DATABASE_URL"), "env readiness should report missing database");
   assert(
+    output.includes("[missing] SESSION_COOKIE_SECRET"),
+    "env readiness should report missing session signing secret"
+  );
+  assert(
     !output.includes("postgresql://") &&
       !output.includes("Bearer") &&
       !output.includes("sk-") &&
@@ -2027,6 +2031,10 @@ async function runSmoke() {
   assert(
     configStatus.body.configStatus.items.some((item) => item.id === "database"),
     "config status should include database readiness"
+  );
+  assert(
+    configStatus.body.configStatus.items.some((item) => item.id === "session_cookie_secret"),
+    "config status should include session cookie signing readiness"
   );
   assert(
     !JSON.stringify(configStatus.body).includes("postgresql://") &&

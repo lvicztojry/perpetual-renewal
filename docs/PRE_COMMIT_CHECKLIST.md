@@ -35,6 +35,7 @@ GitHub Actions 会在 `push` 和 `pull_request` 上自动运行不依赖真实 s
 npm ci
 npm run secrets:check
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run typecheck
 npm run lint
@@ -83,6 +84,7 @@ npm run qa:vault
 npm run qa:logging
 npm run pwa:check
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run env:readiness
 npm run prisma:validate
@@ -99,7 +101,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret 或 cron secret 的部署候选误判通过。
 - `npm run e2e` 仍保留为本地发布前检查；当前 Playwright 使用系统 Edge，默认不放入 GitHub Actions。
 - `npm audit` 需要网络，使用项目内 `.npm-cache`，避免把 npm 缓存写到系统盘。
-- `npm run verify:local` 和 `npm run verify:release` 会顺序运行 `smoke` 与 `e2e`，避免它们抢同一个 Next dev server 项目锁。
+- `npm run verify:local` 和 `npm run verify:release` 会顺序运行 `smoke` 与 `e2e`，避免它们抢同一个 Next dev server 项目锁，并会在 `git:boundary` 前自动运行 `next:typegen`。
 - `npm run docs:check` 会拦截旧安装命令、裸 audit 命令、旧 smoke 数字、生产迁移口径混淆、`latest` 依赖和危险 `.env.example`。
 - `npm run git:boundary` 会拦截 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不应进入 Git scope 的文件。
 

@@ -1,4 +1,5 @@
 import { getLlmCredentialStatus } from "@/lib/credentials";
+import { getSessionSecretReadiness } from "@/lib/auth/session-secret";
 
 export type ConfigReadinessStatus = "ready" | "warning" | "missing";
 
@@ -56,6 +57,7 @@ export async function getConfigReadinessSnapshot(
       missingNextStep:
         "生成 32 bytes 以上强随机值，并只写入 .env.local 或部署平台 secret。"
     }),
+    sessionSecretItem(),
     secretItem({
       id: "cron_secret",
       label: "主动回响 cron secret",
@@ -125,6 +127,17 @@ export async function getConfigReadinessSnapshot(
       productionReady: missingCount === 0 && warningCount === 0
     },
     items
+  };
+}
+
+function sessionSecretItem(): ConfigReadinessItem {
+  const readiness = getSessionSecretReadiness();
+  return {
+    id: "session_cookie_secret",
+    label: "Session 签名 secret",
+    status: readiness.status,
+    description: readiness.description,
+    nextStep: readiness.nextStep
   };
 }
 

@@ -10,6 +10,7 @@ const npmCommand = npmExecPath ? process.execPath : "npm";
 const steps = [
   ["Secret scan", ["run", "secrets:check"]],
   ["Docs consistency", ["run", "docs:check"]],
+  ["Next typegen", ["run", "next:typegen"]],
   ["Git boundary", ["run", "git:boundary"]],
   ["Typecheck", ["run", "typecheck"]],
   ["Lint", ["run", "lint"]],

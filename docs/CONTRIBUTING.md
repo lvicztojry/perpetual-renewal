@@ -73,6 +73,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 npm run dev
 npm run verify:local
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run env:readiness
 npm run secrets:check
@@ -80,12 +81,13 @@ npm run smoke
 npm run e2e
 ```
 
-`npm run verify:local` 是当前推荐的本地顺序验证入口。它会串行执行主要质量门禁，避免手动并行运行 smoke/e2e 时抢 Next dev server 锁。需要定位单项问题时，再使用下面的分项命令：
+`npm run verify:local` 是当前推荐的本地顺序验证入口。它会串行执行主要质量门禁，避免手动并行运行 smoke/e2e 时抢 Next dev server 锁，并会在 Git boundary 前自动运行 `next:typegen`。需要定位单项问题时，再使用下面的分项命令：
 
 ```bash
 npm run typecheck
 npm run lint
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run smoke
 npm run qa:samples

@@ -12,7 +12,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M98 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, credential endpoint type validation, export token redaction hardening, settings save-error redaction, voice transcription metadata validation, release wording sync, workspace error redaction, model connection failure privacy coverage, private no-store API response boundaries, and signed session cookie hardening.
+- Recent release-candidate commits include M49-M100 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, credential endpoint type validation, export token redaction hardening, settings save-error redaction, voice transcription metadata validation, release wording sync, workspace error redaction, model connection failure privacy coverage, private no-store API response boundaries, signed session cookie hardening, session signing secret readiness gates, and verify typegen preflight.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -62,6 +62,8 @@
 - M96 scope: LLM connection test and model-list failure paths now cover URL construction, provider HTTP, and fetch failures without returning API keys, Bearer headers, endpoint/Base URL values, prompt, raw payload, stack, or low-level transport text.
 - M97 scope: API JSON responses now use a shared private no-store helper so user data, settings, model, usage, voice, memory, chat, export, proactive, and safety endpoints carry cache-busting private response headers.
 - M98 scope: email session cookies now store HMAC-signed payloads instead of raw user ids; smoke covers forged raw userId cookies, login cookie attributes, logout clearing, and account-delete clearing.
+- M99 scope: session signing secret readiness is shared across runtime, settings config status, and CLI env readiness; production requires a 32-byte-or-longer `SESSION_COOKIE_SECRET` or strong `USER_KEY_VAULT_SECRET` fallback.
+- M100 scope: local/release verification now runs `next:typegen` before `git:boundary`, so Next dev route type imports are normalized inside the gate instead of requiring a manual pre-step.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -90,7 +92,7 @@ Last updated: 2026-08-21
 - `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M98 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings, memory fallback session isolation, all-user cron auth boundaries, private no-store API response headers, and signed session cookie anti-forgery; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, and memory isolation E2E.
+- M57-M100 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings, memory fallback session isolation, all-user cron auth boundaries, private no-store API response headers, signed session cookie anti-forgery, and session signing readiness; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, and memory isolation E2E, while release verification normalizes Next route type imports before boundary checks.
 
 ## Before Push Or PR Update
 
@@ -105,7 +107,7 @@ git status --short --ignored
 
 Expected local status after commit should only show ignored generated folders such as `.next/`, `.npm-cache/`, `node_modules/`, `test-results/`, and `tsconfig.tsbuildinfo`.
 
-Run `npm run verify:deploy` only in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, and `PROACTIVE_CRON_SECRET` are configured. A local machine without those production secrets should not mark deploy readiness as passed.
+Run `npm run verify:deploy` only in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, a session signing secret source, and `PROACTIVE_CRON_SECRET` are configured. A local machine without those production secrets should not mark deploy readiness as passed.
 
 ## Push And PR
 
@@ -156,7 +158,7 @@ npm run build
 
 CI intentionally does not require real `DATABASE_URL`, real LLM key, E2E browser availability, or network audit.
 
-Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, Prisma validation, and DB smoke, so it must not be treated as passed when `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, or `PROACTIVE_CRON_SECRET` are missing.
+Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, Prisma validation, and DB smoke, so it must not be treated as passed when `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, session signing secret source, or `PROACTIVE_CRON_SECRET` are missing.
 
 ## Production Configuration Still Required
 

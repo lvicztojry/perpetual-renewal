@@ -31,6 +31,7 @@ LLM_PROVIDER="compatible"
 LLM_BASE_URL="https://api.tryanotherone.com/v1"
 LLM_MODEL="selected-model-name"
 USER_KEY_VAULT_SECRET="32-byte-or-longer-random-secret"
+SESSION_COOKIE_SECRET=""
 PROACTIVE_CRON_SECRET="random-cron-secret"
 VOICE_PROVIDER="shared-llm"
 ```
@@ -38,6 +39,7 @@ VOICE_PROVIDER="shared-llm"
 - 数据库：第一版推荐 Neon PostgreSQL；配置后运行 `npm run db:smoke` 做连通性检查。
 - LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
+- Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
 - 命令行检查：`npm run env:readiness` 会读取项目根目录的 `.env.local`/`.env`，只输出就绪状态和下一步，不打印真实值。

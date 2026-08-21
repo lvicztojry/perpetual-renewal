@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { getSessionSigningSecret } from "@/lib/auth/session-secret";
 import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
@@ -14,7 +15,6 @@ export type AppSession = {
 
 const cookieMaxAgeSeconds = 60 * 60 * 24 * 30;
 const sessionCookieVersion = "v1";
-const devSessionSigningSecret = "perpetual-renewal-dev-session-secret";
 
 type FallbackSessionRecord = {
   userId: string;
@@ -239,17 +239,6 @@ function safeEqual(value: string, expected: string) {
   const expectedBuffer = Buffer.from(expected);
 
   return valueBuffer.length === expectedBuffer.length && timingSafeEqual(valueBuffer, expectedBuffer);
-}
-
-function getSessionSigningSecret() {
-  const secret = process.env.SESSION_COOKIE_SECRET ?? process.env.USER_KEY_VAULT_SECRET;
-  if (secret?.trim()) return secret;
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Missing session signing secret.");
-  }
-
-  return devSessionSigningSecret;
 }
 
 export function normalizeEmail(value: string) {

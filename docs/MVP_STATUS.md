@@ -83,6 +83,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL，连接串只放 `.env.local` 或部署平台 secret |
 | `USER_KEY_VAULT_SECRET` | 生产专用强随机值，至少 32 bytes，不复用开发值 |
+| `SESSION_COOKIE_SECRET` | 可选独立 session 签名 secret，至少 32 bytes；为空时复用强 vault secret |
 | `PROACTIVE_CRON_SECRET` | 另一段强随机值，不能和 vault secret 或数据库密码相同 |
 | LLM 配置 | 默认 `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1`；key 放用户 vault 或服务端 secret |
 | Voice 配置 | 默认 `VOICE_PROVIDER=shared-llm`，语音模型用 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` |
@@ -95,7 +96,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-分别运行两次，分别填入 `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET`。
+至少运行两次，分别填入 `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET`；如果希望 session 签名与 vault 加密职责分离，再运行一次填入 `SESSION_COOKIE_SECRET`。
 
 ## 继续施工队列
 
@@ -115,7 +116,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M36 首次提交准备与执行：已创建 `codex/mvp-release-candidate` 分支并提交 `ef4939e feat: build relationship ai mvp baseline`。
 - M37 GitHub Actions CI 基线：已新增 push/PR 门禁，覆盖 install、密钥扫描、类型、lint、QA、Prisma、smoke 和 build。
 - M38 命令行环境就绪检查：已新增 `npm run env:readiness`，本地提示缺失配置，strict 模式用于生产门禁，输出保持脱敏。
-- M39 本地顺序验证脚本：已新增 `npm run verify:local`、`npm run verify:pr`、`npm run verify:release` 和 `npm run verify:deploy`，顺序跑质量门禁；deploy 版本使用 strict readiness 与真实 DB smoke，避免缺生产配置时误判通过。
+- M39 本地顺序验证脚本：已新增 `npm run verify:local`、`npm run verify:pr`、`npm run verify:release` 和 `npm run verify:deploy`，顺序跑质量门禁；deploy 版本使用 strict readiness 与真实 DB smoke，避免缺生产配置时误判通过；verify 本地/发布入口会在 Git boundary 前先运行 `next:typegen`，防止 Next dev server 留下的 dev route type 路径阻塞发布检查。
 - M40 协作者开发说明：已新增 `docs/CONTRIBUTING.md`，说明模块边界、fallback、密钥规则、常用命令和文档更新方式。
 - M41 命令行本地 env 加载一致性：已新增共享 `.env.local`/`.env` 加载 helper，让 `env:readiness` 与 `db:smoke` 的命令行检查和 Next.js 本地配置习惯对齐，同时保持脱敏输出。
 - M42 发布迁移与密钥扫描补强：已新增生产迁移脚本 `prisma:migrate:deploy`，固定依赖版本，清空 `.env.example` 数据库示例值，CI 增加 readiness/db smoke，并扩展密钥扫描到数据库连接串、vault/cron secret、Bearer/JWT 和 vault 密文形态。
@@ -175,6 +176,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 87 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
+- M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
+- M100 Verify typegen 预检：`verify:local`、`verify:pr` 和 `verify:release` 在 `git:boundary` 前先执行 `next:typegen`，让 release gate 自行恢复 `next-env.d.ts` 的 production route type imports。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 
@@ -182,6 +185,6 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 仍需外部配置后再做的模块：
 
-- 生产数据库和 secret：`DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`。
+- 生产数据库和 secret：`DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET`。
 - 真实 LLM 模型 key/model：可由用户在设置页 vault 保存，或由部署平台 secret 提供服务端 fallback。
 - 内容审核后台、用户反馈问卷、内测邀请机制：你已决定暂不进入当前第一版。
