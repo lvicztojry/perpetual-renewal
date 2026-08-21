@@ -60,7 +60,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：80 checks passed。
+- `smoke`：81 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：7 tests passed。
@@ -154,6 +154,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M77 API/导出隐私边界补强：LLM credential 保存失败只返回白名单业务文案；voice unsupported provider fallback 不回显误配值；用户导出会脱敏 profile 内误写入的 token/provider endpoint；git boundary 阻止 API route 直接返回 raw `error.message` 和 voice raw payload。
 - M78 API 校验错误边界收束：import/profile/account 路由不再直接返回异常对象 `error.message`；profile invalid PATCH smoke 覆盖多字段校验失败不会造成部分写入；git boundary 拦截 API route 直接回传 `error.message`。
 - M79 模型列表供应商分支覆盖：smoke 覆盖已保存 `anthropic` 等非 compatible provider 后调用 `/api/me/llm-models` 返回稳定“仅支持兼容中转站”文案，且不泄露 key、endpoint、Bearer、`baseUrl` 或 raw payload。
+- M80 主动回响重复生成门禁：smoke 覆盖调度器保存站内草稿后，在同一 `now` 再次执行不会立刻重复生成或保存草稿，并以已保存草稿作为下一次候选时间锚点。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

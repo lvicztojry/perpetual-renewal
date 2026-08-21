@@ -1054,6 +1054,25 @@ async function runSmoke() {
   );
   pass("POST /api/proactive/run saves due drafts");
 
+  const proactiveRunAgain = await request("/api/proactive/run", {
+    method: "POST",
+    body: JSON.stringify({
+      dryRun: false,
+      limit: 1,
+      now: schedulerNow
+    })
+  });
+  assert(
+    proactiveRunAgain.body.generatedCount === 0 &&
+      proactiveRunAgain.body.savedCount === 0,
+    "proactive scheduler should not generate duplicate drafts immediately after a saved run"
+  );
+  assert(
+    proactiveRunAgain.body.results?.some((item) => item.reason === "尚未到达主动回响候选时间。"),
+    "proactive scheduler should use saved proactive drafts as the next timing anchor"
+  );
+  pass("POST /api/proactive/run avoids immediate duplicate drafts");
+
   const proactiveAllWithoutSecret = await request(
     "/api/proactive/run",
     {
