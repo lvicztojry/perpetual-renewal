@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户自带 API key 或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -50,6 +50,7 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
+npm run qa:logging
 npm run pwa:check
 npm run prisma:validate
 npm run build
@@ -59,7 +60,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：74 checks passed。
+- `smoke`：76 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：7 tests passed。
@@ -68,6 +69,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:prompt`：10 relationship kinds passed。
 - `qa:imports`：structured media/contact import planner passed。
 - `qa:vault`：vault and config readiness security matrix passed。
+- `qa:logging`：runtime log sanitization passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `db:smoke`：当前未配置 `DATABASE_URL`，按设计安全跳过。
@@ -147,6 +149,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M72 运行时 handoff 元数据清理：安全检查 API 不再向客户端返回早期 `next`/`DEV-11` handoff 字段；smoke 在全部安全样例中防止旧 DEV 元数据、prompt、key、Base URL 或输入原文回流。
 - M73 数据库文档状态收口：`docs/DATABASE.md` 移除旧的 mock-dev session 和 relationship-state mock-oriented 口径，改为当前 session userId 隔离、email session fallback demo user，以及 relationship-state API 走 Prisma/memory repository 持久化。
 - M74 运行时代码边界门禁：`git:boundary` 新增 API 路由不得直接调用 `request.json()`、运行时 `src/app`/`src/lib` 不得包含 `DEV-*` handoff 元数据的检查，防止 M71/M72 清理项回流。
+- M75 运行时隐私与决策口径收束：运行时 fallback warning 使用 `safeLogValue()` 脱敏；用户 LLM vault 状态不返回 Base URL 明文或 `baseUrl` 字段；模型列表失败不透传 provider 原始异常；smoke 覆盖 profile 关闭主动回响、credential endpoint 隐私和模型列表失败脱敏；docs check 收束 TryAnotherOne、用户自带 API key、`VOICE_PROVIDER=shared-llm` 和暂缓产品项口径。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

@@ -6,7 +6,8 @@ export type ProviderCredentialStatus = {
   configured: boolean;
   kind: ProviderCredentialKind;
   provider: string | null;
-  baseUrl: string | null;
+  endpointConfigured: boolean;
+  endpointFingerprint: string | null;
   model: string | null;
   keyPreview: string | null;
   keyFingerprint: string | null;

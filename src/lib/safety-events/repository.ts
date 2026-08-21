@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { safeLogValue } from "@/lib/logging/sanitize";
 import type { SafetyEventLog } from "./types";
 
 type SafetyEventRepository = {
@@ -54,7 +55,7 @@ class FallbackSafetyEventRepository implements SafetyEventRepository {
         this.warned = true;
         console.warn(
           "[safety-events] Prisma repository unavailable; falling back to in-memory store.",
-          error instanceof Error ? error.message : error
+          safeLogValue(error)
         );
       }
 
@@ -77,7 +78,7 @@ class FallbackSafetyEventRepository implements SafetyEventRepository {
         this.warned = true;
         console.warn(
           "[safety-events] Prisma repository unavailable; falling back to in-memory store.",
-          error instanceof Error ? error.message : error
+          safeLogValue(error)
         );
       }
 

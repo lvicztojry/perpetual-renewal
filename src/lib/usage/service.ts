@@ -1,4 +1,5 @@
 import { createUsageRepository } from "./repository";
+import { safeLogValue } from "@/lib/logging/sanitize";
 import type { CreateModelUsageLogInput, ModelUsageLog, UsageDashboard } from "./types";
 
 const usageRepository = createUsageRepository();
@@ -9,7 +10,7 @@ export async function recordModelUsage(input: CreateModelUsageLogInput) {
   try {
     return await usageRepository.create(input);
   } catch (error) {
-    console.warn("[usage] Failed to record model usage.", error instanceof Error ? error.message : error);
+    console.warn("[usage] Failed to record model usage.", safeLogValue(error));
     return null;
   }
 }

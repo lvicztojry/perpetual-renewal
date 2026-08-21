@@ -1,5 +1,6 @@
 import { InMemoryRenewalRepository } from "./in-memory-repository";
 import { PrismaRenewalRepository } from "./prisma-repository";
+import { safeLogValue } from "@/lib/logging/sanitize";
 import type { MessageRole, ProactiveMessageStatus, RenewalRepository } from "./types";
 
 const databaseUnavailableCodes = new Set([
@@ -253,7 +254,7 @@ class FallbackRenewalRepository implements RenewalRepository {
 
     console.warn(
       "[renewal] Prisma repository unavailable; falling back to in-memory demo store.",
-      error instanceof Error ? error.message : error
+      safeLogValue(error)
     );
   }
 }

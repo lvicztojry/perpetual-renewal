@@ -63,20 +63,16 @@ function parseCredentialRequest(body: CredentialRequest) {
   const provider = readProvider(body.provider);
   const apiKey = readOptionalString(body.apiKey, "apiKey", 8, 4096);
   const model = readOptionalString(body.model, "model", 1, 128);
-  const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl.trim() : "";
-
-  if (provider === "compatible" && !baseUrl) {
-    throw new Error("compatible provider requires baseUrl.");
-  }
+  const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl.trim() : undefined;
 
   if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
-    throw new Error("baseUrl must start with http:// or https://.");
+    throw new Error("Base URL must start with http:// or https://.");
   }
 
   return {
     provider,
     apiKey,
-    baseUrl: baseUrl || null,
+    ...(baseUrl ? { baseUrl } : {}),
     model
   };
 }

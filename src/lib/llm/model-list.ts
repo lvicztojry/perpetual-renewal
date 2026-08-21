@@ -7,7 +7,6 @@ export type LlmModelListItem = {
 
 export type LlmModelListResult = {
   provider: string;
-  baseUrl: string;
   credentialSource: "user-vault" | "server-env";
   models: LlmModelListItem[];
 };
@@ -52,7 +51,6 @@ export async function listAvailableLlmModels(userId: string): Promise<LlmModelLi
 
   return {
     provider: "compatible",
-    baseUrl,
     credentialSource: credential ? "user-vault" : "server-env",
     models: (payload.data ?? [])
       .map((item) => ({

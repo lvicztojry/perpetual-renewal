@@ -329,6 +329,7 @@ function checkPackageJson() {
   expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
   expectEqual(scripts["qa:imports"], "node tests/structured-import-smoke.mjs", "package.json scripts.qa:imports");
   expectEqual(scripts["qa:vault"], "node tests/config-vault-security.mjs", "package.json scripts.qa:vault");
+  expectEqual(scripts["qa:logging"], "node tests/logging-sanitize-smoke.mjs", "package.json scripts.qa:logging");
   expectEqual(scripts["pwa:check"], "node scripts/pwa-check.mjs", "package.json scripts.pwa:check");
   expectEqual(scripts["git:boundary"], "node scripts/git-boundary-check.mjs", "package.json scripts.git:boundary");
   expectEqual(scripts["next:typegen"], "node scripts/next-typegen.mjs", "package.json scripts.next:typegen");
@@ -421,7 +422,8 @@ function checkTaskbookDecisions() {
     "部署：是否先用单机/云托管快速上线",
     "现实替代素材：第一版是否允许少量手动语气样例",
     "沉浸边界：创建页、设置页和高风险场景分别怎样表达 AI 能力边界",
-    "后续需由账号/session 模块把真实 userId 接入 renewal API"
+    "后续需由账号/session 模块把真实 userId 接入 renewal API",
+    "是否在本轮继续进入内容审核后台、用户反馈问卷和内测邀请机制"
   ];
 
   for (const snippet of staleDecisionSnippets) {
@@ -430,7 +432,7 @@ function checkTaskbookDecisions() {
     }
   }
 
-  for (const snippet of ["已决策基线", "仍需用户决策", "M54 施工决策点收束", "M55 Session 接入状态收束"]) {
+  for (const snippet of ["已决策基线", "仍需外部配置", "已决策暂缓项", "M54 施工决策点收束", "M55 Session 接入状态收束"]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
@@ -502,10 +504,20 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "npm run verify:deploy"],
     ["docs/MVP_STATUS.md", "npm run qa:imports"],
     ["docs/MVP_STATUS.md", "npm run qa:vault"],
+    ["docs/MVP_STATUS.md", "npm run qa:logging"],
     ["docs/MVP_STATUS.md", "npm run pwa:check"],
     ["docs/MVP_STATUS.md", `M${taskbookMilestones.latestNumber}`],
     ["docs/PHASE-1.5.md", `${smokeMetrics.checkCount} checks`],
-    ["README.md", "npm run db:smoke"]
+    ["README.md", "npm run db:smoke"],
+    ["docs/PR_DRAFT.md", "LLM_PROVIDER=compatible"],
+    ["docs/PR_DRAFT.md", "LLM_BASE_URL=https://api.tryanotherone.com/v1"],
+    ["docs/PR_DRAFT.md", "VOICE_PROVIDER=shared-llm"],
+    ["docs/PR_DRAFT.md", "user vault"],
+    ["docs/MVP_STATUS.md", "用户自带 API key"],
+    ["docs/MVP_STATUS.md", "VOICE_PROVIDER=shared-llm"],
+    ["docs/DEPLOYMENT.md", "https://api.tryanotherone.com/v1"],
+    ["docs/DEPLOYMENT.md", "VOICE_PROVIDER=shared-llm"],
+    ["docs/RELEASE_HANDOFF.md", "VOICE_PROVIDER=shared-llm"]
   ];
 
   for (const [file, snippet] of requiredSnippets) {

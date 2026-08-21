@@ -53,6 +53,9 @@ jobs:
       - name: Config vault QA
         run: npm run qa:vault
 
+      - name: Logging sanitize QA
+        run: npm run qa:logging
+
       - name: PWA check
         run: npm run pwa:check
 

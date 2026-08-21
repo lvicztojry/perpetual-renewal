@@ -31,7 +31,7 @@ export async function getConfigReadinessSnapshot(
   const llmKeyConfigured = Boolean(credential.configured || readAnyLlmApiKey(llmProvider));
   const llmBaseUrlConfigured =
     llmProvider === "compatible"
-      ? Boolean(credential.baseUrl?.trim() || process.env.LLM_BASE_URL?.trim())
+      ? Boolean(credential.endpointConfigured || process.env.LLM_BASE_URL?.trim())
       : true;
   const llmModelConfigured = Boolean(credential.model || process.env.LLM_MODEL?.trim());
   const voiceProvider = process.env.VOICE_PROVIDER?.trim() || "shared-llm";

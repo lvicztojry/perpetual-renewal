@@ -1116,13 +1116,56 @@ async function runSmoke() {
   assert(me.body.user?.id, "me endpoint should return a user");
   pass("GET /api/me");
 
+  const updatedMe = await request("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify({
+      nickname: "Smoke 更新用户",
+      timezone: "Asia/Shanghai",
+      language: "zh-CN",
+      proactiveMessagesEnabled: false,
+      proactiveFrequencyHours: 3
+    })
+  });
+  assert(updatedMe.body.user?.nickname === "Smoke 更新用户", "profile update should persist nickname");
+  assert(
+    updatedMe.body.user?.proactiveMessagesEnabled === false,
+    "profile update should disable proactive globally"
+  );
+  assert(
+    updatedMe.body.user?.proactiveFrequencyHours === 3,
+    "profile update should persist custom proactive frequency"
+  );
+  const meAfterPatch = await request("/api/me");
+  assert(
+    meAfterPatch.body.user?.proactiveMessagesEnabled === false,
+    "GET /api/me should read updated proactive setting"
+  );
+  const disabledProactiveRun = await request("/api/proactive/run", {
+    method: "POST",
+    body: JSON.stringify({
+      dryRun: true,
+      now: schedulerNow,
+      maxDrafts: 2
+    })
+  });
+  assert(
+    disabledProactiveRun.body.generatedCount === 0 && disabledProactiveRun.body.savedCount === 0,
+    "global proactive disable should prevent draft generation"
+  );
+  assert(
+    disabledProactiveRun.body.results?.some((item) => item.reason === "主动回响已关闭。"),
+    "scheduler should explain global proactive disable"
+  );
+  pass("PATCH /api/me persists profile and disables proactive scheduler");
+
   const fakeKey = "vault-test-user-key-value";
+  const savedEndpoint = "https://gateway.example.com/v1";
   const credential = await request("/api/me/llm-credential", {
     method: "PUT",
     body: JSON.stringify({
       provider: "compatible",
       apiKey: fakeKey,
-      baseUrl: "https://gateway.example.com/v1",
+      baseUrl: savedEndpoint,
       model: ""
     })
   });
@@ -1139,12 +1182,18 @@ async function runSmoke() {
     !JSON.stringify(credential.body).includes(fakeKey),
     "credential response should not include raw api key"
   );
+  assert(
+    credential.body.credential?.endpointConfigured === true &&
+      credential.body.credential?.endpointFingerprint &&
+      !JSON.stringify(credential.body).includes(savedEndpoint) &&
+      !JSON.stringify(credential.body).includes("baseUrl"),
+    "credential response should expose only sanitized endpoint metadata"
+  );
 
   const updatedCredential = await request("/api/me/llm-credential", {
     method: "PUT",
     body: JSON.stringify({
       provider: "compatible",
-      baseUrl: "https://gateway.example.com/v1",
       model: "smoke-model-updated"
     })
   });
@@ -1161,6 +1210,14 @@ async function runSmoke() {
     !JSON.stringify(updatedCredential.body).includes(fakeKey),
     "credential config update response should not include raw api key"
   );
+  assert(
+    updatedCredential.body.credential?.endpointConfigured === true &&
+      updatedCredential.body.credential?.endpointFingerprint ===
+        credential.body.credential?.endpointFingerprint &&
+      !JSON.stringify(updatedCredential.body).includes(savedEndpoint) &&
+      !JSON.stringify(updatedCredential.body).includes("baseUrl"),
+    "credential config update should preserve endpoint without returning it"
+  );
 
   const credentialStatus = await request("/api/me/llm-credential");
   assert(
@@ -1174,6 +1231,14 @@ async function runSmoke() {
   assert(
     !JSON.stringify(credentialStatus.body).includes(fakeKey),
     "credential status should not expose raw api key"
+  );
+  assert(
+    credentialStatus.body.credential?.endpointConfigured === true &&
+      credentialStatus.body.credential?.endpointFingerprint ===
+        credential.body.credential?.endpointFingerprint &&
+      !JSON.stringify(credentialStatus.body).includes(savedEndpoint) &&
+      !JSON.stringify(credentialStatus.body).includes("baseUrl"),
+    "credential status should not expose raw endpoint URL or baseUrl field"
   );
 
   const exportedWithCredential = await request("/api/me/export");
@@ -1246,12 +1311,45 @@ async function runSmoke() {
   );
   assert(
     !JSON.stringify(voiceWithUserCredential.body).includes(fakeKey) &&
-      !JSON.stringify(voiceWithUserCredential.body).includes("https://gateway.example.com/v1") &&
+      !JSON.stringify(voiceWithUserCredential.body).includes(savedEndpoint) &&
       !JSON.stringify(voiceWithUserCredential.body).includes("baseUrl") &&
       !JSON.stringify(voiceWithUserCredential.body).includes("raw"),
     "voice synthesis with user credential should not expose key or endpoint"
   );
   pass("POST /api/voice/synthesize uses sanitized user vault fallback");
+
+  const invalidEndpoint = "https://%";
+  const credentialWithInvalidEndpoint = await request("/api/me/llm-credential", {
+    method: "PUT",
+    body: JSON.stringify({
+      provider: "compatible",
+      baseUrl: invalidEndpoint,
+      model: "smoke-model-updated"
+    })
+  });
+  assert(
+    credentialWithInvalidEndpoint.body.credential?.endpointConfigured === true,
+    "credential should allow endpoint update without re-entering api key"
+  );
+  const modelListWithProviderFailure = await request(
+    "/api/me/llm-models",
+    {},
+    { allowError: true }
+  );
+  assert(
+    modelListWithProviderFailure.response.status === 400,
+    "model list provider failure should return 400"
+  );
+  assert(
+    !JSON.stringify(modelListWithProviderFailure.body).includes(invalidEndpoint) &&
+      !JSON.stringify(modelListWithProviderFailure.body).includes(savedEndpoint) &&
+      !JSON.stringify(modelListWithProviderFailure.body).includes(fakeKey) &&
+      !JSON.stringify(modelListWithProviderFailure.body).includes("Bearer") &&
+      !JSON.stringify(modelListWithProviderFailure.body).includes("baseUrl") &&
+      !JSON.stringify(modelListWithProviderFailure.body).includes("rawPayload"),
+    "model list provider failures should not expose endpoint, key, headers, or raw payload"
+  );
+  pass("GET /api/me/llm-models sanitizes provider failures");
 
   const deletedCredential = await request("/api/me/llm-credential", { method: "DELETE" });
   assert(

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
@@ -32,18 +33,27 @@ declare global {
 }
 
 export async function saveLlmCredential(userId: string, input: SaveLlmCredentialInput) {
-  const existingRecord = input.apiKey ? null : await readCredentialRecord(userId);
+  const existingRecord = await readCredentialRecord(userId);
 
   if (!input.apiKey && !existingRecord) {
     throw new Error("apiKey is required when no saved credential exists.");
   }
 
   const encrypted = input.apiKey ? encryptSecret(input.apiKey) : null;
+  const baseUrl =
+    input.baseUrl === undefined
+      ? existingRecord?.baseUrl ?? null
+      : input.baseUrl?.trim() || null;
+
+  if ((input.provider === "compatible" || input.provider === "openai-compatible") && !baseUrl) {
+    throw new Error("compatible provider requires Base URL.");
+  }
+
   const record: CredentialRecord = {
     userId,
     kind: "llm",
     provider: input.provider,
-    baseUrl: input.baseUrl?.trim() || null,
+    baseUrl,
     model: input.model?.trim() || null,
     encryptedApiKey: encrypted?.encrypted ?? existingRecord?.encryptedApiKey ?? "",
     keyIv: encrypted?.iv ?? existingRecord?.keyIv ?? "",
@@ -155,7 +165,8 @@ function toCredentialStatus(record: CredentialRecord): ProviderCredentialStatus 
     configured: record.status === "active",
     kind: "llm",
     provider: record.provider,
-    baseUrl: record.baseUrl,
+    endpointConfigured: Boolean(record.baseUrl),
+    endpointFingerprint: record.baseUrl ? fingerprintEndpoint(record.baseUrl) : null,
     model: record.model,
     keyPreview: record.keyPreview,
     keyFingerprint: record.keyFingerprint,
@@ -169,13 +180,18 @@ function emptyStatus(): ProviderCredentialStatus {
     configured: false,
     kind: "llm",
     provider: null,
-    baseUrl: null,
+    endpointConfigured: false,
+    endpointFingerprint: null,
     model: null,
     keyPreview: null,
     keyFingerprint: null,
     credentialSource: "server-env",
     updatedAt: null
   };
+}
+
+function fingerprintEndpoint(baseUrl: string) {
+  return createHash("sha256").update(baseUrl.trim().replace(/\/+$/, "")).digest("hex").slice(0, 12);
 }
 
 function toCredentialRecord(

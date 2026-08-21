@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { safeLogValue } from "@/lib/logging/sanitize";
 import { estimateCostUsd } from "./pricing";
 import type { CreateModelUsageLogInput, ModelUsageLog } from "./types";
 
@@ -80,7 +81,7 @@ class FallbackUsageRepository implements UsageRepository {
         this.warned = true;
         console.warn(
           "[usage] Prisma usage repository unavailable; falling back to in-memory store.",
-          error instanceof Error ? error.message : error
+          safeLogValue(error)
         );
       }
       this.persistence = "memory";

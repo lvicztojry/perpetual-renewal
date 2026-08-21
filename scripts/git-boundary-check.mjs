@@ -34,6 +34,7 @@ const requiredProjectFiles = [
   "scripts/docs-consistency.mjs",
   "scripts/git-boundary-check.mjs",
   "scripts/next-typegen.mjs",
+  "src/lib/logging/sanitize.ts",
   "src/app/page.tsx",
   "tests/smoke.mjs",
   "docs/TASKBOOK.md",
@@ -52,6 +53,7 @@ checkForbiddenFiles("committable", committableFiles);
 checkRequiredFiles(committableFiles);
 checkNextEnvTypeImports();
 checkRuntimeSourceBoundaries(committableFiles);
+checkRuntimeLoggingBoundaries(committableFiles);
 
 if (findings.length > 0) {
   console.error("Git boundary check failed:");
@@ -137,6 +139,25 @@ function checkRuntimeSourceBoundaries(files) {
     if (/\bDEV-\d+\b/.test(content)) {
       findings.push(
         `${file} contains DEV-* handoff metadata in runtime source; keep milestone/task labels in docs or tests only.`
+      );
+    }
+  }
+}
+
+function checkRuntimeLoggingBoundaries(files) {
+  const runtimeFiles = files.filter((file) => /^src\/(?:app|lib)\/.*\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(file));
+  for (const file of runtimeFiles) {
+    const content = readSourceFile(file);
+    if (!content) continue;
+
+    const rawErrorLogPatterns = [
+      /console\.(?:warn|error)\([\s\S]{0,300}\berror\s+instanceof\s+Error\s*\?\s*error\.message\s*:\s*error[\s\S]{0,120}\)/g,
+      /console\.(?:warn|error)\([\s\S]{0,300}\berror\.stack\b[\s\S]{0,120}\)/g
+    ];
+
+    if (rawErrorLogPatterns.some((pattern) => pattern.test(content))) {
+      findings.push(
+        `${file} logs raw error details; use src/lib/logging/sanitize.ts safeLogValue() before runtime console output.`
       );
     }
   }

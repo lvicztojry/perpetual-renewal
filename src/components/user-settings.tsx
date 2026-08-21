@@ -41,7 +41,8 @@ type FormState = {
 type LlmCredentialStatus = {
   configured: boolean;
   provider: string | null;
-  baseUrl: string | null;
+  endpointConfigured: boolean;
+  endpointFingerprint: string | null;
   model: string | null;
   keyPreview: string | null;
   keyFingerprint: string | null;
@@ -197,7 +198,9 @@ export function UserSettings() {
         setCredentialForm((current) => ({
           ...current,
           provider: savedProvider,
-          baseUrl: credentialPayload.credential.baseUrl ?? readDefaultBaseUrl(savedProvider),
+          baseUrl: credentialPayload.credential.endpointConfigured
+            ? ""
+            : readDefaultBaseUrl(savedProvider),
           model: credentialPayload.credential.model ?? "",
           apiKey: ""
         }));
@@ -239,8 +242,7 @@ export function UserSettings() {
 
     return (
       (credential.provider ?? "compatible") !== credentialForm.provider ||
-      (credential.baseUrl ?? readDefaultBaseUrl(credential.provider ?? "compatible")) !==
-        credentialForm.baseUrl.trim() ||
+      Boolean(credentialForm.baseUrl.trim()) ||
       (credential.model ?? "") !== credentialForm.model.trim() ||
       Boolean(credentialForm.apiKey.trim())
     );
@@ -248,7 +250,9 @@ export function UserSettings() {
   const canSaveCredential =
     Boolean(credentialForm.provider) &&
     (credentialHasSavedKey || Boolean(credentialForm.apiKey.trim())) &&
-    (!isCompatibleProvider || Boolean(credentialForm.baseUrl.trim()));
+    (!isCompatibleProvider ||
+      Boolean(credentialForm.baseUrl.trim()) ||
+      Boolean(credential?.endpointConfigured));
   const voiceSharedLlmHint = isCompatibleProvider
     ? "语音输入和朗读会共用这组兼容中转站配置；未单独设置 VOICE_STT_MODEL/VOICE_TTS_MODEL 时使用当前模型，失败会自动回落到 mock。"
     : "当前文本供应商不是兼容中转站；语音会优先使用服务端 VOICE/LLM 环境变量，缺配置或失败时自动回落到 mock。";
@@ -472,8 +476,8 @@ export function UserSettings() {
     if (!canSaveCredential) {
       const message =
         credentialHasSavedKey
-          ? "请先填写供应商和 Base URL。"
-          : "请先输入 API Key；保存后可读取模型列表。";
+          ? "请填写 Base URL，或留空沿用已保存端点。"
+          : "请先输入 API Key 和 Base URL；保存后可读取模型列表。";
       setCredentialError(message);
       setCredentialStatus("error");
       throw new Error(message);
@@ -486,8 +490,8 @@ export function UserSettings() {
 
     const requestBody = {
       provider: credentialForm.provider,
-      baseUrl: credentialForm.baseUrl.trim(),
       model: credentialForm.model.trim(),
+      ...(credentialForm.baseUrl.trim() ? { baseUrl: credentialForm.baseUrl.trim() } : {}),
       ...(credentialForm.apiKey.trim() ? { apiKey: credentialForm.apiKey.trim() } : {})
     };
 
@@ -507,7 +511,7 @@ export function UserSettings() {
       setCredentialForm((current) => ({
         ...current,
         provider: payload.credential?.provider ?? current.provider,
-        baseUrl: payload.credential?.baseUrl ?? current.baseUrl,
+        baseUrl: payload.credential?.endpointConfigured ? "" : current.baseUrl,
         model: payload.credential?.model ?? current.model,
         apiKey: ""
       }));
@@ -530,7 +534,9 @@ export function UserSettings() {
       ...current,
       provider,
       baseUrl:
-        (provider === "compatible" || provider === "openai-compatible") && !current.baseUrl.trim()
+        credential?.endpointConfigured
+          ? ""
+          : (provider === "compatible" || provider === "openai-compatible") && !current.baseUrl.trim()
           ? readDefaultBaseUrl(provider)
           : current.baseUrl === defaultCompatibleBaseUrl
             ? readDefaultBaseUrl(provider)
@@ -685,7 +691,10 @@ export function UserSettings() {
             {credential?.configured ? (
               <div className="status-box">
                 已保存 {credential.provider}/{credential.model ?? "未选择模型"} · key{" "}
-                {credential.keyPreview ?? "已加密"}
+                {credential.keyPreview ?? "已加密"} · 端点{" "}
+                {credential.endpointConfigured
+                  ? `已保存${credential.endpointFingerprint ? ` #${credential.endpointFingerprint}` : ""}`
+                  : "未配置"}
               </div>
             ) : (
               <div className="status-box">未保存用户密钥，将使用服务端环境变量或 mock。</div>
@@ -710,7 +719,11 @@ export function UserSettings() {
                 onChange={(event) =>
                   updateCredentialField("baseUrl", event.target.value)
                 }
-                placeholder="https://provider.example.com/v1"
+                placeholder={
+                  credential?.endpointConfigured
+                    ? "留空则沿用已保存端点"
+                    : "https://provider.example.com/v1"
+                }
                 value={credentialForm.baseUrl}
               />
             </label>

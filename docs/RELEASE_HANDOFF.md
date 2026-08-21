@@ -11,7 +11,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M74 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, and runtime code boundary gates.
+- Recent release-candidate commits include M49-M75 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, and runtime privacy hardening.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -37,6 +37,7 @@
 - M72 scope: safety check responses no longer expose stale `next`/`DEV-11` handoff metadata, with smoke coverage across the safety sample set.
 - M73 scope: database docs now match current session-scoped repository behavior and relationship-state persistence, replacing stale mock-dev/mock-oriented wording.
 - M74 scope: git boundary now blocks direct `request.json()` calls in API routes and `DEV-*` handoff metadata in runtime `src/app` or `src/lib` code.
+- M75 scope: runtime fallback warnings are sanitized, user LLM vault status no longer returns Base URL plaintext or a `baseUrl` field, model-list errors use stable friendly copy, smoke covers profile-driven proactive disable and endpoint privacy, and docs checks guard BYOK/TryAnotherOne/shared-LLM/deferred-product scope.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -50,11 +51,12 @@ Last updated: 2026-08-21
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 74 checks.
+- `npm run smoke`: passed, 76 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.
 - `npm run qa:vault`: passed.
+- `npm run qa:logging`: passed.
 - `npm run pwa:check`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
@@ -119,6 +121,7 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
+npm run qa:logging
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
@@ -154,4 +157,5 @@ Run once for `USER_KEY_VAULT_SECRET` and once for `PROACTIVE_CRON_SECRET`.
 
 ## Deferred Product Decisions
 
-- Configure production PostgreSQL and secrets.
+- Deferred by product decision for first release: paid subscription/quota system, moderation admin, feedback survey, and beta invite mechanism.
+- Remaining external setup: configure production PostgreSQL and secrets.
