@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createUserVoiceProvider } from "@/lib/voice/user-provider";
 import {
   VoiceProviderError,
@@ -15,9 +16,12 @@ export async function POST(request: Request) {
   let body: unknown;
 
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    body = await readJsonObject(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to transcribe voice.") },
+      { status: 400 }
+    );
   }
 
   if (!isTranscriptionInput(body)) {

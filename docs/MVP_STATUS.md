@@ -143,6 +143,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M68 关系状态 API 持久化收束：`/api/companions/:id/relationship-state` 读取和更新当前 session 用户的持久化关系状态，不再返回早期 mock/DEV-9 元数据；POST 基于当前 companion 状态更新并写回 Prisma 或 memory fallback。
 - M69 核心写接口 JSON 输入护栏：关系创建/编辑、消息发送/操作、记忆编辑和安全检查统一坏 JSON 400 响应，不暴露解析异常、内部 stack 或旧调试信息。
 - M70 JSON 输入护栏补齐：登录、用户资料、账号删除、用户 LLM credential/test、关系记忆候选、关系状态、主动草稿和主动消息状态更新统一 JSON object 入参解析；坏 JSON、`null`、数组等非对象 body 返回友好 400，响应不暴露解析器原文、TypeError、stack、Bearer、baseUrl 或密钥相关内容。
+- M71 JSON 解析入口收口：API 目录不再直接调用 `request.json()`；chat、导入、语音和主动调度入口统一共享 JSON helper；`POST /api/proactive/run` 保留空 body 默认 dry-run，但坏 JSON、`null`、数组等非对象 body 返回友好 400；QA/错误文案文档补齐 JSON body 护栏口径。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

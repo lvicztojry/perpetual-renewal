@@ -95,6 +95,7 @@ npm run db:smoke
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
 | 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
 | 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
+| JSON 输入护栏 | 所有接收 JSON body 的 API | 坏 JSON 返回友好 400；`null`、数组、字符串等非对象 body 返回 JSON object required 400；`POST /api/proactive/run` 空 body 仍按默认 dry-run 运行；错误响应不包含 `SyntaxError`、`Unexpected token`、`Cannot read properties`、`stack`、`Bearer`、`baseUrl`、API key 或供应商 raw payload |
 | PWA 静态资源 | `/manifest.webmanifest`、`/offline.html`、`/sw.js` | manifest 使用产品名与 standalone；离线页可访问；service worker 明确跳过 `/api/*`，不缓存用户数据响应 |
 
 主动回响调度还需要确认 `POST /api/proactive/run` 的 `limit` 和 `maxDrafts` 同时生效：`limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量。`scope:"all"` 必须携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET>` 或 `x-proactive-cron-secret`，无密钥和错误密钥都必须返回 401；`scope:"current-user"` 走当前 session。上线初期优先用 `dryRun:true` 验证扫描范围，确认 `savedCount=0` 后再切到 `dryRun:false`。响应可以返回归一化后的 `maxDrafts` 和每个关系对象的裁剪原因，但不能返回 cron secret、API key、Base URL、prompt 或供应商 raw payload。

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readOptionalJsonObject } from "@/lib/http/json";
 import { runProactiveScheduler } from "@/lib/relationship/proactive-scheduler";
 
 type ProactiveRunRequest = {
@@ -13,7 +14,17 @@ type ProactiveRunRequest = {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const body = await readRequestBody(request);
+  let body: ProactiveRunRequest;
+
+  try {
+    body = await readRequestBody(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to run proactive scheduler.") },
+      { status: 400 }
+    );
+  }
+
   const scope = body.scope ?? "current-user";
   const cronAuthorized = isCronAuthorized(request);
 
@@ -42,12 +53,7 @@ export async function POST(request: Request) {
 }
 
 async function readRequestBody(request: Request): Promise<ProactiveRunRequest> {
-  try {
-    const body = (await request.json()) as ProactiveRunRequest;
-    return body && typeof body === "object" ? body : {};
-  } catch {
-    return {};
-  }
+  return (await readOptionalJsonObject(request)) as ProactiveRunRequest;
 }
 
 function readNow(value: string | undefined) {

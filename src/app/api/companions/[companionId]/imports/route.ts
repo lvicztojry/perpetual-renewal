@@ -11,6 +11,7 @@ import {
   type TextImportSourceKind
 } from "@/lib/import/types";
 import { getCurrentSession } from "@/lib/auth/session";
+import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 
 type RouteContext = {
@@ -25,15 +26,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   let importRequest: ReturnType<typeof readImportRequest>;
 
   try {
-    body = await request.json();
+    body = await readJsonObject(request);
     importRequest = readImportRequest(body);
   } catch (error) {
     if (error instanceof ImportRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json(
+        { error: jsonErrorMessage(error, "Failed to import text.") },
+        { status: 400 }
+      );
     }
 
     throw error;

@@ -11,7 +11,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M70 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, and JSON input guardrails.
+- Recent release-candidate commits include M49-M71 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, and JSON input guardrails.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -33,6 +33,7 @@
 - M68 scope: relationship-state API now reads/writes session-scoped repository state instead of returning early mock metadata.
 - M69 scope: core write APIs reject invalid JSON bodies with friendly 400 responses and no parser internals.
 - M70 scope: remaining high/medium-risk JSON write APIs require object bodies, return friendly 400s for invalid or non-object JSON, and avoid leaking parser internals, TypeError text, stack traces, Bearer/baseUrl strings, or secret-shaped content.
+- M71 scope: all API JSON parsing now routes through shared helpers; chat, import, voice, and proactive scheduler inputs share invalid/non-object 400 behavior while proactive scheduler keeps empty-body default dry-run compatibility.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)

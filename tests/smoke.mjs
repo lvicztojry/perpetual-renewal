@@ -466,6 +466,17 @@ async function runSmoke() {
       !JSON.stringify(rejectedImportJson.body).includes("stack"),
     "text import invalid JSON response should stay sanitized"
   );
+  assertJsonObjectRequiredResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}/imports`,
+      {
+        method: "POST",
+        body: "[]"
+      },
+      { allowError: true }
+    ),
+    "text import"
+  );
   pass("POST /api/companions/:id/imports rejects invalid JSON");
 
   const batchSecret = "batch-secret-value-that-should-not-leak";
@@ -926,6 +937,34 @@ async function runSmoke() {
   pass("PATCH /api/proactive-messages/:id updates draft status");
 
   const schedulerNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  const proactiveEmptyBodyRun = await request("/api/proactive/run", { method: "POST" });
+  assert(
+    proactiveEmptyBodyRun.body.dryRun === true && proactiveEmptyBodyRun.body.savedCount === 0,
+    "proactive scheduler should keep empty-body requests as default dry-runs"
+  );
+  assertInvalidJsonResponse(
+    await request(
+      "/api/proactive/run",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "proactive scheduler"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/proactive/run",
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "proactive scheduler"
+  );
+
   const proactiveDryRun = await request("/api/proactive/run", {
     method: "POST",
     body: JSON.stringify({
@@ -1348,6 +1387,29 @@ async function runSmoke() {
   assert(logout.body.ok === true, "logout should return ok");
   pass("POST /api/auth/logout");
 
+  assertInvalidJsonResponse(
+    await request(
+      "/api/chat/complete",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "chat completion"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/chat/complete",
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "chat completion"
+  );
+
   const chat = await request("/api/chat/complete", {
     method: "POST",
     body: JSON.stringify(samples.chatCompleteFallbackCase)
@@ -1392,6 +1454,28 @@ async function runSmoke() {
       !JSON.stringify(voiceTranscription.body).includes("baseUrl") &&
       !JSON.stringify(voiceTranscription.body).includes("raw"),
     "voice transcription response should not expose provider credentials"
+  );
+  assertInvalidJsonResponse(
+    await request(
+      "/api/voice/transcribe",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "voice transcription"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/voice/transcribe",
+      {
+        method: "POST",
+        body: "[]"
+      },
+      { allowError: true }
+    ),
+    "voice transcription"
   );
   pass("POST /api/voice/transcribe safe provider response");
 
@@ -1473,6 +1557,28 @@ async function runSmoke() {
       !JSON.stringify(voiceSynthesis.body).includes("baseUrl") &&
       !JSON.stringify(voiceSynthesis.body).includes("raw"),
     "voice synthesis response should not expose provider credentials"
+  );
+  assertInvalidJsonResponse(
+    await request(
+      "/api/voice/synthesize",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "voice synthesis"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/voice/synthesize",
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "voice synthesis"
   );
   pass("POST /api/voice/synthesize safe provider response");
 
@@ -1815,6 +1921,7 @@ function assertSafeJsonErrorBody(result, label) {
       !stringify(result.body).includes("Cannot read properties") &&
       !stringify(result.body).includes("Bearer") &&
       !stringify(result.body).includes("baseUrl") &&
+      !stringify(result.body).includes("rawPayload") &&
       !stringify(result.body).includes("stack"),
     `${label} invalid JSON response should not expose parser internals`
   );
