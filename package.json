@@ -10,6 +10,8 @@
     "smoke": "node tests/smoke.mjs",
     "qa:samples": "node tests/qa-samples-smoke.mjs",
     "qa:prompt": "node tests/prompt-builder-smoke.mjs",
+    "qa:imports": "node tests/structured-import-smoke.mjs",
+    "qa:vault": "node tests/config-vault-security.mjs",
     "pwa:check": "node scripts/pwa-check.mjs",
     "db:smoke": "node scripts/db-smoke.mjs",
     "env:readiness": "node scripts/env-readiness.mjs",

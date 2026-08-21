@@ -17,8 +17,11 @@
 ## Verification
 
 - [ ] `npm run verify:local -- --skip-e2e`
+- [ ] `npm run qa:imports`
+- [ ] `npm run qa:vault`
 - [ ] `npm run verify:local`
 - [ ] `npm run verify:release`
+- [ ] `npm run verify:deploy` in the target deployment environment before production release
 - [ ] `git status --short --ignored`
 - [ ] Manual release acceptance: `docs/RELEASE_ACCEPTANCE.md`
 
@@ -37,7 +40,4 @@
 ## Follow-up Decisions
 
 - [ ] Push branch and open PR.
-- [ ] Configure production PostgreSQL and secrets.
-- [ ] Decide PWA scope.
-- [ ] Decide multimedia/photo/contact import scope.
-- [ ] Decide account deletion policy and confirmation UX.
+- [ ] Configure production PostgreSQL and secrets before deployment.

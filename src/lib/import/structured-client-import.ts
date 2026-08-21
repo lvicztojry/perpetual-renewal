@@ -206,6 +206,10 @@ function parseContactRecords(text: string, extension?: string | null): Array<Rec
     return parseVcards(text);
   }
 
+  if (extension === ".json") {
+    return parseJsonLike(text) ?? [];
+  }
+
   if (extension === ".csv" || looksLikeCsv(text)) {
     return parseCsvContacts(text);
   }
@@ -254,7 +258,11 @@ function parseVcards(text: string) {
 }
 
 function readVcardValue(lines: string[], key: string) {
-  const line = lines.find((entry) => entry.toUpperCase().startsWith(`${key}`));
+  const normalizedKey = key.toUpperCase();
+  const line = lines.find((entry) => {
+    const upper = entry.toUpperCase();
+    return upper.startsWith(`${normalizedKey}:`) || upper.startsWith(`${normalizedKey};`);
+  });
   if (!line) return undefined;
   const [, ...parts] = line.split(":");
   return parts.join(":").replace(/;/g, " ").trim();
@@ -364,7 +372,7 @@ function formatContactRecord(record: Record<string, unknown> | string) {
     return record ? `联系人条目：${record}` : "";
   }
 
-  const name = readRecordString(record, ["name", "displayName", "fn", "姓名", "昵称"]);
+  const name = readRecordString(record, ["name", "fullName", "displayName", "fn", "姓名", "昵称"]);
   if (!name) return "";
 
   const relationship = readRecordString(record, ["relationship", "relation", "关系", "身份"]);

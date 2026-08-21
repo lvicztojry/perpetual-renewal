@@ -130,6 +130,11 @@ async function runSecretScanSmoke() {
       [
         'DATABASE_URL="' + "postgresql://" + 'realuser:realpassword@db.example.com:5432/app?schema=public"',
         'USER_KEY_VAULT_SECRET="' + "mN5d7bJfW61Kz8QhP2nC4xR9vL0sA3eY6tU1iO8pD5g" + '"',
+        'VOICE_API_KEY="' + "voicekeyvalue0123456789012345" + '"',
+        'encryptedApiKey: "' + "bW9jay12YXVsdC1jaXBoZXJ0ZXh0LXZhbHVl" + '"',
+        'keyIv: "' + "bW9jay12YXVsdC1pdi12YWx1ZQ==" + '"',
+        'keyAuthTag: "' + "bW9jay12YXVsdC10YWctdmFsdWU=" + '"',
+        'vaultCiphertext="' + "bW9jay12YXVsdC1jaXBoZXJ0ZXh0LXNoYXBl" + '"',
         "Authorization: Bearer " + "realtokenvalue0123456789",
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" +
           ".eyJzdWIiOiIxMjM0NTY3ODkwIn0" +

@@ -40,6 +40,9 @@ npm run typecheck
 npm run lint
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
+npm run pwa:check
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
@@ -74,6 +77,9 @@ npm run typecheck
 npm run lint
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
+npm run pwa:check
 npm run docs:check
 npm run git:boundary
 npm run env:readiness

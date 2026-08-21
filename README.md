@@ -87,6 +87,9 @@ npm run db:smoke
 npm run smoke
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
+npm run pwa:check
 npm run env:readiness
 npm run build
 npm run e2e

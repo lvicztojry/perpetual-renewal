@@ -48,6 +48,8 @@ npm run db:smoke
 npm run smoke
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
 npm run pwa:check
 npm run prisma:validate
 npm run build
@@ -58,12 +60,14 @@ npm --cache .\.npm-cache audit --audit-level=high
 结果摘要：
 
 - `smoke`：69 checks passed。
-- `docs:check`：20 docs/readme files passed。
-- `git:boundary`：158 committable files passed。
+- `docs:check`：documentation consistency passed。
+- `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：2 tests passed。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
+- `qa:imports`：structured media/contact import planner passed。
+- `qa:vault`：vault and config readiness security matrix passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `db:smoke`：当前未配置 `DATABASE_URL`，按设计安全跳过。
@@ -131,6 +135,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M60 PRD 范围回写门禁：PRD 升级到 v0.3，第一版范围同步用户自带 key、结构化导入、语音基础链路、PWA 和账号删除，并由 docs check 拦截旧范围表述回流。
 - M61 接口输入护栏：导入 API 坏 JSON 返回 400；STT 要求音频或 mock 文本并校验 base64/MIME/大小；TTS 限制文本长度、voice 名称和 speed 范围；smoke 基线提升到 69 checks。
 - M62 密钥与发布门禁：vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；secret scan 泛化到 `*_API_KEY`、`*_SECRET`、`*_TOKEN`、vault 密文字段；新增 `pwa:check`、`verify:pr` 和 `verify:deploy`。
+- M63 文档命令/链接门禁：`docs:check` 纳入 PR 模板、本地 Markdown 链接和文档里的 `npm run` 命令，防止 PR/发布文档引用不存在的文件或脚本。
+- M64 结构化导入与 vault QA：新增 `qa:imports` 与 `qa:vault`，分别覆盖媒体/通讯录 planner 脱敏兼容和生产 vault/config readiness 安全矩阵。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

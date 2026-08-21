@@ -1,15 +1,22 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, sep } from "node:path";
+import { dirname, join, normalize, sep } from "node:path";
 import process from "node:process";
 
 const findings = [];
 const files = readCommittableFiles();
 const docsAndReadmes = files.filter(
-  (file) => file === "README.md" || file.startsWith(`docs${sep}`) || file.startsWith("docs/")
+  (file) =>
+    file === "README.md" ||
+    file.startsWith(`docs${sep}`) ||
+    file.startsWith("docs/") ||
+    file === join(".github", "pull_request_template.md") ||
+    file === ".github/pull_request_template.md"
 );
 
 checkDocsText(docsAndReadmes);
+checkMarkdownLinks(docsAndReadmes);
+checkDocumentedNpmScripts(docsAndReadmes);
 checkMigrationContexts(docsAndReadmes);
 checkPackageJson();
 checkEnvExample();
@@ -61,6 +68,67 @@ function checkDocsText(targetFiles) {
       }
     });
   }
+}
+
+function checkMarkdownLinks(targetFiles) {
+  const linkPattern = /(?<!!)\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+
+  for (const file of targetFiles) {
+    const content = readText(file);
+    if (!content) {
+      continue;
+    }
+
+    for (const match of content.matchAll(linkPattern)) {
+      const rawTarget = match[1]?.trim();
+      if (!rawTarget || shouldSkipMarkdownLink(rawTarget)) {
+        continue;
+      }
+
+      const targetPath = decodeURIComponent(rawTarget.split("#")[0] ?? "").trim();
+      if (!targetPath) {
+        continue;
+      }
+
+      const resolved = normalize(join(dirname(file), targetPath));
+      if (!existsSync(resolved)) {
+        findings.push(`${file} links to missing local file: ${rawTarget}`);
+      }
+    }
+  }
+}
+
+function checkDocumentedNpmScripts(targetFiles) {
+  const packageJson = parseJsonFile("package.json");
+  if (!packageJson) {
+    return;
+  }
+
+  const scripts = new Set(Object.keys(packageJson.scripts ?? {}));
+  const commandPattern = /\bnpm\s+run\s+([A-Za-z0-9:_-]+)/g;
+
+  for (const file of targetFiles) {
+    const content = readText(file);
+    if (!content) {
+      continue;
+    }
+
+    for (const match of content.matchAll(commandPattern)) {
+      const scriptName = match[1];
+      if (!scripts.has(scriptName)) {
+        findings.push(`${file} documents missing package script: npm run ${scriptName}`);
+      }
+    }
+  }
+}
+
+function shouldSkipMarkdownLink(target) {
+  return (
+    /^[a-z][a-z0-9+.-]*:/i.test(target) ||
+    target.startsWith("#") ||
+    target.startsWith("<") ||
+    target.includes("://")
+  );
 }
 
 function checkMigrationContexts(targetFiles) {
@@ -121,6 +189,8 @@ function checkPackageJson() {
     "package.json scripts.prisma:migrate:deploy"
   );
   expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
+  expectEqual(scripts["qa:imports"], "node tests/structured-import-smoke.mjs", "package.json scripts.qa:imports");
+  expectEqual(scripts["qa:vault"], "node tests/config-vault-security.mjs", "package.json scripts.qa:vault");
   expectEqual(scripts["pwa:check"], "node scripts/pwa-check.mjs", "package.json scripts.pwa:check");
   expectEqual(scripts["git:boundary"], "node scripts/git-boundary-check.mjs", "package.json scripts.git:boundary");
   expectEqual(scripts["next:typegen"], "node scripts/next-typegen.mjs", "package.json scripts.next:typegen");
@@ -181,6 +251,8 @@ function checkCi() {
     "npm run secrets:check",
     "npm run docs:check",
     "npm run git:boundary",
+    "npm run qa:imports",
+    "npm run qa:vault",
     "npm run pwa:check",
     "npm run env:readiness",
     "npm run db:smoke"
@@ -210,6 +282,11 @@ function checkReleaseHandoff() {
     "M57",
     "M58",
     "M59",
+    "M60",
+    "M61",
+    "M62",
+    "M63",
+    "M64",
     "d7a72f2",
     "sync taskbook status gates",
     "69 checks",
@@ -251,6 +328,11 @@ function checkTaskbookDecisions() {
     "M57 账号删除",
     "M58 移动端 PWA",
     "M59 多媒体/照片/通讯录导入",
+    "M60 PRD 范围回写门禁",
+    "M61 接口输入与导入兼容护栏",
+    "M62 密钥与发布门禁加固",
+    "M63 文档命令/链接门禁",
+    "M64 结构化导入与 vault QA",
     "sync taskbook status gates"
   ]) {
     if (!taskbook.includes(snippet)) {
@@ -316,6 +398,8 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "19 safety areas"],
     ["docs/MVP_STATUS.md", "npm run db:smoke"],
     ["docs/MVP_STATUS.md", "npm run verify:deploy"],
+    ["docs/MVP_STATUS.md", "npm run qa:imports"],
+    ["docs/MVP_STATUS.md", "npm run qa:vault"],
     ["docs/MVP_STATUS.md", "npm run pwa:check"],
     ["docs/MVP_STATUS.md", "M51"],
     ["docs/MVP_STATUS.md", "M52"],
@@ -326,6 +410,11 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M57"],
     ["docs/MVP_STATUS.md", "M58"],
     ["docs/MVP_STATUS.md", "M59"],
+    ["docs/MVP_STATUS.md", "M60"],
+    ["docs/MVP_STATUS.md", "M61"],
+    ["docs/MVP_STATUS.md", "M62"],
+    ["docs/MVP_STATUS.md", "M63"],
+    ["docs/MVP_STATUS.md", "M64"],
     ["docs/PHASE-1.5.md", "69 checks"],
     ["README.md", "npm run db:smoke"]
   ];

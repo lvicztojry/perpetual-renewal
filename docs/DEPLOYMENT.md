@@ -293,6 +293,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 npm run secrets:check
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
+npm run pwa:check
 npm run prisma:validate
 npm run db:smoke
 npm run typecheck
@@ -353,6 +356,9 @@ npm run typecheck
 npm run lint
 npm run qa:samples
 npm run qa:prompt
+npm run qa:imports
+npm run qa:vault
+npm run pwa:check
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
