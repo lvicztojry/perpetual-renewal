@@ -1,4 +1,5 @@
 import { privateJson } from "@/lib/http/private-response";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createUserVoiceProvider } from "@/lib/voice/user-provider";
@@ -68,7 +69,7 @@ function toSafeSynthesisResponse(result: VoiceSynthesis) {
     voice: result.voice,
     fallback: result.fallback,
     fallbackKind: result.fallbackKind,
-    fallbackReason: result.fallbackReason,
+    fallbackReason: redactSensitiveResponseText(result.fallbackReason),
     missingConfig: result.missingConfig,
     retryable: result.retryable,
     status: result.status

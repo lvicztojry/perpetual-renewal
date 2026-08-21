@@ -2,7 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import process from "node:process";
@@ -34,6 +34,7 @@ process.on("SIGTERM", async () => {
 try {
   runEnvReadinessSmoke();
   await runSecretScanSmoke();
+  await runApiBoundaryStaticSmoke();
 
   if (!rootUrl) {
     const port = process.env.SMOKE_PORT || String(await findAvailablePort(DEFAULT_PORT));
@@ -168,6 +169,57 @@ async function runSecretScanSmoke() {
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function runApiBoundaryStaticSmoke() {
+  const apiRouteFiles = await listFiles(resolve(ROOT_DIR, "src/app/api"));
+  const routeSources = await Promise.all(
+    apiRouteFiles
+      .filter((filePath) => filePath.endsWith("route.ts"))
+      .map(async (filePath) => ({
+        filePath,
+        source: await readFile(filePath, "utf8")
+      }))
+  );
+
+  for (const { filePath, source } of routeSources) {
+    assert(
+      !source.includes("request.json("),
+      `${filePath} should parse JSON through src/lib/http/json helpers`
+    );
+    assert(
+      !source.includes("NextResponse.json(") &&
+        !source.includes("Response.json(") &&
+        !source.includes("new Response("),
+      `${filePath} should return API JSON through privateJson`
+    );
+  }
+
+  for (const routePath of [
+    resolve(ROOT_DIR, "src/app/api/chat/complete/route.ts"),
+    resolve(ROOT_DIR, "src/app/api/voice/synthesize/route.ts"),
+    resolve(ROOT_DIR, "src/app/api/voice/transcribe/route.ts")
+  ]) {
+    const source = await readFile(routePath, "utf8");
+    assert(
+      source.includes("redactSensitiveResponseText") &&
+        /fallbackReason:\s*redactSensitiveResponseText\(/.test(source),
+      `${routePath} should redact fallbackReason before returning API JSON`
+    );
+  }
+
+  const responseSafetySource = await readFile(
+    resolve(ROOT_DIR, "src/lib/http/response-safety.ts"),
+    "utf8"
+  );
+  assert(
+    responseSafetySource.includes("sanitizeLogText") &&
+      responseSafetySource.includes("LLM_BASE_URL") &&
+      responseSafetySource.includes("VOICE_BASE_URL") &&
+      responseSafetySource.includes("redacted-provider-endpoint"),
+    "HTTP response text sanitizer should cover log secrets and provider endpoints"
+  );
+  pass("API route response boundaries stay private and sanitized");
 }
 
 function startDevServer(port) {
@@ -2931,4 +2983,20 @@ async function readSamples() {
 
     throw error;
   }
+}
+
+async function listFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listFiles(fullPath)));
+    } else if (entry.isFile()) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
 }

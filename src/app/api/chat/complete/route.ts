@@ -8,6 +8,7 @@ import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { LlmProviderError } from "@/lib/llm/types";
 import { createUserLlmProvider } from "@/lib/llm/user-provider";
 import { recordModelUsage } from "@/lib/usage";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
     const session = await getCurrentSession();
     const provider = await createUserLlmProvider(session.userId);
     const result = await generateCompanionReply(body, provider);
+    const safeResult = {
+      ...result,
+      fallbackReason: redactSensitiveResponseText(result.fallbackReason)
+    };
     await recordModelUsage({
       userId: session.userId,
       purpose: "chat_complete_api",
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
       latencyMs: Date.now() - startedAt,
       fallbackReason: result.fallbackReason
     });
-    return privateJson(result);
+    return privateJson(safeResult);
   } catch (error) {
     const session = await getCurrentSession().catch(() => null);
     if (error instanceof LlmProviderError) {

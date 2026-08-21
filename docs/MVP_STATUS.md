@@ -62,7 +62,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：88 checks passed。
+- `smoke`：89 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：12 tests passed。
@@ -171,9 +171,9 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M91 导出常见外部 token 脱敏：用户误把 GitHub PAT/`ghp_` 等常见外部 token 写入记忆时，导出快照会替换为 `[REDACTED_KEY]`，不把 token 原文带出。
 - M92 设置页保存错误脱敏 E2E：模型列表、连接测试和保存失败错误会在前端再次脱敏当前 API key/Base URL；失败后草稿保留、按钮恢复可重试。
 - M93 语音转写元数据边界：STT 输入拒绝异常文件名、语言标签和过长 mock 文本，错误响应不回显 Bearer、prompt、raw payload 或用户配置。
-- M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步 88 smoke checks / 12 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
+- M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步 89 smoke checks / 12 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
 - M95 工作台错误展示脱敏：聊天、记忆、主动回响、导入、语音和用量看板错误展示统一走前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时不显示原文。
-- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 88 checks。
+- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 89 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
@@ -183,6 +183,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M103 PR 配置清单 session secret 同步：PR 模板和 PR 草稿的生产配置清单补入 `SESSION_COOKIE_SECRET` 或强 `USER_KEY_VAULT_SECRET` fallback；`docs:check` 防止 PR 交接材料漏写 session 签名 secret 来源。
 - M104 导出关系子树脱敏覆盖：导出 snapshot 对 companion 子树统一执行敏感字符串脱敏，覆盖消息正文、主动回响内容、关系状态和设定文本；smoke 覆盖用户误贴 API key 与 provider endpoint 时 `/api/me/export` 不泄露原文。
 - M105 语音 fallback 展示脱敏：工作台朗读最近回复成功后展示的 `fallbackReason` 走前端脱敏；E2E 覆盖供应商回退原因夹带 Bearer、API key、Base URL、rawPayload 和 stack 时页面只显示安全占位。
+- M106 API private JSON 门禁：`git:boundary` 拦截 API route 直接 `NextResponse.json()` 或 `Response.json()`，要求统一使用 `privateJson()`，防止新增接口漏掉 private no-store 响应头。
+- M107 API fallback 响应脱敏：聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一走 `redactSensitiveResponseText()`；smoke 增加静态边界检查，防止 API route 绕过 JSON 解析 helper、`privateJson()` 或高风险 fallback 脱敏。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

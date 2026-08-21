@@ -170,6 +170,12 @@ function checkApiPrivacyBoundaries(files) {
     const content = readSourceFile(file);
     if (!content) continue;
 
+    if (/\b(?:NextResponse|Response)\.json\s*\(/.test(content)) {
+      findings.push(
+        `${file} returns JSON without the private no-store helper; use src/lib/http/private-response.ts privateJson().`
+      );
+    }
+
     if (
       /NextResponse\.json\(\s*\{\s*error\s*:\s*error\s+instanceof\s+Error\s*\?\s*error\.message\b/.test(content) ||
       /NextResponse\.json\([\s\S]{0,260}\berror\s*:\s*error\.message\b/.test(content)
