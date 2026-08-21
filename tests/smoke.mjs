@@ -1020,6 +1020,8 @@ async function runSmoke() {
   const accidentalBearerToken = ["accidental", "Bearer", "Token", "Value", "0123456789"].join("");
   const accidentalDatabaseUrl = ["postgres", "ql://export-user:export-password@db.example.com:5432/app"].join("");
   const accidentalGithubToken = ["github", "_pat_", "fixture", "_".repeat(2), "token".repeat(8)].join("");
+  const accidentalMessageSecret = "accidental-message-secret-value-012345";
+  const providerEndpointInMessage = "https://tryanotherone.example.com/v1/chat/completions";
   const memoryWithAccidentalSecrets = await request(
     `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
     {
@@ -1041,6 +1043,25 @@ async function runSmoke() {
     "memory fixture should preserve accidental secret before export scrub"
   );
   pass("PATCH /api/memories/:id stores accidental secret fixture for export scrub");
+
+  const messageWithAccidentalSecrets = await request(
+    `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content: [
+          "我不小心把连接信息贴进聊天。",
+          `api_key=${accidentalMessageSecret}`,
+          `endpoint ${providerEndpointInMessage}`
+        ].join(" ")
+      })
+    }
+  );
+  assert(
+    messageWithAccidentalSecrets.body.userMessage?.content.includes(accidentalMessageSecret),
+    "message fixture should preserve accidental secret before export scrub"
+  );
+  pass("POST /api/conversations/:id/messages stores accidental secret fixture for export scrub");
 
   const relationshipStateRead = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`
@@ -1569,6 +1590,8 @@ async function runSmoke() {
       !exportedText.includes(accidentalBearerToken) &&
       !exportedText.includes(accidentalDatabaseUrl) &&
       !exportedText.includes(accidentalGithubToken) &&
+      !exportedText.includes(accidentalMessageSecret) &&
+      !exportedText.includes(providerEndpointInMessage) &&
       !exportedText.includes("baseUrl") &&
       !exportedText.includes("encryptedApiKey") &&
       !exportedText.includes("keyIv") &&

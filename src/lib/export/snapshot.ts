@@ -4,7 +4,8 @@ import type {
   ConversationRecord,
   MemoryRecord,
   MessageRecord,
-  ProactiveMessageRecord
+  ProactiveMessageRecord,
+  RelationshipStateRecord
 } from "@/lib/renewal/types";
 import { listSafetyEventsForExport } from "@/lib/safety-events";
 import { listModelUsageLogsForExport } from "@/lib/usage";
@@ -91,14 +92,14 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       repository.listProactiveMessages(userId, companion.id)
     ]);
 
-    companionSnapshots.push({
+    companionSnapshots.push(scrubSensitiveValue({
       ...companion,
       conversation: scrubConversation(conversation),
       messages: messages.map(scrubMessage),
       memories: memories.map(scrubMemory),
-      relationshipState: companion.relationshipState,
+      relationshipState: scrubRelationshipState(companion.relationshipState),
       proactiveMessages: proactiveMessages.map(scrubProactiveMessage)
-    });
+    }) as ExportCompanionSnapshot);
   }
 
   return {
@@ -152,10 +153,7 @@ function scrubConversation(conversation: ConversationRecord | null) {
 }
 
 function scrubMessage(message: MessageRecord): MessageRecord {
-  return {
-    ...message,
-    metadata: scrubSensitiveRecord(message.metadata)
-  };
+  return scrubSensitiveValue(message) as MessageRecord;
 }
 
 function scrubMemory(memory: MemoryRecord): MemoryRecord {
@@ -163,15 +161,11 @@ function scrubMemory(memory: MemoryRecord): MemoryRecord {
 }
 
 function scrubProactiveMessage(message: ProactiveMessageRecord): ProactiveMessageRecord {
-  return {
-    ...message,
-    safety: scrubSensitiveRecord(message.safety)
-  };
+  return scrubSensitiveValue(message) as ProactiveMessageRecord;
 }
 
-function scrubSensitiveRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
-  if (!value) return null;
-  return scrubSensitiveValue(value) as Record<string, unknown>;
+function scrubRelationshipState(state: RelationshipStateRecord): RelationshipStateRecord {
+  return scrubSensitiveValue(state) as RelationshipStateRecord;
 }
 
 function scrubSensitiveValue(value: unknown): unknown {
