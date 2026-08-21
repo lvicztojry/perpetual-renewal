@@ -349,6 +349,18 @@ async function runSmoke() {
   assert(login.body.user?.id, "login should return a user profile");
   pass("POST /api/auth/login");
 
+  assertInvalidJsonResponse(
+    await request(
+      "/api/companions",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "companion creation"
+  );
+
   const companionInput = samples.relationshipCases.find((item) => item.kind === "CUSTOM");
   const created = await request("/api/companions", {
     method: "POST",
@@ -368,6 +380,18 @@ async function runSmoke() {
   assert(created.response.status === 201, "companion creation should return 201");
   assert(created.body.companion?.relationshipKind === "CUSTOM", "created companion should be custom");
   assert(created.body.companion?.conversationId, "created companion should include conversationId");
+
+  assertInvalidJsonResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}`,
+      {
+        method: "PATCH",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "companion update"
+  );
   pass("POST /api/companions with custom relationship");
 
   const imported = await request(
@@ -562,6 +586,17 @@ async function runSmoke() {
     sent.body.relationshipState?.explanation?.includes("重要关系事件"),
     "relationship state should explain important event updates"
   );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "message creation"
+  );
   pass("conversation message plus pending memory");
 
   const regenerated = await request(
@@ -606,6 +641,17 @@ async function runSmoke() {
   assert(
     importantMessage.body.message?.metadata?.importantUpdatedAt,
     "message importance should record update time"
+  );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
+      {
+        method: "PATCH",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "message update"
   );
   pass("PATCH /api/conversations/:id/messages marks important message");
 
@@ -655,6 +701,17 @@ async function runSmoke() {
   assert(
     editedMemory.body.memory?.type === "relationship_event",
     "memory type should be editable"
+  );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
+      {
+        method: "PATCH",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "memory update"
   );
   pass("PATCH /api/memories/:id edit memory content");
 
@@ -1346,6 +1403,18 @@ async function runSmoke() {
   );
   pass("GET /api/usage/model-calls sanitized dashboard");
 
+  assertInvalidJsonResponse(
+    await request(
+      "/api/safety/check",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "safety check"
+  );
+
   for (const safetyCase of samples.safetyCases.filter((item) => item.endpointSmoke !== false)) {
     const safety = await request("/api/safety/check", {
       method: "POST",
@@ -1601,6 +1670,17 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertInvalidJsonResponse(result, label) {
+  assert(result.response.status === 400, `${label} should reject invalid JSON with 400`);
+  assert(result.body?.error === "Invalid JSON body.", `${label} should return a friendly JSON error`);
+  assert(
+    !stringify(result.body).includes("SyntaxError") &&
+      !stringify(result.body).includes("Unexpected token") &&
+      !stringify(result.body).includes("stack"),
+    `${label} invalid JSON response should not expose parser internals`
+  );
 }
 
 function pass(name) {

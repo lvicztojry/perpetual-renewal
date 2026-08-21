@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService } from "@/lib/renewal/service";
 import type { MemoryStatus, MemoryType } from "@/lib/renewal/types";
 
@@ -10,33 +11,40 @@ type RouteContext = {
 };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const { memoryId } = await context.params;
-  const body = await request.json();
+  try {
+    const { memoryId } = await context.params;
+    const body = await readJsonObject(request);
 
-  const nextStatus = normalizeMemoryStatus(readString(body.status));
-  const nextType = normalizeMemoryType(readString(body.type));
-  const nextContent = readString(body.content);
+    const nextStatus = normalizeMemoryStatus(readString(body.status));
+    const nextType = normalizeMemoryType(readString(body.type));
+    const nextContent = readString(body.content);
 
-  if (readString(body.status) && !nextStatus) {
-    return NextResponse.json({ error: "Unsupported memory status" }, { status: 400 });
+    if (readString(body.status) && !nextStatus) {
+      return NextResponse.json({ error: "Unsupported memory status" }, { status: 400 });
+    }
+
+    if (readString(body.type) && !nextType) {
+      return NextResponse.json({ error: "Unsupported memory type" }, { status: 400 });
+    }
+
+    const session = await getCurrentSession();
+    const memory = await getRenewalService(session.userId).updateMemory(memoryId, {
+      status: nextStatus,
+      type: nextType,
+      content: nextContent
+    });
+
+    if (!memory) {
+      return NextResponse.json({ error: "Memory not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ memory });
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to update memory.") },
+      { status: 400 }
+    );
   }
-
-  if (readString(body.type) && !nextType) {
-    return NextResponse.json({ error: "Unsupported memory type" }, { status: 400 });
-  }
-
-  const session = await getCurrentSession();
-  const memory = await getRenewalService(session.userId).updateMemory(memoryId, {
-    status: nextStatus,
-    type: nextType,
-    content: nextContent
-  });
-
-  if (!memory) {
-    return NextResponse.json({ error: "Memory not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ memory });
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {

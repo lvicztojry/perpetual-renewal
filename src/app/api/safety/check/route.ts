@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { readJsonObject } from "@/lib/http/json";
 import {
   buildSafetyBoundaryReply,
   checkProactiveContextSafety,
@@ -19,7 +20,12 @@ type SafetyCheckRequest = {
 
 export async function POST(request: Request) {
   const session = await getCurrentSession();
-  const body = (await request.json()) as SafetyCheckRequest;
+  let body: SafetyCheckRequest;
+  try {
+    body = readSafetyCheckRequest(await readJsonObject(request));
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
   const text = body.text ?? "";
   const result =
     body.stage === "proactive_context"
@@ -51,4 +57,16 @@ export async function POST(request: Request) {
     persistence: safetyEvent.persistence,
     next: "DEV-11: call for user input, assistant output and proactive drafts."
   });
+}
+
+function readSafetyCheckRequest(body: Record<string, unknown>): SafetyCheckRequest {
+  return {
+    text: typeof body.text === "string" ? body.text : undefined,
+    stage: typeof body.stage === "string" ? (body.stage as SafetyCheckStage) : undefined,
+    companionId: typeof body.companionId === "string" ? body.companionId : undefined,
+    messageId: typeof body.messageId === "string" ? body.messageId : undefined,
+    companionName: typeof body.companionName === "string" ? body.companionName : undefined,
+    companionInstruction:
+      typeof body.companionInstruction === "string" ? body.companionInstruction : undefined
+  };
 }

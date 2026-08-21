@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService } from "@/lib/renewal/service";
+import type { UpdateCompanionInput } from "@/lib/renewal/types";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const session = await getCurrentSession();
     const companion = await getRenewalService(session.userId).updateCompanion(
       companionId,
-      await request.json()
+      (await readJsonObject(request)) as unknown as UpdateCompanionInput
     );
 
     if (!companion) {
@@ -38,7 +40,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ companion });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update companion." },
+      { error: jsonErrorMessage(error, "Failed to update companion.") },
       { status: 400 }
     );
   }

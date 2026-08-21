@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService } from "@/lib/renewal/service";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { conversationId } = await context.params;
-    const body = (await request.json()) as { content?: string };
+    const body = readMessageCreate(await readJsonObject(request));
     const session = await getCurrentSession();
     const result = await getRenewalService(session.userId).sendMessage(
       conversationId,
@@ -32,7 +33,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to send message." },
+      { error: jsonErrorMessage(error, "Failed to send message.") },
       { status: 400 }
     );
   }
@@ -41,11 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { conversationId } = await context.params;
-    const body = (await request.json()) as {
-      action?: string;
-      messageId?: string;
-      important?: boolean;
-    };
+    const body = readMessagePatch(await readJsonObject(request));
     const session = await getCurrentSession();
 
     if (!body.messageId) {
@@ -85,7 +82,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update message." },
+      { error: jsonErrorMessage(error, "Failed to update message.") },
       { status: 400 }
     );
   }
@@ -108,4 +105,18 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   return NextResponse.json({ deleted: true, messageId });
+}
+
+function readMessageCreate(body: Record<string, unknown>) {
+  return {
+    content: typeof body.content === "string" ? body.content : undefined
+  };
+}
+
+function readMessagePatch(body: Record<string, unknown>) {
+  return {
+    action: typeof body.action === "string" ? body.action : undefined,
+    messageId: typeof body.messageId === "string" ? body.messageId : undefined,
+    important: typeof body.important === "boolean" ? body.important : undefined
+  };
 }
