@@ -422,16 +422,25 @@ function checkEnvExample() {
     return;
   }
 
-  const databaseLine = content
-    .split(/\r?\n/)
-    .find((line) => line.trim().startsWith("DATABASE_URL="));
-  if (!databaseLine) {
-    findings.push(".env.example is missing DATABASE_URL.");
-    return;
-  }
+  const requiredEmptyEnv = [
+    "DATABASE_URL",
+    "USER_KEY_VAULT_SECRET",
+    "SESSION_COOKIE_SECRET",
+    "PROACTIVE_CRON_SECRET"
+  ];
 
-  if (!/^DATABASE_URL\s*=\s*""\s*$/.test(databaseLine.trim())) {
-    findings.push('.env.example DATABASE_URL should stay empty: DATABASE_URL="".');
+  for (const envName of requiredEmptyEnv) {
+    const line = content
+      .split(/\r?\n/)
+      .find((item) => item.trim().startsWith(`${envName}=`));
+    if (!line) {
+      findings.push(`.env.example is missing ${envName}.`);
+      continue;
+    }
+
+    if (!new RegExp(`^${envName}\\s*=\\s*""\\s*$`).test(line.trim())) {
+      findings.push(`.env.example ${envName} should stay empty: ${envName}="".`);
+    }
   }
 }
 
