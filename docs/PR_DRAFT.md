@@ -56,4 +56,4 @@ Before creating or updating the PR, use the current wrapper sequence `npm run ve
 
 After production secrets and database are configured, run `npm run verify:deploy` in the target environment before treating deployment readiness as passed.
 
-Do not paste real API keys, database URLs, vault secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data into the PR.
+Do not paste real API keys, database URLs, vault secrets, session secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data into the PR.

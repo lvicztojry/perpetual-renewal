@@ -250,12 +250,13 @@ Authorization: Bearer <PROACTIVE_CRON_SECRET>
 
 - [ ] `DATABASE_URL` 已配置在 Vercel/CI/本机 `.env.local`，仓库中只保留 `.env.example` 占位。
 - [ ] `USER_KEY_VAULT_SECRET` 已配置为生产专用强随机值，长度至少 32 bytes，且没有复用开发值。
-- [ ] `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，不能与 `USER_KEY_VAULT_SECRET`、数据库密码或供应商 API key 相同。
+- [ ] `SESSION_COOKIE_SECRET` 可选独立配置为生产专用强随机值，长度至少 32 bytes；未配置时确认 `USER_KEY_VAULT_SECRET` 足够强并可作为 session 签名来源。
+- [ ] `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，不能与 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET`、数据库密码或供应商 API key 相同。
 - [ ] `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1` 已确认；`LLM_API_KEY` 只在服务端环境变量或用户 vault 中保存。
 - [ ] `VOICE_PROVIDER=shared-llm` 已确认；语音复用 LLM 中转站凭据，只通过 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 指定语音模型。
 - [ ] `.env.local`、`.env.*.local`、`.npm-cache/` 不会被 Git 跟踪。
 - [ ] 用户在设置页保存的 API key 只进入加密 vault；导出、日志、成本看板、前端响应不返回 key 原文、vault 密文或 baseUrl。
-- [ ] 设置页“配置状态”面板和 `GET /api/me/config-status` 只用于只读准备度检查；可提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl、`VOICE_PROVIDER` 是否就绪，但不返回真实值。
+- [ ] 设置页“配置状态”面板和 `GET /api/me/config-status` 只用于只读准备度检查；可提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 来源、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl、`VOICE_PROVIDER` 是否就绪，但不返回真实值。
 
 生成强随机 secret 时只把结果粘贴到本机或部署平台，不要写入仓库文件：
 
@@ -263,7 +264,7 @@ Authorization: Bearer <PROACTIVE_CRON_SECRET>
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-建议分别运行两次，分别用于 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`。如果 `USER_KEY_VAULT_SECRET` 泄露，第一版按密钥轮换事故处理：轮换 secret，并要求受影响用户重新保存自己的供应商 API key。
+建议至少运行两次，分别用于 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`；如果要拆分 session 签名职责，再运行一次用于 `SESSION_COOKIE_SECRET`。如果 `USER_KEY_VAULT_SECRET` 泄露，第一版按密钥轮换事故处理：轮换 secret，并要求受影响用户重新保存自己的供应商 API key。
 
 ### 2. Database Gate
 
@@ -327,6 +328,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - [ ] 如果发现 key 入仓库：立即从文件中移除，运行 `npm run secrets:check`，并在供应商侧轮换 key。
 - [ ] 如果发现 `DATABASE_URL` 泄露：轮换数据库密码或连接串，确认旧连接失效。
 - [ ] 如果发现 `USER_KEY_VAULT_SECRET` 泄露：轮换 secret，并通知/要求用户重新保存供应商 key。
+- [ ] 如果发现 `SESSION_COOKIE_SECRET` 泄露：轮换 secret，并让现有登录态失效。
 - [ ] 如果发现 `PROACTIVE_CRON_SECRET` 泄露：轮换 secret，并更新 Cron 平台配置。
 - [ ] 不在提交信息、PR 描述、聊天记录截图中贴真实 secret。
 
@@ -335,8 +337,9 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `DATABASE_URL` 只存在于 `.env.local` 或平台 secret。
 - `LLM_API_KEY` 只存在于 `.env.local`、平台 secret 或用户级加密 vault。
 - `USER_KEY_VAULT_SECRET` 已配置为强随机值，且不在仓库中。
+- session 签名 secret 来源已确认：独立 `SESSION_COOKIE_SECRET`，或足够强的 `USER_KEY_VAULT_SECRET` fallback，且不在仓库中。
 - `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，且不在仓库中。
-- 设置页“配置状态”已人工检查并重新检查过，确认不暴露 `DATABASE_URL`、API key、Base URL、vault secret 或 cron secret 原文。
+- 设置页“配置状态”已人工检查并重新检查过，确认不暴露 `DATABASE_URL`、API key、Base URL、vault secret、session secret 或 cron secret 原文。
 - `npm run secrets:check` 通过。
 - `npm run prisma:validate` 通过。
 - `npm run prisma:migrate:deploy` 已对目标数据库执行。

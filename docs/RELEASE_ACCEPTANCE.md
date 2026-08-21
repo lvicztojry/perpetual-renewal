@@ -40,7 +40,7 @@
 | 7:00-9:00 | 记忆确认/编辑 | 打开记忆面板，查看聊天生成的 pending 记忆；编辑一条内容后确认；归档或删除另一条候选。 | pending 不直接进入 active；确认后显示 active；编辑内容保存成功；归档/删除后的记忆不再作为可用记忆展示。 |
 | 9:00-11:00 | 素材导入 | 在素材导入面板分别测试单段粘贴、多段文本、JSON Lines；再选择 `.txt`、`.jsonl`、`.json` 本地文本文件。 | 文件内容只被前端读入文本框；继续导入后生成 pending 候选；非允许扩展名和超过 512KB 文件被前端拒绝；导入结果展示 created/skipped/redaction 摘要。 |
 | 11:00-13:00 | 主动回响草稿 | 打开主动回响面板，生成一条草稿；依次使用状态筛选：草稿、已发送、已忽略、已拦截、全部；尝试“标记已发送”“忽略”“阻断”“恢复草稿”。 | 默认聚焦草稿；状态计数变化正确；草稿和历史状态不混在一起；文案是想念/撒娇式，不制造愧疚。 |
-| 13:00-14:00 | 配置状态检查 | 进入设置页“配置状态”面板，查看 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl、VOICE_PROVIDER 的状态；点击“重新检查”。 | 状态与当前环境预期一致；缺失项给出下一步建议；页面和接口响应不展示数据库连接串、API key、Base URL 原文、vault secret、cron secret、Authorization header 或 raw payload。 |
+| 13:00-14:00 | 配置状态检查 | 进入设置页“配置状态”面板，查看 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、VOICE_PROVIDER 的状态；点击“重新检查”。 | 状态与当前环境预期一致；缺失项给出下一步建议；页面和接口响应不展示数据库连接串、API key、Base URL 原文、vault secret、session secret、cron secret、Authorization header 或 raw payload。 |
 | 14:00-15:00 | 模型设置/连接测试 | 进入设置页模型区；在无 key 状态点击“测试连接”；如现场允许，再用个人测试 key 保存 provider/baseUrl/model 后测试连接。 | 无 key 时返回友好且可预测的失败；有 key 时能返回成功或供应商错误；页面不展示 API key 原文、Base URL 原文、Authorization header、prompt 或 raw payload。 |
 | 15:00-16:30 | 语音 fallback | 回到聊天输入区，点击录音；可选择拒绝麦克风权限，或在无真实 `VOICE_*` 配置下完成一次语音输入/朗读尝试。 | 浏览器不支持、拒绝权限、缺少语音配置或供应商失败时，UI 仍可继续使用并回落到 mock/fallback；不泄露 key/baseUrl。 |
 | 16:30-17:30 | 用量看板 | 打开模型调用/成本看板，查看刚才聊天、重新生成、连接测试附近的记录。 | 展示 provider、model、延迟、token 或估算成本；不展示用户消息正文、AI 回复正文、API key、Base URL 或供应商 raw payload。 |
@@ -86,6 +86,6 @@
 ## 发布候选通过线
 
 - 20 分钟脚本中所有核心步骤通过；非核心问题已记录且不阻塞主链路。
-- `npm run secrets:check` 通过，不包含真实 API key、数据库连接串、vault secret 或供应商 baseUrl 凭据。
-- 配置状态、数据导出、模型连接测试、用量看板、语音 fallback 均确认不泄露 key/baseUrl/prompt/raw payload、数据库连接串、vault secret 或 cron secret。
+- `npm run secrets:check` 通过，不包含真实 API key、数据库连接串、vault/session/cron secret 或供应商 baseUrl 凭据。
+- 配置状态、数据导出、模型连接测试、用量看板、语音 fallback 均确认不泄露 key/baseUrl/prompt/raw payload、数据库连接串、vault secret、session secret 或 cron secret。
 - 移动端 390px 无横向滚动，关键入口可触达。

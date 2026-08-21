@@ -51,7 +51,7 @@ VOICE_PROVIDER="shared-llm"
 - 保存或删除用户自己的 LLM API key。
 - 读取兼容中转站模型列表并选择模型。
 - 点击“测试连接”验证当前 provider/baseUrl/model/key 是否可用。
-- 查看配置状态向导，确认数据库、vault、cron、LLM 和 voice 是否就绪。
+- 查看配置状态向导，确认数据库、vault、session 签名、cron、LLM 和 voice 是否就绪。
 
 ## 验收命令
 

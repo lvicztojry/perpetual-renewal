@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、签名 session cookie、私有 no-store API 响应边界、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选分支为 `codex/mvp-release-candidate`；当前同步点以 `git status --short --branch` 和 `git log -1 --oneline` 的实时结果为准；首个 baseline 提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户自带 API key 或服务端 LLM API key/model。
+当前发布候选分支为 `codex/mvp-release-candidate`；当前同步点以 `git status --short --branch` 和 `git log -1 --oneline` 的实时结果为准；首个 baseline 提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、session 签名 secret 来源（独立 `SESSION_COOKIE_SECRET` 或强 vault secret fallback）、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户自带 API key 或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -22,7 +22,7 @@
 | LLM 适配 | integrated | compatible、Anthropic、Gemini、OpenAI Responses、mock fallback |
 | 用户级 key vault | integrated | 设置页保存/删除/查看摘要；AES-256-GCM 加密；不返回 key 原文 |
 | 模型列表与连接测试 | integrated | 通过用户 vault 或服务端 env 读取兼容中转站 `/models`，设置页可测试连接 |
-| 配置状态向导 | integrated | 设置页只读展示数据库、vault secret、cron secret、LLM 和语音配置状态，不暴露真实值 |
+| 配置状态向导 | integrated | 设置页只读展示数据库、vault secret、session 签名 secret、cron secret、LLM 和语音配置状态，不暴露真实值 |
 | 账号删除 | integrated | 设置页危险区确认短语删除；后端清理当前用户关系、消息、记忆、日志、vault 并清除 session |
 | Prompt 上下文预算 | integrated | 角色设定固定保留，记忆与最近消息按预算裁剪 |
 | 记忆系统 | integrated | pending、active、archived、deleted 生命周期 |
@@ -105,7 +105,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M25 导入体验 QA 补强：已把文本文件导入、JSONL 解析失败、过大文件拒绝写进 QA 文档与验收说明。
 - M26 设置页模型体验收束：已补充连接测试的 LLM、部署和 QA 文档说明。
 - M27 第一版发布候选清理：已统一 README、Taskbook、MVP 状态与上线文档中的验收命令和当前 check 数。
-- M28 真实配置状态向导：已在设置页增加只读配置状态检查，提示缺少 `DATABASE_URL`、vault secret、cron secret、LLM key/model/baseUrl 和语音配置，但不暴露具体值。
+- M28 真实配置状态向导：已在设置页增加只读配置状态检查，提示缺少 `DATABASE_URL`、vault secret、session 签名 secret 来源、cron secret、LLM key/model/baseUrl 和语音配置，但不暴露具体值。
 - M29 发布候选手动验收脚本：已新增 20 分钟人工演示脚本。
 - M30 错误状态文案统一：已补充聊天、导入、语音、模型连接、数据导出、数据库和 cron secret 等错误状态的文案规范。
 - M31 配置状态 QA 文档：已补充 `GET /api/me/config-status` 的脱敏验收口径和人工检查步骤。

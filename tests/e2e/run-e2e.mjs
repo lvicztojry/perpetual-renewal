@@ -6,6 +6,8 @@ const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`;
 const nextBin = "node_modules/next/dist/bin/next";
 const playwrightBin = "node_modules/@playwright/test/cli.js";
 const extraArgs = process.argv.slice(2);
+const e2eSessionCookieSecret =
+  process.env.E2E_SESSION_COOKIE_SECRET ?? "e2e-session-cookie-secret-ui-private-32";
 
 const server = spawn(process.execPath, [nextBin, "dev", "--hostname", "localhost", "--port", port], {
   env: {
@@ -14,6 +16,8 @@ const server = spawn(process.execPath, [nextBin, "dev", "--hostname", "localhost
     LLM_API_KEY: "",
     LLM_BASE_URL: "",
     LLM_MODEL: "",
+    SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
+    E2E_SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
     NEXT_TELEMETRY_DISABLED: "1",
     RENEWAL_REPOSITORY: "memory"
   },
@@ -87,6 +91,7 @@ async function runPlaywright() {
     const test = spawn(process.execPath, [playwrightBin, "test", ...extraArgs], {
       env: {
         ...process.env,
+        E2E_SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
         E2E_BASE_URL: baseURL
       },
       stdio: "inherit",

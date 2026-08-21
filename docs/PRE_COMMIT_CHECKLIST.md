@@ -16,7 +16,7 @@
 
 - 真实 `DATABASE_URL`。
 - 真实 `LLM_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`GOOGLE_API_KEY`。
-- 真实 `USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET`。
+- 真实 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 或 `PROACTIVE_CRON_SECRET`。
 - Bearer token、JWT、vault 密文、数据库密码、供应商 raw payload。
 
 推送前必跑：
@@ -52,7 +52,7 @@ npm run smoke
 npm run build
 ```
 
-CI 不要求 `DATABASE_URL`、`LLM_API_KEY`、`USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET`，默认使用 mock/fallback 路线。
+CI 不要求 `DATABASE_URL`、`LLM_API_KEY`、`USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 或 `PROACTIVE_CRON_SECRET`，默认使用 mock/fallback 路线。
 
 推荐直接运行顺序门禁：
 
@@ -98,7 +98,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 说明：
 
 - `db:smoke` 在未配置 `DATABASE_URL` 时会安全跳过；上线前不能把跳过当作生产数据库验收。
-- `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret 或 cron secret 的部署候选误判通过。
+- `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret、session 签名来源或 cron secret 的部署候选误判通过。
 - `npm run e2e` 仍保留为本地发布前检查；当前 Playwright 使用系统 Edge，默认不放入 GitHub Actions。
 - `npm audit` 需要网络，使用项目内 `.npm-cache`，避免把 npm 缓存写到系统盘。
 - `npm run verify:local` 和 `npm run verify:release` 会顺序运行 `smoke` 与 `e2e`，避免它们抢同一个 Next dev server 项目锁，并会在 `git:boundary` 前自动运行 `next:typegen`。
@@ -110,7 +110,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 上线前确认：
 
 - Neon PostgreSQL `DATABASE_URL` 只在 `.env.local` 或部署平台 secret。
-- `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET` 是两段不同强随机值。
+- `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET` 是两段不同强随机值；`SESSION_COOKIE_SECRET` 可单独配置为第三段强随机值，未配置时复用强 vault secret。
 - `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1`。
 - 用户 API key 优先在设置页保存到加密 vault；服务端 key 只放环境变量。
 - `VOICE_PROVIDER=shared-llm`，语音与 LLM 共用中转站。
@@ -122,7 +122,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-分别运行两次，填入 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`。
+至少运行两次，填入 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`；如果要拆分 session 签名职责，再运行一次填入 `SESSION_COOKIE_SECRET`。
 
 ## 5. 人工验收
 
@@ -146,5 +146,5 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 - `secrets:check` 失败。
 - `npm --cache .\.npm-cache audit --audit-level=high` 有未解释 high 漏洞。
-- 生产环境缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET` 或 `PROACTIVE_CRON_SECRET`。
-- 设置页、导出、日志、配置状态 API 返回任何真实 key、Base URL、连接串、prompt 或 vault 密文。
+- 生产环境缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名来源或 `PROACTIVE_CRON_SECRET`。
+- 设置页、导出、日志、配置状态 API 返回任何真实 key、Base URL、连接串、prompt、vault 密文或 session/cron secret。

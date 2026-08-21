@@ -762,20 +762,20 @@
 | M18 主动草稿状态管理 | integrated | 主控 | `src/app/api/proactive-messages/*`、`src/components/renewal-workspace.tsx`、`tests/smoke.mjs`、`docs/TASKBOOK.md` | 主动回响草稿可标记已发送、忽略、阻断或恢复草稿；API 按 userId 隔离且响应不暴露密钥信息 |
 | M19 主动草稿列表体验 | integrated | M19-PROACTIVE-DRAFT-LIST | `src/components/renewal-workspace.tsx`、`tests/e2e/relationship-flow.spec.ts`、`docs/TASKBOOK.md` | 主动回响草稿按状态筛选展示，默认聚焦 draft；sent/dismissed/blocked/draft 不混在同一视图，状态操作仍可切换和恢复 |
 | M20 用户数据导出体验打磨 | integrated | M20-DATA-EXPORT-UX | `src/components/user-settings.tsx`、`docs/PRIVACY.md`、`docs/TASKBOOK.md` | 设置页数据导出显示导出中、成功和失败状态；成功文件名包含 `perpetual-renewal` 与日期；失败展示友好错误；继续不导出 key/baseUrl/vault 密文 |
-| M21 上线前隐私/安全核对清单 | integrated | M21 | `docs/DEPLOYMENT.md`、`docs/PRIVACY.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 上线前 checklist 覆盖 DATABASE_URL、USER_KEY_VAULT_SECRET、LLM/VOICE 共用中转站、secrets:check、npm audit、db:smoke、Cron secret、用户自带 API key 不入仓库 |
+| M21 上线前隐私/安全核对清单 | integrated | M21 | `docs/DEPLOYMENT.md`、`docs/PRIVACY.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 上线前 checklist 覆盖 DATABASE_URL、USER_KEY_VAULT_SECRET、session 签名来源、LLM/VOICE 共用中转站、secrets:check、npm audit、db:smoke、Cron secret、用户自带 API key 不入仓库 |
 | M22 文本文件导入入口 | integrated | M22-TEXT-FILE-IMPORT | `src/components/renewal-workspace.tsx`、`src/app/globals.css`、`tests/e2e/relationship-flow.spec.ts`、`docs/TASKBOOK.md` | 素材导入面板支持选择 .txt、.jsonl、.json 本地文本文件；前端读取和校验，512KB 上限，复用现有单段/JSONL 导入 API，不新增服务端文件上传 |
 | M23 模型连接测试 | integrated | M23-LLM-CONNECTION-TEST | `src/lib/llm/connection-test.ts`、`src/app/api/me/llm-test/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/LLM.md` | 设置页可安全测试当前模型连接；服务端复用用户 vault/env key，返回成功/失败、provider/model、延迟和友好错误，不返回 key/baseUrl/prompt/raw payload |
 | M24 发布候选状态面板 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 独立记录当前 MVP 能力、主控验收命令、上线前真实阻塞项和继续施工队列 |
 | M25 导入体验 QA 补强 | integrated | M25-IMPORT-QA | `docs/QA.md`、`docs/TASKBOOK.md` | 已补充单段文本、批量文本数组、JSON Lines、本地 .txt/.jsonl/.json 文件入口、512KB 上限、非法扩展名拒绝、前端只读文本复用现有 API、不新增服务端上传、密钥形态脱敏和 pending 默认状态的验收说明 |
 | M26 模型连接测试文档收束 | integrated | M26 | `docs/LLM.md`、`docs/DEPLOYMENT.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 已补齐 `POST /api/me/llm-test` 与设置页“测试连接”的文档边界：复用 vault/env key、低成本读取模型列表、无 key 可预测失败、不返回 key/baseUrl/prompt/raw payload、不做订阅扣费 |
 | M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；后续 smoke 覆盖在多个模块中继续提升 |
-| M28 真实配置状态向导 | integrated | 主控 | `src/lib/config/*`、`src/app/api/me/config-status/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/TASKBOOK.md` | 设置页显示只读配置状态，提示 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl 和语音配置是否就绪；API 只返回状态和下一步，不暴露真实 key、baseUrl 或连接串 |
+| M28 真实配置状态向导 | integrated | 主控 | `src/lib/config/*`、`src/app/api/me/config-status/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/TASKBOOK.md` | 设置页显示只读配置状态，提示 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl 和语音配置是否就绪；API 只返回状态和下一步，不暴露真实 key、baseUrl、secret 或连接串 |
 | M29 发布候选手动验收脚本 | integrated | M29 | `docs/RELEASE_ACCEPTANCE.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已新增 20 分钟人工演示/验收脚本，覆盖登录、创建全关系对象、聊天、记忆确认/编辑、素材导入含文本文件入口、主动回响草稿和状态筛选、模型设置/连接测试、语音 fallback、用量看板、数据导出和移动端快检 |
 | M30 错误状态文案规范 | integrated | M30 | `docs/ERROR_COPY.md`、`docs/QA.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已统一聊天、导入、语音、模型连接、数据导出、数据库配置缺失和 cron secret 缺失等错误文案原则：说明发生了什么、下一步做什么，并禁止暴露 API key、Base URL、prompt、raw payload、数据库连接串、vault 密文或 secret |
-| M31 配置状态 QA 文档 | integrated | 主控 | `docs/QA.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 已补充 `GET /api/me/config-status` 的自动 smoke 与人工 QA 口径，确认只返回就绪状态和下一步，不暴露真实连接串、API key、Base URL、vault 密文或 cron secret |
+| M31 配置状态 QA 文档 | integrated | 主控 | `docs/QA.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 已补充 `GET /api/me/config-status` 的自动 smoke 与人工 QA 口径，确认只返回就绪状态和下一步，不暴露真实连接串、API key、Base URL、vault 密文、session secret 或 cron secret |
 | M32 设置页配置状态 E2E 补强 | integrated | 主控 | `tests/e2e/relationship-flow.spec.ts`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | E2E 覆盖桌面与 390px 移动端设置页配置状态面板可见、重新检查入口可见，并继续确认设置页无横向溢出 |
 | M33 发布候选 README 精简 | integrated | M33 | `README.md`、`docs/README.md`、`docs/TASKBOOK.md` | 根 README 已收束为新协作者入口，覆盖项目定位、本地启动、真实配置、网站内配置、验收命令和关键文档链接；docs 入口同步快速启动/配置/验收导航 |
-| M34 真实配置向导文档收束 | integrated | M34 | `docs/DEPLOYMENT.md`、`docs/RELEASE_ACCEPTANCE.md`、`docs/TASKBOOK.md` | 已把设置页“配置状态”面板和 `GET /api/me/config-status` 补进部署文档与发布候选人工验收脚本，明确只读提示 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl、VOICE_PROVIDER 的就绪状态，不显示真实值 |
+| M34 真实配置向导文档收束 | integrated | M34 | `docs/DEPLOYMENT.md`、`docs/RELEASE_ACCEPTANCE.md`、`docs/TASKBOOK.md` | 已把设置页“配置状态”面板和 `GET /api/me/config-status` 补进部署文档与发布候选人工验收脚本，明确只读提示 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、VOICE_PROVIDER 的就绪状态，不显示真实值 |
 | M35 首次提交前检查清单 | integrated | 主控 | `docs/PRE_COMMIT_CHECKLIST.md`、`docs/README.md`、`docs/TASKBOOK.md` | 已新增 commit/push 前文件边界、密钥扫描、本地质量门禁、真实环境配置和人工验收清单，提醒 smoke/e2e 不要并行抢 Next dev server 锁 |
 | M36 首次提交准备与执行 | integrated | 主控 | `docs/COMMIT_PLAN.md`、`docs/README.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md`、Git branch/commit | 已创建 `codex/mvp-release-candidate` 分支，并采用一个 baseline commit：`ef4939e feat: build relationship ai mvp baseline` |
 | M37 GitHub Actions CI 基线 | integrated | M37 | `.github/workflows/ci.yml`、`docs/DEPLOYMENT.md`、`docs/PRE_COMMIT_CHECKLIST.md`、`docs/TASKBOOK.md` | 已新增 push/PR 质量门禁：npm ci、secrets:check、typecheck、lint、qa:samples、qa:prompt、prisma:validate、smoke、build；不要求 DATABASE_URL/LLM_API_KEY，不默认跑 e2e 或 audit |
@@ -1009,13 +1009,13 @@ M30 当前落点：
 M33 当前落点：
 
 - 根 `README.md` 已精简为发布候选协作者入口，保留项目定位、本地启动、真实配置、网站内配置、验收命令和核心文档链接。
-- 真实配置入口明确 `DATABASE_URL`、`LLM_PROVIDER=compatible`、TryAnotherOne base URL、`LLM_MODEL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET` 与 `VOICE_PROVIDER=shared-llm`；不写真实密钥。
+- 真实配置入口明确 `DATABASE_URL`、`LLM_PROVIDER=compatible`、TryAnotherOne base URL、`LLM_MODEL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 与 `VOICE_PROVIDER=shared-llm`；不写真实密钥。
 - `docs/README.md` 已同步快速入口，指向启动、部署配置、设置页模型配置、发布候选验收脚本。
 
 M34 当前落点：
 
-- `docs/DEPLOYMENT.md` 已补充设置页“配置状态”和 `GET /api/me/config-status` 的只读检查边界，覆盖 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 与 `VOICE_PROVIDER`。
-- `docs/RELEASE_ACCEPTANCE.md` 已把配置状态检查加入发布候选 20 分钟脚本和记录模板，要求人工点击“重新检查”并确认不暴露真实密钥、连接串、Base URL、vault secret 或 cron secret。
+- `docs/DEPLOYMENT.md` 已补充设置页“配置状态”和 `GET /api/me/config-status` 的只读检查边界，覆盖 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名来源、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 与 `VOICE_PROVIDER`。
+- `docs/RELEASE_ACCEPTANCE.md` 已把配置状态检查加入发布候选 20 分钟脚本和记录模板，要求人工点击“重新检查”并确认不暴露真实密钥、连接串、Base URL、vault secret、session secret 或 cron secret。
 - 本模块只做文档收束，不修改 `src` 或 `tests`。
 
 ## 第一轮建议执行顺序

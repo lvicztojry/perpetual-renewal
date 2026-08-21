@@ -53,7 +53,7 @@
 
 上线前必须按 [DEPLOYMENT.md](DEPLOYMENT.md) 的 Pre-launch Privacy and Security Checklist 完成核对，重点确认：
 
-- `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET` 和供应商 API key 不进入仓库。
+- `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 和供应商 API key 不进入仓库。
 - 用户自带 API key 只通过设置页保存到用户级加密 vault；导出快照、模型调用日志、成本看板和前端响应都不返回 key 原文、vault 密文或供应商 endpoint URL。
 - `VOICE_PROVIDER=shared-llm` 时语音复用 LLM 中转站配置，不新增前端可见的语音密钥字段。
 - `PROACTIVE_CRON_SECRET` 只保护 all-user 主动回响调度入口，不写入 URL query、前端代码或文档示例。

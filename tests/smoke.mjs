@@ -12,6 +12,7 @@ const START_TIMEOUT_MS = 90_000;
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SAMPLE_PATH = new URL("./qa-samples.json", import.meta.url);
 const SMOKE_CRON_SECRET = "smoke-cron-secret-placeholder";
+const SMOKE_SESSION_COOKIE_SECRET = "smoke-session-cookie-secret-private-32";
 const SESSION_COOKIE_NAME = "perpetual_renewal_session";
 
 const samples = await readSamples();
@@ -60,6 +61,7 @@ function runEnvReadinessSmoke() {
     env: {
       ...process.env,
       DATABASE_URL: "",
+      SESSION_COOKIE_SECRET: "",
       USER_KEY_VAULT_SECRET: "",
       PROACTIVE_CRON_SECRET: "",
       LLM_API_KEY: "",
@@ -89,6 +91,7 @@ function runEnvReadinessSmoke() {
       env: {
         ...process.env,
         DATABASE_URL: "",
+        SESSION_COOKIE_SECRET: "",
         USER_KEY_VAULT_SECRET: "",
         PROACTIVE_CRON_SECRET: ""
       },
@@ -187,6 +190,7 @@ function startDevServer(port) {
       VOICE_STT_MODEL: "",
       VOICE_TTS_MODEL: "",
       PROACTIVE_CRON_SECRET: SMOKE_CRON_SECRET,
+      SESSION_COOKIE_SECRET: SMOKE_SESSION_COOKIE_SECRET,
       NEXT_TELEMETRY_DISABLED: "1"
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -2041,6 +2045,7 @@ async function runSmoke() {
       !JSON.stringify(configStatus.body).includes("Bearer") &&
       !JSON.stringify(configStatus.body).includes("https://gateway.example.com/v1") &&
       !JSON.stringify(configStatus.body).includes(fakeKey) &&
+      !JSON.stringify(configStatus.body).includes(SMOKE_SESSION_COOKIE_SECRET) &&
       !JSON.stringify(configStatus.body).includes("baseUrl"),
     "config status response should not expose secrets or endpoint values"
   );

@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+const E2E_SESSION_COOKIE_SECRET =
+  process.env.E2E_SESSION_COOKIE_SECRET ?? "e2e-session-cookie-secret-ui-private-32";
+
 async function loginAsFreshUser(page: Page, prefix: string) {
   const unique = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -12,6 +15,8 @@ async function loginAsFreshUser(page: Page, prefix: string) {
   await page.getByRole("link", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "账号与资料" })).toBeVisible();
   await expect(page.getByText(/已就绪 \d+ 项 · 需处理 \d+ 项/)).toBeVisible();
+  await expect(page.getByText("Session 签名 secret")).toBeVisible();
+  await expect(page.getByText(E2E_SESSION_COOKIE_SECRET)).toHaveCount(0);
   await page.waitForLoadState("networkidle");
 
   return unique;

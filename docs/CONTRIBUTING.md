@@ -51,10 +51,10 @@ npm run dev
 
 这是硬约束：
 
-- 不把真实 API key、数据库连接串、vault secret、cron secret 写入仓库、文档、测试样例或提交信息。
+- 不把真实 API key、数据库连接串、vault secret、session secret、cron secret 写入仓库、文档、测试样例或提交信息。
 - 不把项目产物写到 C 盘。项目文件、缓存和临时输出都放在 `D:\github_clone\perpetual-renewal` 下；例如 audit 使用 `npm --cache .\.npm-cache audit --audit-level=high`。
 - 用户自带 API key 只允许走网站设置页的用户级 vault，或本地/部署环境变量 secret。
-- 前端、API 响应、日志、导出快照、成本看板都不能返回 key 原文、Base URL 原文、数据库连接串、vault 密文、prompt 或供应商 raw payload。
+- 前端、API 响应、日志、导出快照、成本看板都不能返回 key 原文、Base URL 原文、数据库连接串、vault 密文、session/cron secret、prompt 或供应商 raw payload。
 - 需要示例时使用占位值，例如 `selected-model-name`、`32-byte-or-longer-random-secret`，不要粘贴真实值。
 
 生产建议配置详见 [DEPLOYMENT.md](DEPLOYMENT.md)。生成强随机 secret 可用：
@@ -63,7 +63,7 @@ npm run dev
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-分别运行两次，分别作为 `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET`，不要复用。
+至少运行两次，分别作为 `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET`，不要复用；如果希望 session 签名与 vault 加密职责分离，再运行一次作为 `SESSION_COOKIE_SECRET`。
 
 ## 常用命令
 

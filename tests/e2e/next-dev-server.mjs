@@ -3,6 +3,8 @@ import process from "node:process";
 
 const port = process.env.E2E_PORT || "3000";
 const hostname = "localhost";
+const e2eSessionCookieSecret =
+  process.env.E2E_SESSION_COOKIE_SECRET ?? "e2e-session-cookie-secret-ui-private-32";
 const child = spawn(
   process.platform === "win32" ? "npx.cmd" : "npx",
   ["next", "dev", "--hostname", hostname, "--port", port],
@@ -13,6 +15,8 @@ const child = spawn(
       LLM_API_KEY: "",
       LLM_BASE_URL: "",
       LLM_MODEL: "",
+      SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
+      E2E_SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
       NEXT_TELEMETRY_DISABLED: "1",
       RENEWAL_REPOSITORY: "memory"
     },

@@ -130,7 +130,7 @@ PR checklist:
 - Link `docs/MVP_STATUS.md` for current capability status.
 - Link `docs/RELEASE_ACCEPTANCE.md` for manual demo acceptance.
 - Link `docs/DEPLOYMENT.md` for production configuration.
-- Do not paste real API keys, database URLs, vault secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data.
+- Do not paste real API keys, database URLs, vault secrets, session secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data.
 
 ## CI Expectations
 
@@ -164,6 +164,7 @@ Production deploy candidates should additionally run `npm run verify:deploy` in 
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
+- `SESSION_COOKIE_SECRET`: optional dedicated session signing secret, at least 32 bytes; if omitted, production must use a strong `USER_KEY_VAULT_SECRET` fallback.
 - `PROACTIVE_CRON_SECRET`: separate strong random secret for all-user proactive scheduling.
 - LLM: `LLM_PROVIDER=compatible`, `LLM_BASE_URL=https://api.tryanotherone.com/v1`, model selected through settings or server fallback.
 - Voice: `VOICE_PROVIDER=shared-llm`, with `VOICE_STT_MODEL` and `VOICE_TTS_MODEL` when the gateway requires audio-specific models.
@@ -174,7 +175,7 @@ Generate secrets locally and paste only into local/deployment secret stores:
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Run once for `USER_KEY_VAULT_SECRET` and once for `PROACTIVE_CRON_SECRET`.
+Run once for `USER_KEY_VAULT_SECRET` and once for `PROACTIVE_CRON_SECRET`; run a third time for `SESSION_COOKIE_SECRET` if session signing should be separated from vault encryption.
 
 ## Known Non-blocking Local Warnings
 

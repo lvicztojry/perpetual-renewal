@@ -438,6 +438,6 @@ RelationshipState
 仍需外部配置：
 
 - 生产 PostgreSQL `DATABASE_URL`。
-- 生产 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`。
+- 生产 `USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET` 与 `PROACTIVE_CRON_SECRET`。
 - 至少一个可用的用户 vault 或部署环境 LLM API key/model。
 - 内容分级、年龄门槛、内容审核后台、反馈问卷和内测邀请机制暂不进入当前第一版，需要恢复对应产品模块时再单独设计。
