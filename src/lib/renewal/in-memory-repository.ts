@@ -170,7 +170,9 @@ function getStore() {
 }
 
 function toProfile(store: InMemoryStore, companion: CompanionRecord): CompanionProfile {
-  const conversation = store.conversations.find((item) => item.companionId === companion.id);
+  const conversation = store.conversations.find(
+    (item) => item.userId === companion.userId && item.companionId === companion.id
+  );
   const relationshipState = store.relationshipStates.find(
     (item) => item.companionId === companion.id
   );
@@ -185,6 +187,7 @@ function toProfile(store: InMemoryStore, companion: CompanionRecord): CompanionP
     relationshipState,
     memories: store.memories
       .filter((memory) => memory.companionId === companion.id && memory.status !== "deleted")
+      .filter((memory) => memory.userId === companion.userId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   };
 }
@@ -324,12 +327,18 @@ export class InMemoryRenewalRepository implements RenewalRepository {
         .map((message) => message.id)
     );
 
-    store.companions = store.companions.filter((item) => item.id !== companionId);
-    store.conversations = store.conversations.filter((item) => item.companionId !== companionId);
+    store.companions = store.companions.filter(
+      (item) => !(item.userId === userId && item.id === companionId)
+    );
+    store.conversations = store.conversations.filter(
+      (item) => !(item.userId === userId && item.companionId === companionId)
+    );
     store.messages = store.messages.filter((item) => !conversationIds.has(item.conversationId));
-    store.memories = store.memories.filter((item) => item.companionId !== companionId);
+    store.memories = store.memories.filter(
+      (item) => !(item.userId === userId && item.companionId === companionId)
+    );
     store.proactiveMessages = store.proactiveMessages.filter(
-      (item) => item.companionId !== companionId
+      (item) => !(item.userId === userId && item.companionId === companionId)
     );
     store.relationshipStates = store.relationshipStates.filter(
       (item) => item.companionId !== companionId

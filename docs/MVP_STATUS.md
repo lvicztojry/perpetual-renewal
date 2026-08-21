@@ -59,10 +59,10 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：70 checks passed。
+- `smoke`：74 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
-- `e2e`：6 tests passed。
+- `e2e`：7 tests passed。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -133,11 +133,12 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M58 移动端 PWA：新增 `manifest.webmanifest`、SVG 图标、离线页和 service worker；service worker 明确跳过 `/api/*`，不缓存用户数据或密钥相关响应。
 - M59 多媒体/照片/通讯录导入：工作台导入面板新增媒体/通讯录结构化入口，原文件只在浏览器读取为说明或脱敏摘要，继续复用导入 API 写入 pending 记忆。
 - M60 PRD 范围回写门禁：PRD 升级到 v0.3，第一版范围同步用户自带 key、结构化导入、语音基础链路、PWA 和账号删除，并由 docs check 拦截旧范围表述回流。
-- M61 接口输入护栏：导入 API 坏 JSON 返回 400；STT 要求音频或 mock 文本并校验 base64/MIME/大小；TTS 限制文本长度、voice 名称和 speed 范围；smoke 基线提升到 70 checks。
+- M61 接口输入护栏：导入 API 坏 JSON 返回 400；STT 要求音频或 mock 文本并校验 base64/MIME/大小；TTS 限制文本长度、voice 名称和 speed 范围；当时 smoke 覆盖因接口输入护栏扩展而提升。
 - M62 密钥与发布门禁：vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；secret scan 泛化到 `*_API_KEY`、`*_SECRET`、`*_TOKEN`、vault 密文字段；新增 `pwa:check`、`verify:pr` 和 `verify:deploy`。
 - M63 文档命令/链接门禁：`docs:check` 纳入 PR 模板、本地 Markdown 链接和文档里的 `npm run` 命令，防止 PR/发布文档引用不存在的文件或脚本。
 - M64 结构化导入与 vault QA：新增 `qa:imports` 与 `qa:vault`，分别覆盖媒体/通讯录 planner 脱敏兼容和生产 vault/config readiness 安全矩阵。
 - M65 导出隐私、DB credential 和设置页 E2E 硬化：导出层新增字符串级敏感内容脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束和级联清理；E2E 增加设置页密钥、连接失败态、导出下载、账号删除确认和 320px/768px 响应式覆盖。
+- M66 本地 session 隔离、cron 边界和文档指标派生门禁：memory fallback 登录按邮箱派生隔离 userId，避免并行 E2E 共享 demo user；主动回响 all-user cron 覆盖 Bearer/header secret 与 guard clamp；`docs:check` 从测试源自动派生 smoke/E2E/QA 数字和最新 M milestone。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

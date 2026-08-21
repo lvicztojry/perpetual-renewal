@@ -97,7 +97,7 @@ npm run db:smoke
 | 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
 | PWA 静态资源 | `/manifest.webmanifest`、`/offline.html`、`/sw.js` | manifest 使用产品名与 standalone；离线页可访问；service worker 明确跳过 `/api/*`，不缓存用户数据响应 |
 
-主动回响调度还需要确认 `POST /api/proactive/run` 的 `limit` 和 `maxDrafts` 同时生效：`limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量。响应可以返回归一化后的 `maxDrafts` 和每个关系对象的裁剪原因，但不能返回 cron secret、API key、Base URL、prompt 或供应商 raw payload。
+主动回响调度还需要确认 `POST /api/proactive/run` 的 `limit` 和 `maxDrafts` 同时生效：`limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量。`scope:"all"` 必须携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET>` 或 `x-proactive-cron-secret`，无密钥和错误密钥都必须返回 401；`scope:"current-user"` 走当前 session。上线初期优先用 `dryRun:true` 验证扫描范围，确认 `savedCount=0` 后再切到 `dryRun:false`。响应可以返回归一化后的 `maxDrafts` 和每个关系对象的裁剪原因，但不能返回 cron secret、API key、Base URL、prompt 或供应商 raw payload。
 
 ## 浏览器 E2E 覆盖范围
 
@@ -118,9 +118,13 @@ npm run db:smoke
 | 账号删除 | 设置页危险区 | 错误确认短语无法点击；正确输入“删除我的账号”后清理 session 并回到登录页 |
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 
-当前基线：`npm run e2e` 已通过 6 tests。
+当前基线：`npm run e2e` 已通过 7 tests。
 
 当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
+
+## 文档漂移门禁
+
+`npm run docs:check` 会从 `tests/smoke.mjs`、`tests/e2e/*.spec.ts` 和 `tests/qa-samples.json` 自动派生当前 smoke checks、E2E tests、关系类别、安全样例与安全风险域数量，并核对发布文档里的当前基线。历史里程碑描述可以保留当时数字；当前状态、PR 草稿和发布交接里的数字需要跟随测试源更新。
 
 ## 移动端与工作台可用性 QA
 

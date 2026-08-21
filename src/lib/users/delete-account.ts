@@ -39,6 +39,7 @@ type AccountDeletionStores = typeof globalThis & {
     logs: Array<{ userId: string }>;
   };
   __perpetualRenewalFallbackProfiles?: Map<string, unknown>;
+  __perpetualRenewalFallbackSessions?: Map<string, unknown>;
 };
 
 export class DeleteAccountValidationError extends Error {
@@ -191,6 +192,7 @@ function deleteFallbackAccount(userId: string): DeleteAccountSummary {
     );
   }
   stores.__perpetualRenewalFallbackProfiles?.delete(userId);
+  stores.__perpetualRenewalFallbackSessions?.delete(userId);
 
   return {
     userId,

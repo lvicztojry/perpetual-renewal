@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
+import { upsertFallbackProfile } from "@/lib/users/profile";
 
 export const SESSION_COOKIE_NAME = "perpetual_renewal_session";
 
@@ -12,6 +14,16 @@ export type AppSession = {
 
 const cookieMaxAgeSeconds = 60 * 60 * 24 * 30;
 
+type FallbackSessionRecord = {
+  userId: string;
+  email: string;
+  nickname: string;
+};
+
+declare global {
+  var __perpetualRenewalFallbackSessions: Map<string, FallbackSessionRecord> | undefined;
+}
+
 export async function getCurrentSession(): Promise<AppSession> {
   const cookieStore = await cookies();
   const sessionUserId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -19,8 +31,15 @@ export async function getCurrentSession(): Promise<AppSession> {
   if (shouldUseFallbackSession()) {
     if (!sessionUserId) {
       setSessionCookie(cookieStore, DEMO_USER_ID);
+      ensureFallbackSessionRecord(
+        DEMO_USER_ID,
+        process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
+        process.env.DEV_MOCK_USER_NICKNAME ?? "开发用户"
+      );
+      return getFallbackSession(DEMO_USER_ID);
     }
-    return getFallbackSession();
+
+    return getFallbackSession(sessionUserId);
   }
 
   try {
@@ -66,7 +85,7 @@ export async function getCurrentSession(): Promise<AppSession> {
       throw error;
     }
 
-    return getFallbackSession();
+    return getFallbackSession(sessionUserId ?? DEMO_USER_ID);
   }
 }
 
@@ -79,8 +98,10 @@ export async function createEmailSession(input: {
   const nickname = input.nickname?.trim() || email.split("@")[0] || "用户";
 
   if (shouldUseFallbackSession()) {
-    setSessionCookie(cookieStore, DEMO_USER_ID);
-    return getFallbackSession();
+    const userId = createFallbackUserId(email);
+    setSessionCookie(cookieStore, userId);
+    ensureFallbackSessionRecord(userId, email, nickname);
+    return getFallbackSession(userId);
   }
 
   try {
@@ -108,8 +129,10 @@ export async function createEmailSession(input: {
       throw error;
     }
 
-    setSessionCookie(cookieStore, DEMO_USER_ID);
-    return getFallbackSession();
+    const userId = createFallbackUserId(email);
+    setSessionCookie(cookieStore, userId);
+    ensureFallbackSessionRecord(userId, email, nickname);
+    return getFallbackSession(userId);
   }
 }
 
@@ -125,12 +148,39 @@ export async function clearCurrentSession() {
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
-function getFallbackSession(): AppSession {
+function getFallbackSession(userId: string): AppSession {
+  const record = getFallbackSessionStore().get(userId);
   return {
-    userId: DEMO_USER_ID,
-    email: process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
-    provider: "mock-dev"
+    userId,
+    email: record?.email ?? process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
+    provider: userId === DEMO_USER_ID ? "mock-dev" : "local-email"
   };
+}
+
+function ensureFallbackSessionRecord(userId: string, email: string, nickname: string) {
+  const store = getFallbackSessionStore();
+  const existing = store.get(userId);
+  if (existing) {
+    const record = { userId, email, nickname };
+    store.set(userId, record);
+    upsertFallbackProfile(userId, { email, nickname });
+    return record;
+  }
+
+  const record = { userId, email, nickname };
+  store.set(userId, record);
+  upsertFallbackProfile(userId, { email, nickname });
+  return record;
+}
+
+function createFallbackUserId(email: string) {
+  const digest = createHash("sha256").update(email).digest("hex").slice(0, 16);
+  return `memory-user-${digest}`;
+}
+
+function getFallbackSessionStore() {
+  globalThis.__perpetualRenewalFallbackSessions ??= new Map();
+  return globalThis.__perpetualRenewalFallbackSessions;
 }
 
 function setSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, userId: string) {

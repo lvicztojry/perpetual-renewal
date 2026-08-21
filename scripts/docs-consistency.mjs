@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 import process from "node:process";
 
@@ -13,6 +13,11 @@ const docsAndReadmes = files.filter(
     file === join(".github", "pull_request_template.md") ||
     file === ".github/pull_request_template.md"
 );
+const qaMetrics = readQaMetrics();
+const smokeMetrics = readSmokeMetrics(qaMetrics);
+const e2eMetrics = readE2eMetrics();
+const taskbookMilestones = readTaskbookMilestones();
+const verifyLocalScripts = readVerifyLocalBaseScripts();
 
 checkDocsText(docsAndReadmes);
 checkVolatileReleaseStateWording(docsAndReadmes);
@@ -27,6 +32,8 @@ checkPrdScopeSync();
 checkReleaseHandoff();
 checkTaskbookDecisions();
 checkTaskbookStatusSync();
+checkReleaseMilestoneSync();
+checkVerificationCommandSync();
 
 if (findings.length > 0) {
   console.error("Documentation consistency check failed:");
@@ -54,17 +61,63 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
-      if (/\b(?:46|48|49|57|63|69) checks\b/i.test(line)) {
-        findings.push(`${location} mentions an outdated smoke check count; current baseline is 70 checks.`);
-      }
+      checkDerivedCount(
+        location,
+        line,
+        /\b(\d+)\s+checks\b/i,
+        smokeMetrics.checkCount,
+        "smoke check count",
+        { allowHistoricalMilestone: true }
+      );
 
-      if (/\b2 tests\b/i.test(line) && !line.includes("M48")) {
-        findings.push(`${location} mentions an outdated E2E test count; current baseline is 6 tests.`);
-      }
+      checkDerivedCount(
+        location,
+        line,
+        /\b(\d+)\s+tests\b/i,
+        e2eMetrics.testCount,
+        "E2E test count",
+        { allowHistoricalMilestone: true }
+      );
 
-      if (/14 safety areas/i.test(line) || /14 类安全/.test(line)) {
-        findings.push(`${location} mentions outdated safety coverage; current baseline is 19 safety areas.`);
-      }
+      checkDerivedCount(
+        location,
+        line,
+        /\b(\d+)\s+safety areas\b/i,
+        qaMetrics.safetyAreaCount,
+        "safety area count"
+      );
+
+      checkDerivedCount(
+        location,
+        line,
+        /(\d+)\s+类关系/,
+        qaMetrics.relationshipKindCount,
+        "relationship kind count"
+      );
+
+      checkDerivedCount(
+        location,
+        line,
+        /(\d+)\s+relationship kinds/i,
+        qaMetrics.relationshipKindCount,
+        "relationship kind count"
+      );
+
+      checkDerivedCount(
+        location,
+        line,
+        /(\d+)\s+条安全(?:\/越界\/允许回归)?样例/,
+        qaMetrics.safetyCaseCount,
+        "safety sample count"
+      );
+
+      checkDerivedCount(
+        location,
+        line,
+        /当前\s+(\d+)\s+条安全边界/,
+        qaMetrics.safetyCaseCount,
+        "safety sample count"
+      );
 
       if (line.includes("npm audit --audit-level=high")) {
         findings.push(
@@ -73,6 +126,34 @@ function checkDocsText(targetFiles) {
       }
     });
   }
+}
+
+function checkDerivedCount(location, line, pattern, expected, label, options = {}) {
+  if (typeof expected !== "number" || expected <= 0) {
+    return;
+  }
+
+  const match = pattern.exec(line);
+  if (!match) {
+    return;
+  }
+
+  const actual = Number(match[1]);
+  if (actual === expected) {
+    return;
+  }
+
+  if (/至少|at least/i.test(line) && actual <= expected) {
+    return;
+  }
+
+  if (options.allowHistoricalMilestone && /M\d+/.test(line) && !/当前|current|baseline|基线/i.test(line)) {
+    return;
+  }
+
+  findings.push(
+    `${location} mentions ${label} as ${actual}; current derived baseline is ${expected}.`
+  );
 }
 
 function checkVolatileReleaseStateWording(targetFiles) {
@@ -302,17 +383,7 @@ function checkCi() {
     return;
   }
 
-  for (const required of [
-    "npm ci",
-    "npm run secrets:check",
-    "npm run docs:check",
-    "npm run git:boundary",
-    "npm run qa:imports",
-    "npm run qa:vault",
-    "npm run pwa:check",
-    "npm run env:readiness",
-    "npm run db:smoke"
-  ]) {
+  for (const required of ["npm ci", ...verifyLocalScripts.map((script) => `npm run ${script}`)]) {
     if (!content.includes(required)) {
       findings.push(`.github/workflows/ci.yml should include ${required}.`);
     }
@@ -329,25 +400,10 @@ function checkReleaseHandoff() {
 
   const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
   for (const snippet of [
-    "M51",
-    "M52",
-    "M53",
-    "M54",
-    "M55",
-    "M56",
-    "M57",
-    "M58",
-    "M59",
-    "M60",
-    "M61",
-    "M62",
-    "M63",
-    "M64",
-    "M65",
     "d7a72f2",
     "sync taskbook status gates",
-    "70 checks",
-    "19 safety areas"
+    `${smokeMetrics.checkCount} checks`,
+    `${qaMetrics.safetyAreaCount} safety areas`
   ]) {
     if (!handoff.includes(snippet)) {
       findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
@@ -379,20 +435,7 @@ function checkTaskbookDecisions() {
     }
   }
 
-  for (const snippet of [
-    "M56 Taskbook 状态门禁",
-    "M56 当前落点",
-    "M57 账号删除",
-    "M58 移动端 PWA",
-    "M59 多媒体/照片/通讯录导入",
-    "M60 PRD 范围回写门禁",
-    "M61 接口输入与导入兼容护栏",
-    "M62 密钥与发布门禁加固",
-    "M63 文档命令/链接门禁",
-    "M64 结构化导入与 vault QA",
-    "M65 导出隐私、DB credential 和设置页 E2E 硬化",
-    "sync taskbook status gates"
-  ]) {
+  for (const snippet of ["sync taskbook status gates"]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
@@ -452,29 +495,15 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", "70 checks"],
-    ["docs/MVP_STATUS.md", "19 safety areas"],
+    ["docs/MVP_STATUS.md", `${smokeMetrics.checkCount} checks`],
+    ["docs/MVP_STATUS.md", `${qaMetrics.safetyAreaCount} safety areas`],
     ["docs/MVP_STATUS.md", "npm run db:smoke"],
     ["docs/MVP_STATUS.md", "npm run verify:deploy"],
     ["docs/MVP_STATUS.md", "npm run qa:imports"],
     ["docs/MVP_STATUS.md", "npm run qa:vault"],
     ["docs/MVP_STATUS.md", "npm run pwa:check"],
-    ["docs/MVP_STATUS.md", "M51"],
-    ["docs/MVP_STATUS.md", "M52"],
-    ["docs/MVP_STATUS.md", "M53"],
-    ["docs/MVP_STATUS.md", "M54"],
-    ["docs/MVP_STATUS.md", "M55"],
-    ["docs/MVP_STATUS.md", "M56"],
-    ["docs/MVP_STATUS.md", "M57"],
-    ["docs/MVP_STATUS.md", "M58"],
-    ["docs/MVP_STATUS.md", "M59"],
-    ["docs/MVP_STATUS.md", "M60"],
-    ["docs/MVP_STATUS.md", "M61"],
-    ["docs/MVP_STATUS.md", "M62"],
-    ["docs/MVP_STATUS.md", "M63"],
-    ["docs/MVP_STATUS.md", "M64"],
-    ["docs/MVP_STATUS.md", "M65"],
-    ["docs/PHASE-1.5.md", "70 checks"],
+    ["docs/MVP_STATUS.md", `M${taskbookMilestones.latestNumber}`],
+    ["docs/PHASE-1.5.md", `${smokeMetrics.checkCount} checks`],
     ["README.md", "npm run db:smoke"]
   ];
 
@@ -482,6 +511,67 @@ function checkDeploymentDocs() {
     const content = readText(file);
     if (!content?.includes(snippet)) {
       findings.push(`${file} should mention ${snippet}.`);
+    }
+  }
+}
+
+function checkReleaseMilestoneSync() {
+  if (!taskbookMilestones.latestNumber) {
+    findings.push("docs/TASKBOOK.md has no integrated M milestone rows to use as release source of truth.");
+    return;
+  }
+
+  const latest = taskbookMilestones.latestNumber;
+  const mvp = readText("docs/MVP_STATUS.md") ?? "";
+  const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
+
+  if (!mvp.includes(`M${latest}`)) {
+    findings.push(`docs/MVP_STATUS.md should mention latest integrated Taskbook milestone M${latest}.`);
+  }
+
+  if (!handoff.includes(`M${latest}`)) {
+    findings.push(`docs/RELEASE_HANDOFF.md should mention latest integrated Taskbook milestone M${latest}.`);
+  }
+
+  const handoffScopeMilestones = collectMilestoneNumbers(handoff, /-\s+M(\d+)\s+scope:/g);
+  if (handoffScopeMilestones.length > 0) {
+    assertConsecutiveMilestones(handoffScopeMilestones, "docs/RELEASE_HANDOFF.md scope milestone list");
+    const handoffLatest = Math.max(...handoffScopeMilestones);
+    if (handoffLatest !== latest) {
+      findings.push(
+        `docs/RELEASE_HANDOFF.md latest scope milestone should be M${latest}; found M${handoffLatest}.`
+      );
+    }
+  }
+
+  const mvpQueueMilestones = collectMilestoneNumbers(mvp, /^-\s+M(\d+)\s+/gm);
+  if (mvpQueueMilestones.length > 0) {
+    assertConsecutiveMilestones(mvpQueueMilestones, "docs/MVP_STATUS.md construction queue milestone list");
+    const mvpLatest = Math.max(...mvpQueueMilestones);
+    if (mvpLatest !== latest) {
+      findings.push(`docs/MVP_STATUS.md latest construction queue milestone should be M${latest}; found M${mvpLatest}.`);
+    }
+  }
+}
+
+function checkVerificationCommandSync() {
+  const ci = readText(join(".github", "workflows", "ci.yml")) ?? "";
+  const release = readText("docs/RELEASE_HANDOFF.md") ?? "";
+
+  const ciCommands = collectCiRunCommands(ci);
+  for (const script of verifyLocalScripts) {
+    const command = `npm run ${script}`;
+    if (!ciCommands.includes(command)) {
+      findings.push(`.github/workflows/ci.yml is missing verify-local base command: ${command}.`);
+    }
+    if (!release.includes(command)) {
+      findings.push(`docs/RELEASE_HANDOFF.md CI expectations should include ${command}.`);
+    }
+  }
+
+  for (const command of ciCommands.filter((item) => item.startsWith("npm run "))) {
+    if (!release.includes(command)) {
+      findings.push(`docs/RELEASE_HANDOFF.md CI expectations should include workflow command: ${command}.`);
     }
   }
 }
@@ -513,6 +603,115 @@ function checkPrdScopeSync() {
   ]) {
     if (!prd.includes(snippet)) {
       findings.push(`docs/PRD.md should mention ${snippet}.`);
+    }
+  }
+}
+
+function readQaMetrics() {
+  const samples = parseJsonFile("tests/qa-samples.json");
+  if (!samples) {
+    return {
+      relationshipKindCount: 0,
+      safetyCaseCount: 0,
+      safetySmokeCaseCount: 0,
+      safetyAreaCount: 0
+    };
+  }
+
+  const relationshipKinds = new Set(
+    (samples.relationshipCases ?? [])
+      .map((item) => item.relationshipKind ?? item.kind)
+      .filter(Boolean)
+  );
+  const safetyCases = samples.safetyCases ?? [];
+  const safetyAreas = new Set(safetyCases.map((item) => item.riskArea).filter(Boolean));
+
+  return {
+    relationshipKindCount: relationshipKinds.size,
+    safetyCaseCount: safetyCases.length,
+    safetySmokeCaseCount: safetyCases.filter((item) => item.endpointSmoke !== false).length,
+    safetyAreaCount: safetyAreas.size
+  };
+}
+
+function readSmokeMetrics(metrics) {
+  const content = readText("tests/smoke.mjs") ?? "";
+  const literalPassCount = [
+    ...content.matchAll(/\bpass\(\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/g)
+  ].length;
+  const safetyLoopCount = /\bpass\(\s*`POST \/api\/safety\/check \$\{safetyCase\.id\}`\s*\)/.test(content)
+    ? metrics.safetySmokeCaseCount
+    : 0;
+
+  return {
+    checkCount: literalPassCount + safetyLoopCount,
+    literalPassCount,
+    safetyLoopCount
+  };
+}
+
+function readE2eMetrics() {
+  const dir = join("tests", "e2e");
+  if (!existsSync(dir)) {
+    findings.push("tests/e2e directory is missing.");
+    return { testCount: 0 };
+  }
+
+  const testCount = readdirSync(dir)
+    .filter((file) => file.endsWith(".spec.ts"))
+    .map((file) => readText(join(dir, file)) ?? "")
+    .reduce((count, content) => count + [...content.matchAll(/\btest(?:\.(?:only|skip|fixme))?\s*\(/g)].length, 0);
+
+  return { testCount };
+}
+
+function readTaskbookMilestones() {
+  const taskbook = readText("docs/TASKBOOK.md") ?? "";
+  const milestones = [];
+  const rowPattern = /^\|\s*M(\d+)\s+[^|]+\|\s*integrated\s*\|/gm;
+
+  for (const match of taskbook.matchAll(rowPattern)) {
+    milestones.push(Number(match[1]));
+  }
+
+  const uniqueNumbers = [...new Set(milestones)].sort((a, b) => a - b);
+  return {
+    numbers: uniqueNumbers,
+    latestNumber: uniqueNumbers.at(-1) ?? 0
+  };
+}
+
+function readVerifyLocalBaseScripts() {
+  const content = readText(join("scripts", "verify-local.mjs")) ?? "";
+  const baseStepsSource = content.split("if (!skipE2e)")[0] ?? content;
+  const scripts = [];
+
+  for (const match of baseStepsSource.matchAll(/\[\s*["']run["']\s*,\s*["']([^"']+)["']\s*\]/g)) {
+    scripts.push(match[1]);
+  }
+
+  return [...new Set(scripts)];
+}
+
+function collectCiRunCommands(content) {
+  return [...content.matchAll(/^\s*run:\s*(.+)$/gm)]
+    .map((match) => match[1].trim())
+    .filter(Boolean);
+}
+
+function collectMilestoneNumbers(content, pattern) {
+  return [...content.matchAll(pattern)]
+    .map((match) => Number(match[1]))
+    .filter((number) => Number.isInteger(number));
+}
+
+function assertConsecutiveMilestones(numbers, label) {
+  const uniqueNumbers = [...new Set(numbers)].sort((a, b) => a - b);
+  for (let index = 1; index < uniqueNumbers.length; index += 1) {
+    const previous = uniqueNumbers[index - 1];
+    const current = uniqueNumbers[index];
+    if (current !== previous + 1) {
+      findings.push(`${label} should be consecutive; found gap between M${previous} and M${current}.`);
     }
   }
 }

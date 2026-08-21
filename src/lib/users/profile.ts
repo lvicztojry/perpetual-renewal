@@ -88,6 +88,31 @@ export async function updateUserProfile(
   }
 }
 
+export function upsertFallbackProfile(
+  userId: string,
+  input: {
+    email: string;
+    nickname?: string;
+  }
+): UserProfile {
+  const store = getFallbackProfileStore();
+  const existing = store.get(userId);
+  const nickname = input.nickname?.trim() || existing?.nickname || input.email.split("@")[0] || "用户";
+  const profile: UserProfile = {
+    id: userId,
+    email: input.email,
+    nickname,
+    timezone: existing?.timezone ?? process.env.DEV_MOCK_USER_TIMEZONE ?? "Asia/Shanghai",
+    language: existing?.language ?? process.env.DEV_MOCK_USER_LANGUAGE ?? "zh-CN",
+    proactiveMessagesEnabled: existing?.proactiveMessagesEnabled ?? true,
+    proactiveFrequencyHours: existing?.proactiveFrequencyHours ?? 24,
+    updatedAt: new Date().toISOString()
+  };
+
+  store.set(userId, profile);
+  return profile;
+}
+
 function shouldUseFallbackProfile() {
   return (
     process.env.NODE_ENV !== "production" &&

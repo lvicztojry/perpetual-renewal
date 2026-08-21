@@ -29,7 +29,7 @@ Latest local verification on 2026-08-21:
 - `npm run secrets:check`
 - `npm run git:boundary`
 - `npm run build`
-- `npm run smoke` -> 70 checks
+- `npm run smoke` -> 74 checks
 - `npm run qa:samples`
 - `npm run qa:prompt`
 - `npm run qa:imports`
@@ -37,7 +37,7 @@ Latest local verification on 2026-08-21:
 - `npm run pwa:check`
 - `npm run prisma:validate`
 - `npm run db:smoke` -> skipped because `DATABASE_URL` is not set
-- `npm run e2e` -> 6 tests
+- `npm run e2e` -> 7 tests
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
 ## Production Config Still Required

@@ -10,11 +10,13 @@ const DEFAULT_PORT = 3210;
 const START_TIMEOUT_MS = 90_000;
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SAMPLE_PATH = new URL("./qa-samples.json", import.meta.url);
+const SMOKE_CRON_SECRET = "smoke-cron-secret-placeholder";
 
 const samples = await readSamples();
 const checks = [];
 let serverProcess;
 let rootUrl = process.env.SMOKE_BASE_URL;
+const defaultClient = createRequestClient();
 
 process.on("SIGINT", async () => {
   await stopServer();
@@ -29,10 +31,6 @@ process.on("SIGTERM", async () => {
 try {
   runEnvReadinessSmoke();
   await runSecretScanSmoke();
-
-  if (!rootUrl) {
-    rootUrl = process.env.SMOKE_PORT ? undefined : await detectExistingServer();
-  }
 
   if (!rootUrl) {
     const port = process.env.SMOKE_PORT || String(await findAvailablePort(DEFAULT_PORT));
@@ -182,6 +180,7 @@ function startDevServer(port) {
       VOICE_PROVIDER: "shared-llm",
       VOICE_STT_MODEL: "",
       VOICE_TTS_MODEL: "",
+      PROACTIVE_CRON_SECRET: SMOKE_CRON_SECRET,
       NEXT_TELEMETRY_DISABLED: "1"
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -212,31 +211,6 @@ function isPortAvailable(port) {
     });
     server.listen(port, "127.0.0.1");
   });
-}
-
-async function detectExistingServer() {
-  const candidates = [
-    "http://127.0.0.1:3000",
-    "http://localhost:3000"
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      const response = await fetch(candidate, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(2_000)
-      });
-
-      if (response.ok) {
-        console.log(`Reusing existing dev server at ${candidate}`);
-        return candidate;
-      }
-    } catch {
-      // Keep probing; absence of a running server is the normal path.
-    }
-  }
-
-  return undefined;
 }
 
 async function waitForServer(url) {
@@ -300,10 +274,74 @@ async function runSmoke() {
   assert(Array.isArray(companionsBefore.body.companions), "companions list should be an array");
   pass("GET /api/companions");
 
+  const isolatedClientA = createRequestClient();
+  const isolatedClientB = createRequestClient();
+  const isolatedEmailA = `smoke-isolated-a-${Date.now()}@perpetual-renewal.local`;
+  const isolatedEmailB = `smoke-isolated-b-${Date.now()}@perpetual-renewal.local`;
+  const isolatedLoginA = await request(
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ email: isolatedEmailA, nickname: "隔离用户 A" })
+    },
+    { client: isolatedClientA }
+  );
+  const isolatedLoginB = await request(
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ email: isolatedEmailB, nickname: "隔离用户 B" })
+    },
+    { client: isolatedClientB }
+  );
+  assert(
+    isolatedLoginA.body.session?.userId &&
+      isolatedLoginB.body.session?.userId &&
+      isolatedLoginA.body.session.userId !== isolatedLoginB.body.session.userId,
+    "memory fallback should create isolated user ids per email login"
+  );
+  assert(
+    isolatedLoginA.body.user?.email === isolatedEmailA &&
+      isolatedLoginB.body.user?.email === isolatedEmailB,
+    "memory fallback profiles should keep the login email per isolated session"
+  );
+  const isolatedCompanion = await request(
+    "/api/companions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: "隔离回响",
+        relationshipKind: "CUSTOM",
+        customKind: "隔离测试关系",
+        userAddress: "我",
+        companionAddress: "回响",
+        personality: ["安静"],
+        speakingStyle: "短句、稳定",
+        background: "用于验证本地 memory fallback 用户隔离。",
+        boundaries: "不跨用户泄露。",
+        immersionEnabled: true
+      })
+    },
+    { client: isolatedClientA }
+  );
+  assert(isolatedCompanion.response.status === 201, "isolated companion creation should return 201");
+  const isolatedAList = await request("/api/companions", {}, { client: isolatedClientA });
+  const isolatedBList = await request("/api/companions", {}, { client: isolatedClientB });
+  assert(
+    isolatedAList.body.companions.some((item) => item.id === isolatedCompanion.body.companion.id),
+    "memory fallback should list a user's own companion"
+  );
+  assert(
+    !isolatedBList.body.companions.some((item) => item.id === isolatedCompanion.body.companion.id),
+    "memory fallback should not leak companions across email sessions"
+  );
+  pass("POST /api/auth/login memory fallback isolates sessions by email");
+
+  const smokeEmail = `smoke-${Date.now()}@perpetual-renewal.local`;
   const login = await request("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({
-      email: `smoke-${Date.now()}@perpetual-renewal.local`,
+      email: smokeEmail,
       nickname: "Smoke 用户"
     })
   });
@@ -795,6 +833,93 @@ async function runSmoke() {
     "all-user proactive scheduler should require cron secret"
   );
   pass("POST /api/proactive/run all scope requires secret");
+
+  const wrongCronSecret = "wrong-cron-secret-placeholder";
+  const proactiveAllWithWrongSecret = await request(
+    "/api/proactive/run",
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${wrongCronSecret}`
+      },
+      body: JSON.stringify({
+        scope: "all",
+        dryRun: true,
+        limit: 1
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    proactiveAllWithWrongSecret.response.status === 401,
+    "all-user proactive scheduler should reject an incorrect cron secret"
+  );
+  assert(
+    !JSON.stringify(proactiveAllWithWrongSecret.body).includes(wrongCronSecret) &&
+      !JSON.stringify(proactiveAllWithWrongSecret.body).includes(SMOKE_CRON_SECRET),
+    "all-user proactive scheduler auth failure should not echo cron secret values"
+  );
+  pass("POST /api/proactive/run all scope rejects wrong secret");
+
+  const proactiveAllWithBearerSecret = await request("/api/proactive/run", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${SMOKE_CRON_SECRET}`
+    },
+    body: JSON.stringify({
+      scope: "all",
+      dryRun: true,
+      limit: 1,
+      maxDrafts: 1,
+      now: schedulerNow
+    })
+  });
+  assert(
+    proactiveAllWithBearerSecret.body.scope === "all" &&
+      proactiveAllWithBearerSecret.body.authMode === "cron-secret",
+    "all-user proactive scheduler should accept Bearer cron secret"
+  );
+  assert(
+    proactiveAllWithBearerSecret.body.scannedCount <= 1 &&
+      proactiveAllWithBearerSecret.body.generatedCount <= 1 &&
+      proactiveAllWithBearerSecret.body.savedCount === 0,
+    "all-user proactive scheduler should respect limit, maxDrafts, and dry-run with Bearer auth"
+  );
+  assert(
+    !JSON.stringify(proactiveAllWithBearerSecret.body).includes(SMOKE_CRON_SECRET),
+    "all-user proactive scheduler Bearer response should not echo cron secret"
+  );
+  pass("POST /api/proactive/run all scope accepts Bearer secret");
+
+  const proactiveAllWithHeaderSecret = await request("/api/proactive/run", {
+    method: "POST",
+    headers: {
+      "x-proactive-cron-secret": SMOKE_CRON_SECRET
+    },
+    body: JSON.stringify({
+      scope: "all",
+      dryRun: true,
+      limit: 999,
+      maxDrafts: 999,
+      now: schedulerNow
+    })
+  });
+  assert(
+    proactiveAllWithHeaderSecret.body.scope === "all" &&
+      proactiveAllWithHeaderSecret.body.authMode === "cron-secret",
+    "all-user proactive scheduler should accept x-proactive-cron-secret"
+  );
+  assert(
+    proactiveAllWithHeaderSecret.body.scannedCount <= 100 &&
+      proactiveAllWithHeaderSecret.body.maxDrafts === 200 &&
+      proactiveAllWithHeaderSecret.body.savedCount === 0,
+    "all-user proactive scheduler should clamp oversized limit/maxDrafts in dry-run"
+  );
+  assert(
+    !JSON.stringify(proactiveAllWithHeaderSecret.body).includes(SMOKE_CRON_SECRET),
+    "all-user proactive scheduler header response should not echo cron secret"
+  );
+  pass("POST /api/proactive/run all scope accepts header secret and clamps guards");
 
   const me = await request("/api/me");
   assert(me.body.user?.id, "me endpoint should return a user");
@@ -1327,6 +1452,14 @@ async function runSmoke() {
   );
   pass("GET /api/me/export safety audit hashes");
 
+  await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: smokeEmail,
+      nickname: "Smoke 用户"
+    })
+  });
+
   const rejectedAccountDelete = await request(
     "/api/me/account",
     {
@@ -1355,7 +1488,9 @@ async function runSmoke() {
     deletedAccount.body.counts?.companions >= 1 &&
       deletedAccount.body.counts?.memories >= 1 &&
       deletedAccount.body.counts?.modelUsageLogs >= 1,
-    "account delete should report deleted user-owned records"
+    `account delete should report deleted user-owned records, got ${JSON.stringify(
+      deletedAccount.body.counts
+    )}`
   );
   assert(
     !JSON.stringify(deletedAccount.body).includes("Bearer") &&
@@ -1365,23 +1500,40 @@ async function runSmoke() {
   );
   pass("DELETE /api/me/account removes current user data");
 
+  await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: smokeEmail,
+      nickname: "Smoke 用户"
+    })
+  });
   const companionsAfterAccountDelete = await request("/api/companions");
   assert(
     Array.isArray(companionsAfterAccountDelete.body.companions) &&
-      companionsAfterAccountDelete.body.companions.length === 0,
-    "account delete should remove current user's relationship objects"
+      !companionsAfterAccountDelete.body.companions.some(
+        (item) => item.id === created.body.companion.id
+      ),
+    "account delete should remove the deleted user's relationship objects"
   );
-  pass("GET /api/companions after account delete returns no relationships");
+  pass("GET /api/companions after account delete excludes deleted user's relationships");
+}
+
+function createRequestClient() {
+  return { cookies: new Map() };
 }
 
 async function request(pathname, options = {}, behavior = {}) {
+  const client = behavior.client ?? defaultClient;
+  const cookieHeader = formatCookieHeader(client);
   const response = await fetch(new URL(pathname, rootUrl), {
     ...options,
     headers: {
       "content-type": "application/json",
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
       ...(options.headers ?? {})
     }
   });
+  storeResponseCookies(client, response);
 
   const contentType = response.headers.get("content-type") ?? "";
   const body = contentType.includes("application/json") ? await response.json() : await response.text();
@@ -1391,6 +1543,40 @@ async function request(pathname, options = {}, behavior = {}) {
   }
 
   return { response, body };
+}
+
+function formatCookieHeader(client) {
+  return Array.from(client.cookies.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+function storeResponseCookies(client, response) {
+  const setCookieHeaders =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : splitSetCookieHeader(response.headers.get("set-cookie"));
+
+  for (const header of setCookieHeaders) {
+    const [pair] = header.split(";");
+    const separatorIndex = pair.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const name = pair.slice(0, separatorIndex).trim();
+    const value = pair.slice(separatorIndex + 1).trim();
+    if (!name) continue;
+
+    if (!value) {
+      client.cookies.delete(name);
+    } else {
+      client.cookies.set(name, value);
+    }
+  }
+}
+
+function splitSetCookieHeader(header) {
+  if (!header) return [];
+  return header.split(/,(?=\s*[^;,=\s]+=[^;,]*)/g).map((item) => item.trim());
 }
 
 function assert(condition, message) {
