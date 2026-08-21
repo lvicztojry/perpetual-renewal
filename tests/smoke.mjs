@@ -347,6 +347,28 @@ async function runSmoke() {
   });
   assert(login.body.session?.userId, "login should return a session");
   assert(login.body.user?.id, "login should return a user profile");
+  assertInvalidJsonResponse(
+    await request(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "login"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "login"
+  );
   pass("POST /api/auth/login");
 
   assertInvalidJsonResponse(
@@ -597,6 +619,28 @@ async function runSmoke() {
     ),
     "message creation"
   );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "companion memory candidate creation"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "companion memory candidate creation"
+  );
   pass("conversation message plus pending memory");
 
   const regenerated = await request(
@@ -779,6 +823,17 @@ async function runSmoke() {
     relationshipStateUpdate.body.data?.changes?.importantEventsAdded?.length === 1,
     "relationship state API should explain important event additions"
   );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`,
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "relationship state update"
+  );
   pass("POST /api/companions/:id/relationship-state updates timeline");
 
   const proactive = await request(
@@ -828,6 +883,17 @@ async function runSmoke() {
     proactive.body.persistence === "prisma" || proactive.body.persistence === "memory",
     "proactive drafts should report repository persistence"
   );
+  assertInvalidJsonResponse(
+    await request(
+      `/api/companions/${encodeURIComponent(created.body.companion.id)}/proactive-drafts`,
+      {
+        method: "POST",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "proactive draft creation"
+  );
   pass("POST /api/companions/:id/proactive-drafts");
 
   const updatedProactiveMessage = await request(
@@ -845,6 +911,17 @@ async function runSmoke() {
     !JSON.stringify(updatedProactiveMessage.body).includes("Bearer") &&
       !JSON.stringify(updatedProactiveMessage.body).includes("baseUrl"),
     "proactive message update response should not expose provider credentials"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      `/api/proactive-messages/${encodeURIComponent(proactive.body.data[0].id)}`,
+      {
+        method: "PATCH",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "proactive message update"
   );
   pass("PATCH /api/proactive-messages/:id updates draft status");
 
@@ -1159,6 +1236,28 @@ async function runSmoke() {
     updateWithoutSavedKey.response.status === 400,
     "credential update without a saved key should require api key"
   );
+  assertInvalidJsonResponse(
+    await request(
+      "/api/me/llm-credential",
+      {
+        method: "PUT",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "credential save"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/me/llm-credential",
+      {
+        method: "PUT",
+        body: "[]"
+      },
+      { allowError: true }
+    ),
+    "credential save"
+  );
   pass("PUT/GET/DELETE /api/me/llm-credential sanitized vault");
 
   const modelListWithoutKey = await request("/api/me/llm-models", {}, { allowError: true });
@@ -1208,6 +1307,17 @@ async function runSmoke() {
       !JSON.stringify(llmTestWithoutKey.body).includes(fakeKey) &&
       !JSON.stringify(llmTestWithoutKey.body).includes("Bearer"),
     "LLM connection test response should stay sanitized"
+  );
+  assertJsonObjectRequiredResponse(
+    await request(
+      "/api/me/llm-test",
+      {
+        method: "POST",
+        body: "null"
+      },
+      { allowError: true }
+    ),
+    "LLM connection test"
   );
   pass("POST /api/me/llm-test sanitized missing-key result");
 
@@ -1563,6 +1673,17 @@ async function runSmoke() {
     rejectedAccountDelete.body.confirmationRequired === "删除我的账号",
     "account delete should return the required confirmation phrase"
   );
+  assertInvalidJsonResponse(
+    await request(
+      "/api/me/account",
+      {
+        method: "DELETE",
+        body: '{"broken"'
+      },
+      { allowError: true }
+    ),
+    "account delete"
+  );
   pass("DELETE /api/me/account rejects incorrect confirmation");
 
   const deletedAccount = await request("/api/me/account", {
@@ -1675,9 +1796,25 @@ function assert(condition, message) {
 function assertInvalidJsonResponse(result, label) {
   assert(result.response.status === 400, `${label} should reject invalid JSON with 400`);
   assert(result.body?.error === "Invalid JSON body.", `${label} should return a friendly JSON error`);
+  assertSafeJsonErrorBody(result, label);
+}
+
+function assertJsonObjectRequiredResponse(result, label) {
+  assert(result.response.status === 400, `${label} should reject non-object JSON with 400`);
+  assert(
+    result.body?.error === "JSON object body is required.",
+    `${label} should require a JSON object body`
+  );
+  assertSafeJsonErrorBody(result, label);
+}
+
+function assertSafeJsonErrorBody(result, label) {
   assert(
     !stringify(result.body).includes("SyntaxError") &&
       !stringify(result.body).includes("Unexpected token") &&
+      !stringify(result.body).includes("Cannot read properties") &&
+      !stringify(result.body).includes("Bearer") &&
+      !stringify(result.body).includes("baseUrl") &&
       !stringify(result.body).includes("stack"),
     `${label} invalid JSON response should not expose parser internals`
   );

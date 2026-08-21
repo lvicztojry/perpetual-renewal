@@ -5,6 +5,7 @@ import {
   getLlmCredentialStatus,
   saveLlmCredential
 } from "@/lib/credentials";
+import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import type { LlmProviderAlias } from "@/lib/llm/types";
 
 type CredentialRequest = {
@@ -32,18 +33,19 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const session = await getCurrentSession();
-  let body: CredentialRequest;
 
   try {
-    body = (await request.json()) as CredentialRequest;
-  } catch {
-    return NextResponse.json({ error: "Expected a valid JSON body." }, { status: 400 });
-  }
-
-  try {
+    const body = (await readJsonObject(request)) as CredentialRequest;
     const credential = await saveLlmCredential(session.userId, parseCredentialRequest(body));
     return NextResponse.json({ credential });
   } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json(
+        { error: jsonErrorMessage(error, "Failed to save credential.") },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to save credential." },
       { status: 400 }

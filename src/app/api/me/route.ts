@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
   getUserProfile,
   ProfileValidationError,
@@ -24,22 +25,18 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const session = await getCurrentSession();
-    let body: unknown;
-
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Expected a valid JSON body." }, { status: 400 });
-    }
-
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return NextResponse.json({ error: "Expected a JSON object." }, { status: 400 });
-    }
-
+    const body = await readJsonObject(request);
     const user = await updateUserProfile(session.userId, body);
 
     return NextResponse.json({ user });
   } catch (error) {
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json(
+        { error: jsonErrorMessage(error, "Failed to update profile.") },
+        { status: 400 }
+      );
+    }
+
     if (error instanceof ProfileValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

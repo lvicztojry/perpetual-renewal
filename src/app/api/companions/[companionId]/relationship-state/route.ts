@@ -5,6 +5,7 @@ import {
   type RelationshipStateSnapshot
 } from "@/lib/relationship";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type { RelationshipStateRecord } from "@/lib/renewal/types";
 
@@ -37,7 +38,17 @@ export async function POST(
   context: { params: Promise<{ companionId: string }> }
 ) {
   const { companionId } = await context.params;
-  const body = await readRequest(request);
+  let body: RelationshipStateRequest;
+
+  try {
+    body = await readRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to update relationship state.") },
+      { status: 400 }
+    );
+  }
+
   const session = await getCurrentSession();
   const repository = createRenewalRepository();
   const companion = await repository.getCompanion(session.userId, companionId);
@@ -69,12 +80,7 @@ export async function POST(
 }
 
 async function readRequest(request: Request): Promise<RelationshipStateRequest> {
-  try {
-    const body = (await request.json()) as RelationshipStateRequest;
-    return body && typeof body === "object" ? body : {};
-  } catch {
-    return {};
-  }
+  return (await readJsonObject(request)) as RelationshipStateRequest;
 }
 
 function normalizeSignal(signal: RelationshipStateRequest["signal"]): RelationshipSignal {

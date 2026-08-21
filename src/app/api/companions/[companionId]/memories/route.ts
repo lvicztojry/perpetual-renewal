@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService } from "@/lib/renewal/service";
 import type { MemoryType } from "@/lib/renewal/types";
 
@@ -24,7 +25,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { companionId } = await context.params;
-  const body = await request.json();
+  let body: Record<string, unknown>;
+
+  try {
+    body = await readJsonObject(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to create memory candidates.") },
+      { status: 400 }
+    );
+  }
+
   const sourceMessageId = readString(body.sourceMessageId);
   const content = readString(body.content);
   const explicitType = normalizeMemoryType(readString(body.type));

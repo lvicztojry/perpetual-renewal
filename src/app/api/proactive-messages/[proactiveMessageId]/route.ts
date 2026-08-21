@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type { ProactiveMessageStatus } from "@/lib/renewal/types";
 
@@ -20,9 +21,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   let body: ProactiveMessagePatch;
 
   try {
-    body = (await request.json()) as ProactiveMessagePatch;
-  } catch {
-    return NextResponse.json({ error: "Expected a valid JSON body." }, { status: 400 });
+    body = (await readJsonObject(request)) as ProactiveMessagePatch;
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to update proactive message.") },
+      { status: 400 }
+    );
   }
 
   const status = readStatus(body.status);

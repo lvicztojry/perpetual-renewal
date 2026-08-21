@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearCurrentSession, getCurrentSession } from "@/lib/auth/session";
+import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
   ACCOUNT_DELETE_CONFIRMATION,
   DeleteAccountValidationError,
@@ -10,22 +11,11 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function DELETE(request: Request) {
-  let body: unknown;
-
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Expected a valid JSON body." }, { status: 400 });
-  }
-
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return NextResponse.json({ error: "Expected a JSON object." }, { status: 400 });
-  }
-
-  try {
+    const body = await readJsonObject(request);
     const session = await getCurrentSession();
     const summary = await deleteCurrentUserAccount(session.userId, {
-      confirmation: (body as { confirmation?: unknown }).confirmation
+      confirmation: body.confirmation
     });
     await clearCurrentSession();
 
@@ -44,6 +34,13 @@ export async function DELETE(request: Request) {
           error: error.message,
           confirmationRequired: ACCOUNT_DELETE_CONFIRMATION
         },
+        { status: 400 }
+      );
+    }
+
+    if (error instanceof JsonRequestError) {
+      return NextResponse.json(
+        { error: jsonErrorMessage(error, "Failed to delete account.") },
         { status: 400 }
       );
     }

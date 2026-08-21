@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
   createProactiveDrafts,
   checkProactiveContextSafety,
@@ -33,7 +34,17 @@ export async function POST(
   context: { params: Promise<{ companionId: string }> }
 ) {
   const { companionId } = await context.params;
-  const body = await readDraftRequest(request);
+  let body: ProactiveDraftRequest;
+
+  try {
+    body = await readDraftRequest(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to create proactive drafts.") },
+      { status: 400 }
+    );
+  }
+
   const forceGenerate = body.force || body.frequencyHours === 0 || body.frequencyMinutes === 0;
   const requestedFrequencyMinutes = readFrequencyMinutes(body);
   const session = await getCurrentSession();
@@ -154,12 +165,7 @@ function readFrequencyMinutes(body: ProactiveDraftRequest) {
 }
 
 async function readDraftRequest(request: Request): Promise<ProactiveDraftRequest> {
-  try {
-    const body = (await request.json()) as ProactiveDraftRequest;
-    return body && typeof body === "object" ? body : {};
-  } catch {
-    return {};
-  }
+  return (await readJsonObject(request)) as ProactiveDraftRequest;
 }
 
 function toProactiveCompanion(companion: RenewalCompanionProfile): ProactiveCompanionProfile {

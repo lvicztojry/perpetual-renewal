@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { createEmailSession, normalizeEmail } from "@/lib/auth/session";
+import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getUserProfile } from "@/lib/users/profile";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as {
-      email?: unknown;
-      nickname?: unknown;
-    };
+  let body: Record<string, unknown>;
 
+  try {
+    body = await readJsonObject(request);
+  } catch (error) {
+    return NextResponse.json(
+      { error: jsonErrorMessage(error, "Failed to login.") },
+      { status: 400 }
+    );
+  }
+
+  try {
     if (typeof body.email !== "string") {
       return NextResponse.json({ error: "email is required." }, { status: 400 });
     }
