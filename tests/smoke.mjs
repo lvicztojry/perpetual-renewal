@@ -2656,6 +2656,22 @@ async function runSmoke() {
   );
   pass("DELETE /api/me/account rejects incorrect confirmation");
 
+  const deleteAccountKey = "delete-account-vault-key-value";
+  const deleteAccountEndpoint = "https://delete-account-gateway.example.com/v1";
+  const deleteAccountCredential = await request("/api/me/llm-credential", {
+    method: "PUT",
+    body: JSON.stringify({
+      provider: "compatible",
+      apiKey: deleteAccountKey,
+      baseUrl: deleteAccountEndpoint,
+      model: "delete-account-smoke-model"
+    })
+  });
+  assert(
+    deleteAccountCredential.body.credential?.configured === true,
+    "account delete setup should create a vault credential to delete"
+  );
+
   const deletedAccount = await request("/api/me/account", {
     method: "DELETE",
     body: JSON.stringify({ confirmation: "删除我的账号" })
@@ -2698,7 +2714,41 @@ async function runSmoke() {
       ),
     "account delete should remove the deleted user's relationship objects"
   );
-  pass("GET /api/companions after account delete excludes deleted user's relationships");
+  const credentialAfterAccountDelete = await request("/api/me/llm-credential");
+  assert(
+    credentialAfterAccountDelete.body.credential?.configured === false,
+    "account delete should clear the deleted user's vault credential"
+  );
+  const usageAfterAccountDelete = await request("/api/usage/model-calls?rangeDays=7");
+  assert(
+    usageAfterAccountDelete.body.dashboard?.summary?.calls === 0 &&
+      Array.isArray(usageAfterAccountDelete.body.dashboard?.recent) &&
+      usageAfterAccountDelete.body.dashboard.recent.length === 0,
+    "account delete should clear the deleted user's model usage dashboard"
+  );
+  const exportedAfterAccountDelete = await request("/api/me/export");
+  const exportedAfterAccountDeleteText = JSON.stringify(exportedAfterAccountDelete.body);
+  assert(
+    exportedAfterAccountDelete.body.credentialSummary?.llm?.configured === false &&
+      exportedAfterAccountDelete.body.counts?.companions === 0 &&
+      exportedAfterAccountDelete.body.counts?.messages === 0 &&
+      exportedAfterAccountDelete.body.counts?.memories === 0 &&
+      exportedAfterAccountDelete.body.counts?.proactiveMessages === 0 &&
+      exportedAfterAccountDelete.body.counts?.modelUsageLogs === 0 &&
+      exportedAfterAccountDelete.body.counts?.safetyEvents === 0,
+    "account delete should leave the recreated user export empty of deleted relationship data"
+  );
+  assert(
+    !exportedAfterAccountDeleteText.includes(created.body.companion.id) &&
+      !exportedAfterAccountDeleteText.includes(fakeKey) &&
+      !exportedAfterAccountDeleteText.includes(deleteAccountKey) &&
+      !exportedAfterAccountDeleteText.includes(savedEndpoint) &&
+      !exportedAfterAccountDeleteText.includes(deleteAccountEndpoint) &&
+      !exportedAfterAccountDeleteText.includes("baseUrl") &&
+      !exportedAfterAccountDeleteText.includes("encryptedApiKey"),
+    "account delete export after relogin should not expose deleted user data or vault fields"
+  );
+  pass("GET /api/companions, usage, credential, and export after account delete exclude deleted data");
 }
 
 function createRequestClient() {

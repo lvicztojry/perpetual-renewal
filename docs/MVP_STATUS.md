@@ -188,6 +188,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M106 API private JSON 门禁：`git:boundary` 拦截 API route 直接 `NextResponse.json()` 或 `Response.json()`，要求统一使用 `privateJson()`，防止新增接口漏掉 private no-store 响应头。
 - M107 API fallback 响应脱敏：聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一走 `redactSensitiveResponseText()`；smoke 增加静态边界检查，防止 API route 绕过 JSON 解析 helper、`privateJson()` 或高风险 fallback 脱敏。
 - M108 响应脱敏 QA 与自动引用脱敏：新增 `qa:response` 动态验证 API 响应文本脱敏；主动回响引用最近用户消息、自动 pending memory 引用用户消息、usage fallbackReason 入库前统一脱敏；部署文档 Vercel env 清单补入 `SESSION_COOKIE_SECRET` 并由 `docs:check` 守住。
+- M109 账号删除派生数据回归：smoke 覆盖账号删除后重新登录同一邮箱时，旧关系对象、用户 vault、模型调用看板、导出快照中的消息/记忆/主动回响/安全事件/用量计数均不可读回，且不暴露旧 key、endpoint 或 vault 字段。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

@@ -850,6 +850,7 @@
 | M106 API private JSON 门禁 | integrated | API 边界/发布门禁模块 + 主控 | `scripts/git-boundary-check.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | `git:boundary` 明确拦截 API route 直接 `NextResponse.json()` 或 `Response.json()`，要求统一使用 `privateJson()`，防止后续新增接口漏掉 private no-store 响应头 |
 | M107 API fallback 响应脱敏 | integrated | API 响应边界模块 + 主控 | `src/lib/http/response-safety.ts`、`src/app/api/chat/complete/route.ts`、`src/app/api/voice/synthesize/route.ts`、`src/app/api/voice/transcribe/route.ts`、`tests/smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | 聊天、语音合成和语音转写 API 返回 `fallbackReason` 前统一脱敏 provider endpoint、Base URL、prompt、rawPayload、stack 和 authorization；smoke 增加静态边界检查，防止 API route 绕过 JSON helper、`privateJson()` 或 fallback 出口脱敏 |
 | M108 响应脱敏 QA 与自动引用脱敏 | integrated | API 响应边界/发布门禁模块 + 主控 | `src/lib/http/response-safety.ts`、`src/lib/relationship/proactive.ts`、`src/lib/renewal/service.ts`、`src/lib/usage/repository.ts`、`tests/response-safety-smoke.mjs`、`tests/smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`docs/*` | 新增 `qa:response` 动态验证响应文本脱敏；主动回响和自动 pending memory 引用用户消息前脱敏，usage fallbackReason 入库前脱敏；部署文档 Vercel env 清单补入 `SESSION_COOKIE_SECRET` 并由 `docs:check` 守住 |
+| M109 账号删除派生数据回归 | integrated | 数据生命周期模块 + 主控 | `tests/smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md`、`docs/QA.md`、`docs/PR_DRAFT.md` | smoke 覆盖账号删除后重新登录同一邮箱时，旧关系对象、用户 vault、模型调用看板、导出快照中的消息/记忆/主动回响/安全事件/用量计数均不可读回，且不暴露旧 key、endpoint 或 vault 字段 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -991,7 +992,7 @@ M57 当前落点：
 - `/api/me/account` 支持 `DELETE`，必须提交确认短语“删除我的账号”。
 - Prisma 环境依赖 schema cascade 删除当前用户关系、会话、消息、记忆、关系状态、主动草稿、安全事件、模型调用日志和 provider credential；本地 memory fallback 会清理对应全局 store。
 - 设置页“数据与隐私”危险区提供导出提醒、确认输入和删除按钮；删除成功后清除 session 并回到登录页。
-- Smoke 覆盖错误确认返回 400、正确确认删除、响应不泄露 key/baseUrl/vault 密文，以及删除后关系列表为空。
+- Smoke 覆盖错误确认返回 400、正确确认删除、响应不泄露 key/baseUrl/vault 密文，以及删除后关系列表、vault 状态、模型调用看板和导出快照不再读回被删除数据。
 
 M58 当前落点：
 
