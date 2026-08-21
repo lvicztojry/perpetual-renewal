@@ -18,11 +18,13 @@ const jwtLikeValue = [
 const secondBearerToken = ["secondtokenvalue", "0123456789"].join("");
 const objectApiKey = ["object-secret-value", "0123456789"].join("-");
 const objectDatabaseUrl = ["postgres", "ql://object:password@db.example.com/app"].join("");
+const sessionCookieSecret = ["session-cookie-secret-value", "012345678901234567890"].join("-");
 
 const rawSecretText = [
   `Authorization: Bearer ${bearerToken}`,
   `DATABASE_URL=${databaseUrl}`,
   `LLM_API_KEY=${apiKey}`,
+  `SESSION_COOKIE_SECRET=${sessionCookieSecret}`,
   "token=secret-token-value",
   "https://user:pass@example.com/v1",
   jwtLikeValue
@@ -33,6 +35,7 @@ const sanitized = sanitizeLogText(rawSecretText);
 assert(!sanitized.includes(bearerToken), "Bearer token should be redacted");
 assert(!sanitized.includes("realuser:realpassword"), "database credentials should be redacted");
 assert(!sanitized.includes(apiKey), "sk-style API key should be redacted");
+assert(!sanitized.includes(sessionCookieSecret), "session cookie secret env should be redacted");
 assert(!sanitized.includes("secret-token-value"), "token assignment should be redacted");
 assert(!sanitized.includes("user:pass@example.com"), "URL userinfo should be redacted");
 assert(!sanitized.includes("signaturevalue0123456789"), "JWT-like value should be redacted");

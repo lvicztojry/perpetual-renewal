@@ -179,6 +179,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
 - M100 Verify typegen 预检：`verify:local`、`verify:pr` 和 `verify:release` 在 `git:boundary` 前先执行 `next:typegen`，让 release gate 自行恢复 `next-env.d.ts` 的 production route type imports。
 - M101 Session secret env 模板同步：`.env.example` 新增空的 `SESSION_COOKIE_SECRET` 占位；`docs:check` 要求 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 都保持空占位，不把真实配置写入仓库。
+- M102 Session secret 日志脱敏覆盖：运行时日志脱敏显式覆盖 `SESSION_COOKIE_SECRET=...`；logging QA 与 secret scan smoke 同步验证 session signing secret 不会进入日志或可提交文件。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

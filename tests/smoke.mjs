@@ -121,6 +121,7 @@ async function runSecretScanSmoke() {
         'DATABASE_URL=""',
         'LLM_API_KEY=""',
         'USER_KEY_VAULT_SECRET="placeholder"',
+        'SESSION_COOKIE_SECRET=""',
         'PROACTIVE_CRON_SECRET="changeme"',
         'Authorization: Bearer <PROACTIVE_CRON_SECRET>'
       ].join("\n"),
@@ -137,6 +138,7 @@ async function runSecretScanSmoke() {
       [
         'DATABASE_URL="' + "postgresql://" + 'realuser:realpassword@db.example.com:5432/app?schema=public"',
         'USER_KEY_VAULT_SECRET="' + "mN5d7bJfW61Kz8QhP2nC4xR9vL0sA3eY6tU1iO8pD5g" + '"',
+        'SESSION_COOKIE_SECRET="' + "sessionsecretvalue012345678901234567890" + '"',
         'VOICE_API_KEY="' + "voicekeyvalue0123456789012345" + '"',
         'encryptedApiKey: "' + "bW9jay12YXVsdC1jaXBoZXJ0ZXh0LXZhbHVl" + '"',
         'keyIv: "' + "bW9jay12YXVsdC1pdi12YWx1ZQ==" + '"',
