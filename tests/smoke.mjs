@@ -1655,8 +1655,10 @@ async function runSmoke() {
         !serializedSafety.includes("Bearer") &&
         !serializedSafety.includes("baseUrl") &&
         !serializedSafety.includes("prompt") &&
-        !serializedSafety.includes("apiKey"),
-      `${safetyCase.id} safety response should not expose input, prompt, key or endpoint fields`
+        !serializedSafety.includes("apiKey") &&
+        !serializedSafety.includes("DEV-11") &&
+        !("next" in safety.body),
+      `${safetyCase.id} safety response should not expose input, prompt, key, endpoint, or handoff fields`
     );
 
     if (safetyCase.expectedAction === "allow") {

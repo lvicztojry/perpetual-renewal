@@ -54,8 +54,7 @@ export async function POST(request: Request) {
           : undefined
     },
     safetyEvent,
-    persistence: safetyEvent.persistence,
-    next: "DEV-11: call for user input, assistant output and proactive drafts."
+    persistence: safetyEvent.persistence
   });
 }
 
