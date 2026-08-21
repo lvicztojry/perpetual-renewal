@@ -15,6 +15,7 @@ const docsAndReadmes = files.filter(
 );
 
 checkDocsText(docsAndReadmes);
+checkVolatileReleaseStateWording(docsAndReadmes);
 checkMarkdownLinks(docsAndReadmes);
 checkDocumentedNpmScripts(docsAndReadmes);
 checkMigrationContexts(docsAndReadmes);
@@ -53,8 +54,12 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
-      if (/\b(?:46|48|49|57|63) checks\b/i.test(line)) {
-        findings.push(`${location} mentions an outdated smoke check count; current baseline is 69 checks.`);
+      if (/\b(?:46|48|49|57|63|69) checks\b/i.test(line)) {
+        findings.push(`${location} mentions an outdated smoke check count; current baseline is 70 checks.`);
+      }
+
+      if (/\b2 tests\b/i.test(line) && !line.includes("M48")) {
+        findings.push(`${location} mentions an outdated E2E test count; current baseline is 6 tests.`);
       }
 
       if (/14 safety areas/i.test(line) || /14 类安全/.test(line)) {
@@ -65,6 +70,57 @@ function checkDocsText(targetFiles) {
         findings.push(
           `${location} uses bare npm audit; use npm --cache .\\.npm-cache audit --audit-level=high.`
         );
+      }
+    });
+  }
+}
+
+function checkVolatileReleaseStateWording(targetFiles) {
+  const releaseFiles = new Set([
+    "README.md",
+    join("docs", "MVP_STATUS.md"),
+    "docs/MVP_STATUS.md",
+    join("docs", "RELEASE_HANDOFF.md"),
+    "docs/RELEASE_HANDOFF.md",
+    join("docs", "PR_DRAFT.md"),
+    "docs/PR_DRAFT.md",
+    join(".github", "pull_request_template.md"),
+    ".github/pull_request_template.md"
+  ]);
+
+  const volatilePatterns = [
+    {
+      pattern: /分支已\s*push/i,
+      message: "hard-codes that the branch has already been pushed"
+    },
+    {
+      pattern: /^\s*Push status:\s*$/i,
+      message: "hard-codes a push status heading; document the push command/check instead"
+    },
+    {
+      pattern: /codex\/mvp-release-candidate\s*->\s*origin\/codex\/mvp-release-candidate/i,
+      message: "hard-codes a branch-to-origin push result"
+    }
+  ];
+
+  for (const file of targetFiles) {
+    if (!releaseFiles.has(file)) {
+      continue;
+    }
+
+    const content = readText(file);
+    if (!content) {
+      continue;
+    }
+
+    const lines = content.split(/\r?\n/);
+    lines.forEach((line, index) => {
+      for (const { pattern, message } of volatilePatterns) {
+        if (pattern.test(line)) {
+          findings.push(
+            `${file}:${index + 1} ${message}; use git status --short --branch for live ahead/push state.`
+          );
+        }
       }
     });
   }
@@ -287,9 +343,10 @@ function checkReleaseHandoff() {
     "M62",
     "M63",
     "M64",
+    "M65",
     "d7a72f2",
     "sync taskbook status gates",
-    "69 checks",
+    "70 checks",
     "19 safety areas"
   ]) {
     if (!handoff.includes(snippet)) {
@@ -333,6 +390,7 @@ function checkTaskbookDecisions() {
     "M62 密钥与发布门禁加固",
     "M63 文档命令/链接门禁",
     "M64 结构化导入与 vault QA",
+    "M65 导出隐私、DB credential 和设置页 E2E 硬化",
     "sync taskbook status gates"
   ]) {
     if (!taskbook.includes(snippet)) {
@@ -394,7 +452,7 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", "69 checks"],
+    ["docs/MVP_STATUS.md", "70 checks"],
     ["docs/MVP_STATUS.md", "19 safety areas"],
     ["docs/MVP_STATUS.md", "npm run db:smoke"],
     ["docs/MVP_STATUS.md", "npm run verify:deploy"],
@@ -415,7 +473,8 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "M62"],
     ["docs/MVP_STATUS.md", "M63"],
     ["docs/MVP_STATUS.md", "M64"],
-    ["docs/PHASE-1.5.md", "69 checks"],
+    ["docs/MVP_STATUS.md", "M65"],
+    ["docs/PHASE-1.5.md", "70 checks"],
     ["README.md", "npm run db:smoke"]
   ];
 

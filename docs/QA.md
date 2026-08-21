@@ -73,7 +73,7 @@ npm run prisma:migrate:deploy
 npm run db:smoke
 ```
 
-`npm run db:smoke` 在未配置 `DATABASE_URL` 时会跳过；配置真实数据库后会创建并删除专用 smoke 用户，验证核心表关系。
+`npm run db:smoke` 在未配置 `DATABASE_URL` 时会跳过；配置真实数据库后会创建并删除专用 smoke 用户，验证核心表关系、ProviderCredential 读写、`userId + kind` 唯一约束和级联清理。旧入口 `node tests/db-smoke.mjs` 仅转发到 `scripts/db-smoke.mjs`，不是另一套实现。
 
 ## Smoke 覆盖范围
 
@@ -101,7 +101,7 @@ npm run db:smoke
 
 ## 浏览器 E2E 覆盖范围
 
-当前脚本位于 `tests/e2e/relationship-flow.spec.ts`，覆盖一条可演示主链路：
+当前脚本位于 `tests/e2e/relationship-flow.spec.ts` 与 `tests/e2e/settings-privacy.spec.ts`，覆盖一条可演示主链路和设置/隐私关键链路：
 
 | 链路 | 覆盖点 | 自动校验 |
 | --- | --- | --- |
@@ -113,8 +113,12 @@ npm run db:smoke
 | 主动回响 | 主动回响视图 | 站内草稿与“撒娇式”草稿可见 |
 | 登出 | 设置页退出 | 退出后回到 `/login` |
 | 移动端工作台 | 390px 宽视口 | rail/main/inspector、创建表单、设置页无横向溢出，关键入口可见可点 |
+| 模型密钥设置 | 设置页模型供应商 | 保存用户 API key 后只显示尾号摘要；测试连接失败态不泄露 key；删除后回到未保存状态 |
+| 数据导出 | 设置页数据与隐私 | 下载 JSON 快照，确认不包含用户 API key、Base URL 或 vault 加密字段 |
+| 账号删除 | 设置页危险区 | 错误确认短语无法点击；正确输入“删除我的账号”后清理 session 并回到登录页 |
+| 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 
-当前基线：`npm run e2e` 已通过。
+当前基线：`npm run e2e` 已通过 6 tests。
 
 当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
 
@@ -347,6 +351,7 @@ npm run e2e
 - 包含用户资料、关系对象、消息、记忆、主动回响、模型调用日志与安全事件审计记录。
 - 凭证只导出配置摘要，不导出供应商密钥、endpoint URL、vault 密文、IV 或认证 tag。
 - 安全事件只导出 `contentHash` / `riskHash`，不导出原始安全输入。
+- 如果用户误把疑似 `token=...`、Bearer、JWT、PostgreSQL 连接串或 provider `/v1` endpoint 写进消息 metadata、记忆、主动回响 safety 或审计日志附加字段，导出层会以占位符替换这些高风险字符串；仍应避免把真实密钥写入业务内容。
 
 ## LLM Provider Fallback QA
 

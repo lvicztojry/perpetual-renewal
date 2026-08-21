@@ -10,7 +10,8 @@
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
-- Recent local commits include M49-M64 stabilization, runtime hardening, PRD scope sync, QA expansion, and release gate cleanup.
+- Recent local commits include M49-M65 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, and release gate cleanup.
+- Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
 - M53 scope: proactive scheduler `maxDrafts` guardrail.
@@ -25,6 +26,7 @@
 - M62 scope: vault fingerprint hardening, broader secret scanning, PWA check, PR/deploy verification scripts.
 - M63 scope: PR template/docs link and documented npm script consistency checks.
 - M64 scope: structured import planner QA and config/vault security QA.
+- M65 scope: export scrub string-level secret redaction, ProviderCredential DB smoke coverage, settings/privacy E2E expansion, and volatile push-state docs guard.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -38,7 +40,7 @@ Last updated: 2026-08-21
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 69 checks.
+- `npm run smoke`: passed, 70 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.
@@ -47,12 +49,12 @@ Last updated: 2026-08-21
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
 - `npm run build`: passed.
-- `npm run e2e`: passed, 2 tests.
+- `npm run e2e`: passed, 6 tests.
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
-- `git status --short --ignored`: source tree clean; only ignored generated folders remain.
+- `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M64 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, and vault/secret hardening; dedicated QA now covers structured import planner compatibility and config/vault security.
+- M57-M65 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, and export scrub of accidental high-risk strings; dedicated QA now covers structured import planner compatibility, config/vault security, and settings/privacy E2E paths.
 
 ## Before Push
 
@@ -70,10 +72,16 @@ Expected local status after commit should only show ignored generated folders su
 
 ## Push And PR
 
-Push status:
+Check live branch state:
 
 ```bash
-codex/mvp-release-candidate -> origin/codex/mvp-release-candidate
+git status --short --branch
+```
+
+Push command:
+
+```bash
+git push origin codex/mvp-release-candidate
 ```
 
 PR checklist:

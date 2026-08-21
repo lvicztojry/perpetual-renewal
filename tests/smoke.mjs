@@ -620,6 +620,31 @@ async function runSmoke() {
   );
   pass("PATCH /api/memories/:id edit memory content");
 
+  const accidentalExportSecret = "accidental-export-secret-value-012345";
+  const providerEndpointInMemory = "https://gateway.example.com/v1";
+  const accidentalBearerToken = ["accidental", "Bearer", "Token", "Value", "0123456789"].join("");
+  const accidentalDatabaseUrl = ["postgres", "ql://export-user:export-password@db.example.com:5432/app"].join("");
+  const memoryWithAccidentalSecrets = await request(
+    `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        content: [
+          "候选记忆：用户想确认导出脱敏。",
+          `token=${accidentalExportSecret}`,
+          `endpoint ${providerEndpointInMemory}`,
+          `Authorization: Bearer ${accidentalBearerToken}`,
+          `DATABASE_URL=${accidentalDatabaseUrl}`
+        ].join(" ")
+      })
+    }
+  );
+  assert(
+    memoryWithAccidentalSecrets.body.memory?.content.includes(accidentalExportSecret),
+    "memory fixture should preserve accidental secret before export scrub"
+  );
+  pass("PATCH /api/memories/:id stores accidental secret fixture for export scrub");
+
   const relationshipStateUpdate = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`,
     {
@@ -866,11 +891,21 @@ async function runSmoke() {
   assert(
     !exportedText.includes(fakeKey) &&
       !exportedText.includes("https://gateway.example.com/v1") &&
+      !exportedText.includes(accidentalExportSecret) &&
+      !exportedText.includes(accidentalBearerToken) &&
+      !exportedText.includes(accidentalDatabaseUrl) &&
       !exportedText.includes("baseUrl") &&
       !exportedText.includes("encryptedApiKey") &&
       !exportedText.includes("keyIv") &&
       !exportedText.includes("keyAuthTag"),
-    "user export should not expose provider secrets, endpoint URL or vault ciphertext"
+    "user export should not expose provider secrets, endpoint URL, accidental secret strings or vault ciphertext"
+  );
+  assert(
+    exportedText.includes("[REDACTED_SECRET]") &&
+      exportedText.includes("[REDACTED_PROVIDER_ENDPOINT]") &&
+      exportedText.includes("[REDACTED_DATABASE_URL]") &&
+      exportedText.includes("Bearer [REDACTED]"),
+    "user export should replace accidental high-risk secret strings with placeholders"
   );
   pass("GET /api/me/export sanitized user snapshot");
 

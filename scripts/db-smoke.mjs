@@ -39,7 +39,7 @@ try {
       userId,
       kind: "llm",
       provider: "compatible",
-      baseUrl: null,
+      baseUrl: "https://db-smoke-gateway.example.invalid/v1",
       model: "db-smoke-model",
       encryptedApiKey: "placeholder",
       keyIv: "iv",
@@ -51,6 +51,35 @@ try {
     }
   });
   assert(providerCredential.kind === "llm", "provider credential should be created");
+  assert(providerCredential.baseUrl?.endsWith("/v1"), "provider credential baseUrl should be stored");
+  assert(providerCredential.encryptionVersion === "aes-256-gcm:v1", "provider credential version should be stored");
+
+  const loadedCredential = await prisma.providerCredential.findUnique({
+    where: { userId_kind: { userId, kind: "llm" } }
+  });
+  assert(loadedCredential?.keyFingerprint === "fingerprint", "provider credential should be readable by user/kind");
+
+  let duplicateCredentialRejected = false;
+  try {
+    await prisma.providerCredential.create({
+      data: {
+        userId,
+        kind: "llm",
+        provider: "compatible",
+        model: "duplicate-db-smoke-model",
+        encryptedApiKey: "placeholder-duplicate",
+        keyIv: "iv-duplicate",
+        keyAuthTag: "tag-duplicate",
+        keyFingerprint: "fingerprint-duplicate",
+        keyPreview: "...dupe",
+        encryptionVersion: "aes-256-gcm:v1",
+        status: "active"
+      }
+    });
+  } catch (error) {
+    duplicateCredentialRejected = isUniqueConstraintError(error);
+  }
+  assert(duplicateCredentialRejected, "provider credential should enforce one llm credential per user");
 
   const companion = await prisma.companion.create({
     data: {
@@ -184,10 +213,10 @@ try {
     include: {
       conversations: { include: { messages: true, modelUsageLogs: true } },
       memories: true,
-    relationshipState: true,
-    proactiveMessages: true,
-    safetyEvents: true,
-    modelUsageLogs: true
+      relationshipState: true,
+      proactiveMessages: true,
+      safetyEvents: true,
+      modelUsageLogs: true
     }
   });
 
@@ -283,8 +312,18 @@ function runPrismaCommand(label, command) {
 function sanitize(value) {
   return value
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]")
+    .replace(/https?:\/\/[^\s"']*(?:\/v1|\/v1beta|\/chat\/completions)[^\s"']*/gi, "[REDACTED_PROVIDER_ENDPOINT]")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
     .replace(/(?:sk|pk|rk)-[A-Za-z0-9_-]{12,}/g, "[REDACTED_KEY]");
+}
+
+function isUniqueConstraintError(error) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      (error.code === "P2002" ||
+        String(error.message ?? "").toLowerCase().includes("unique constraint"))
+  );
 }
 
 function assert(condition, message) {

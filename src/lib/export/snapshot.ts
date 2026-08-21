@@ -23,6 +23,7 @@ const sensitiveKeyNames = new Set([
   "bearer",
   "baseurl",
   "base_url",
+  "ciphertext",
   "encryptedapikey",
   "encrypted_api_key",
   "keyauthtag",
@@ -31,8 +32,37 @@ const sensitiveKeyNames = new Set([
   "key_iv",
   "password",
   "secret",
-  "token"
+  "token",
+  "vaultciphertext",
+  "vault_ciphertext"
 ]);
+
+const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> = [
+  {
+    pattern: /postgres(?:ql)?:\/\/[^\s"'<>]+/gi,
+    replacement: "[REDACTED_DATABASE_URL]"
+  },
+  {
+    pattern: /Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
+    replacement: "Bearer [REDACTED]"
+  },
+  {
+    pattern: /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+    replacement: "[REDACTED_JWT]"
+  },
+  {
+    pattern: /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{12,}\b/g,
+    replacement: "[REDACTED_KEY]"
+  },
+  {
+    pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
+    replacement: "[REDACTED_SECRET]"
+  },
+  {
+    pattern: /https?:\/\/[^\s"'<>]*(?:\/v1|\/v1beta|\/chat\/completions)[^\s"'<>]*/gi,
+    replacement: "[REDACTED_PROVIDER_ENDPOINT]"
+  }
+];
 
 export async function buildUserExportSnapshot(userId: string): Promise<UserExportSnapshot> {
   const repository = createRenewalRepository();
@@ -141,6 +171,14 @@ function scrubSensitiveValue(value: unknown): unknown {
     return value.map(scrubSensitiveValue);
   }
 
+  if (typeof value === "string") {
+    return scrubSensitiveString(value);
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
   if (!isPlainObject(value)) {
     return value;
   }
@@ -159,6 +197,7 @@ function isSensitiveKey(key: string) {
     normalized.includes("apikey") ||
     normalized.includes("authorization") ||
     normalized.includes("credential") ||
+    normalized.includes("ciphertext") ||
     normalized.includes("password") ||
     normalized.includes("privatekey") ||
     normalized.includes("secret") ||
@@ -168,6 +207,15 @@ function isSensitiveKey(key: string) {
   );
 }
 
+function scrubSensitiveString(value: string) {
+  return sensitiveStringPatterns.reduce(
+    (text, { pattern, replacement }) => text.replace(pattern, replacement),
+    value
+  );
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
