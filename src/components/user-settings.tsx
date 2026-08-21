@@ -366,9 +366,8 @@ export function UserSettings() {
         credentialSource: payload.credentialSource ?? "server-env"
       });
     } catch (modelLoadError) {
-      setCredentialError(
-        modelLoadError instanceof Error ? modelLoadError.message : "读取模型列表失败"
-      );
+      const message = modelLoadError instanceof Error ? modelLoadError.message : "读取模型列表失败";
+      setCredentialError(redactCredentialSecrets(message, credentialForm));
     } finally {
       setIsLoadingModels(false);
     }
@@ -395,16 +394,22 @@ export function UserSettings() {
         throw new Error(payload.error ?? "连接测试失败");
       }
 
-      setConnectionTestResult(payload);
+      setConnectionTestResult({
+        ...payload,
+        error: payload.error
+          ? redactCredentialSecrets(payload.error, credentialForm)
+          : payload.error
+      });
       setConnectionTestStatus(payload.ok ? "success" : "error");
     } catch (testError) {
+      const message = testError instanceof Error ? testError.message : "连接测试失败";
       setConnectionTestResult({
         ok: false,
         provider: credentialForm.provider,
         model: credentialForm.model.trim() || null,
         credentialSource: "none",
         errorType: "network",
-        error: testError instanceof Error ? testError.message : "连接测试失败",
+        error: redactCredentialSecrets(message, credentialForm),
         retryable: true
       });
       setConnectionTestStatus("error");
@@ -523,7 +528,7 @@ export function UserSettings() {
     } catch (credentialSaveError) {
       const message =
         credentialSaveError instanceof Error ? credentialSaveError.message : "保存模型连接配置失败";
-      setCredentialError(message);
+      setCredentialError(redactCredentialSecrets(message, credentialForm));
       setCredentialStatus("error");
       throw credentialSaveError;
     }
@@ -988,6 +993,16 @@ function toFormState(profile: UserProfile): FormState {
 
 function readDefaultBaseUrl(provider: string) {
   return provider === "compatible" || provider === "openai-compatible" ? defaultCompatibleBaseUrl : "";
+}
+
+function redactCredentialSecrets(message: string, credentialForm: CredentialFormState) {
+  return [
+    { value: credentialForm.apiKey.trim(), replacement: "[已隐藏 API Key]" },
+    { value: credentialForm.baseUrl.trim(), replacement: "[已隐藏 Base URL]" }
+  ].reduce((current, secret) => {
+    if (!secret.value) return current;
+    return current.split(secret.value).join(secret.replacement);
+  }, message);
 }
 
 function toFriendlyExportError(error: unknown) {

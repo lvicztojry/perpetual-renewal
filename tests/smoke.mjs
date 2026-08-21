@@ -970,6 +970,7 @@ async function runSmoke() {
   const providerEndpointInMemory = "https://gateway.example.com/v1";
   const accidentalBearerToken = ["accidental", "Bearer", "Token", "Value", "0123456789"].join("");
   const accidentalDatabaseUrl = ["postgres", "ql://export-user:export-password@db.example.com:5432/app"].join("");
+  const accidentalGithubToken = ["github", "_pat_", "fixture", "_".repeat(2), "token".repeat(8)].join("");
   const memoryWithAccidentalSecrets = await request(
     `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
     {
@@ -980,7 +981,8 @@ async function runSmoke() {
           `token=${accidentalExportSecret}`,
           `endpoint ${providerEndpointInMemory}`,
           `Authorization: Bearer ${accidentalBearerToken}`,
-          `DATABASE_URL=${accidentalDatabaseUrl}`
+          `DATABASE_URL=${accidentalDatabaseUrl}`,
+          `external token ${accidentalGithubToken}`
         ].join(" ")
       })
     }
@@ -1517,6 +1519,7 @@ async function runSmoke() {
       !exportedText.includes(accidentalExportSecret) &&
       !exportedText.includes(accidentalBearerToken) &&
       !exportedText.includes(accidentalDatabaseUrl) &&
+      !exportedText.includes(accidentalGithubToken) &&
       !exportedText.includes("baseUrl") &&
       !exportedText.includes("encryptedApiKey") &&
       !exportedText.includes("keyIv") &&
@@ -1991,6 +1994,59 @@ async function runSmoke() {
   );
   assert(rejectedVoiceMime.response.status === 400, "voice transcription should reject non-audio MIME");
   pass("POST /api/voice/transcribe rejects non-audio MIME");
+
+  const rejectedVoiceFileName = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        audioBase64: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+        mimeType: "audio/wav",
+        fileName: "C:\\secret\\Bearer hidden-key prompt rawPayload.wav"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedVoiceFileName.response.status === 400 &&
+      rejectedVoiceFileName.body?.error === "Voice file name is invalid.",
+    "voice transcription should reject unsafe file names with stable copy"
+  );
+  assert(
+    !JSON.stringify(rejectedVoiceFileName.body).includes("Bearer") &&
+      !JSON.stringify(rejectedVoiceFileName.body).includes("hidden-key") &&
+      !JSON.stringify(rejectedVoiceFileName.body).includes("prompt") &&
+      !JSON.stringify(rejectedVoiceFileName.body).includes("rawPayload") &&
+      !JSON.stringify(rejectedVoiceFileName.body).includes("baseUrl"),
+    "voice transcription file name validation error should not expose sensitive input"
+  );
+  pass("POST /api/voice/transcribe rejects unsafe file names");
+
+  const rejectedVoiceLanguage = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        mockTranscript: "只走本地回退的转写",
+        language: "zh-CN prompt rawPayload Bearer hidden-key"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedVoiceLanguage.response.status === 400 &&
+      rejectedVoiceLanguage.body?.error === "Voice language is invalid.",
+    "voice transcription should reject unsafe language metadata with stable copy"
+  );
+  assert(
+    !JSON.stringify(rejectedVoiceLanguage.body).includes("Bearer") &&
+      !JSON.stringify(rejectedVoiceLanguage.body).includes("hidden-key") &&
+      !JSON.stringify(rejectedVoiceLanguage.body).includes("prompt") &&
+      !JSON.stringify(rejectedVoiceLanguage.body).includes("rawPayload") &&
+      !JSON.stringify(rejectedVoiceLanguage.body).includes("baseUrl"),
+    "voice transcription language validation error should not expose sensitive input"
+  );
+  pass("POST /api/voice/transcribe rejects unsafe language metadata");
 
   const voiceSynthesis = await request("/api/voice/synthesize", {
     method: "POST",

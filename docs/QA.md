@@ -49,14 +49,12 @@ npm run e2e
 完整本地验收建议：
 
 ```bash
-npm run typecheck
-npm run lint
-npm run build
-npm run prisma:validate
-npm --cache .\.npm-cache audit --audit-level=high
-npm run smoke
+npm run verify:local -- --skip-e2e
 npm run e2e
+npm run verify:release
 ```
+
+需要定位单项问题时，可以按顺序拆开执行 `typecheck`、`lint`、`docs:check`、`git:boundary`、`secrets:check`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`pwa:check`、`env:readiness`、`prisma:validate`、`db:smoke`、`smoke`、`build`、`e2e` 和项目内 cache 的 high-level audit。
 
 本地真实 PostgreSQL 验收：
 
@@ -120,7 +118,7 @@ npm run db:smoke
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 | 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误且不泄露完整 key |
 
-当前基线：`npm run e2e` 已通过 9 tests。
+当前基线：`npm run e2e` 已通过 10 tests。
 
 当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
 

@@ -11,6 +11,11 @@ import {
 export const runtime = "nodejs";
 
 const maxVoiceInputBytes = 4 * 1024 * 1024;
+const maxVoiceFileNameChars = 120;
+const maxVoiceLanguageChars = 35;
+const maxMockTranscriptChars = 4_000;
+const unsafeVoiceFileNamePattern = /[<>:"/\\|?*\u0000-\u001F]/;
+const voiceLanguagePattern = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/;
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -103,6 +108,28 @@ function isTranscriptionInput(value: unknown): value is VoiceTranscriptionOption
 
 function validateTranscriptionInput(input: VoiceTranscriptionOptions): { error: string; status: number } | null {
   const audioBase64 = input.audioBase64?.trim();
+  const fileName = input.fileName?.trim();
+  if (fileName) {
+    if (fileName.length > maxVoiceFileNameChars) {
+      return { error: "Voice file name is too long.", status: 400 };
+    }
+
+    if (unsafeVoiceFileNamePattern.test(fileName)) {
+      return { error: "Voice file name is invalid.", status: 400 };
+    }
+  }
+
+  const language = input.language?.trim();
+  if (language) {
+    if (language.length > maxVoiceLanguageChars || !voiceLanguagePattern.test(language)) {
+      return { error: "Voice language is invalid.", status: 400 };
+    }
+  }
+
+  if (input.mockTranscript && input.mockTranscript.trim().length > maxMockTranscriptChars) {
+    return { error: "Mock voice transcript is too long.", status: 400 };
+  }
+
   if (!audioBase64) {
     return null;
   }

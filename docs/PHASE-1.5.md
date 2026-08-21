@@ -26,19 +26,12 @@
 ## 主控验收命令
 
 ```bash
-npm run typecheck
-npm run lint
-npm run build
-npm run prisma:validate
-npm --cache .\.npm-cache audit --audit-level=high
+npm run verify:local -- --skip-e2e
 npm run e2e
+npm run verify:release
 ```
 
-如开发服务器已运行，还需要 smoke：
-
-```bash
-npm run smoke
-```
+`verify:local` 与 `verify:release` 会顺序运行 smoke/build/QA 门禁，包含 `qa:logging`；`e2e` 单独保留为本地发布前浏览器验证。
 
 ## 当前基线
 
@@ -46,8 +39,8 @@ npm run smoke
 - `npm run lint`：通过。
 - `npm run build`：通过。
 - `npm --cache .\.npm-cache audit --audit-level=high`：0 vulnerabilities。
-- `npm run e2e`：通过 9 tests，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout、设置页密钥保存/删除/测试连接失败态、模型列表读取与选择、导出脱敏、账号删除确认、memory fallback 用户隔离，以及 320px/390px/768px 响应式可用性。
-- `npm run smoke`：当前通过 83 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、用户 vault、模型连接测试、语音 fallback 与输入护栏、用量看板、数据导出、账号删除、PWA 静态资源、安全样例、导出脱敏和密钥扫描自测。
+- `npm run e2e`：通过 10 tests，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout、设置页密钥保存/删除/测试连接失败态、模型列表读取与选择、导出脱敏、账号删除确认、memory fallback 用户隔离，以及 320px/390px/768px 响应式可用性。
+- `npm run smoke`：当前通过 85 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、用户 vault、模型连接测试、语音 fallback 与输入护栏、用量看板、数据导出、账号删除、PWA 静态资源、安全样例、导出脱敏和密钥扫描自测。
 - 首页、`/api/companions`、`/api/me`、`/api/chat/complete`、`/api/me/llm-test`：已 smoke 通过。
 
 ## Phase 2 启动记录

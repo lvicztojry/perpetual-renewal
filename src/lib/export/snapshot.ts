@@ -55,6 +55,10 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
     replacement: "[REDACTED_KEY]"
   },
   {
+    pattern: /\b(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9_]{20,})\b/g,
+    replacement: "[REDACTED_KEY]"
+  },
+  {
     pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
     replacement: "[REDACTED_SECRET]"
   },

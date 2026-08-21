@@ -298,6 +298,7 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
+npm run qa:logging
 npm run pwa:check
 npm run prisma:validate
 npm run db:smoke
@@ -315,7 +316,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 - [ ] `secrets:check` 通过，且没有把真实 API key、Bearer token、数据库密码、vault secret 写进仓库。
 - [ ] `npm --cache .\.npm-cache audit --audit-level=high` 通过，或已记录明确的不可利用原因和升级计划。
-- [ ] `build`、`smoke`、`qa:samples`、`qa:prompt` 通过。
+- [ ] `build`、`smoke`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging` 通过。
 - [ ] 如本轮涉及前端交互，`npm run e2e` 也应通过。
 
 ### 6. Incident Response Before Push
@@ -361,6 +362,7 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
+npm run qa:logging
 npm run pwa:check
 npm run env:readiness
 npm run prisma:validate

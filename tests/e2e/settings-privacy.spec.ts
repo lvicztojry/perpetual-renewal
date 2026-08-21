@@ -75,6 +75,48 @@ test("settings saves and deletes user API key, and shows connection failure with
   await expect(page.getByRole("button", { name: "删除密钥" })).toHaveCount(0);
 });
 
+test("settings keeps credential draft and redacts provider values after save failure", async ({
+  page
+}) => {
+  const fakeApiKey = `e2e-save-failure-key-${Date.now()}-2468`;
+  const fakeBaseUrl = "https://provider.failure.example.com/v1";
+  let saveRequests = 0;
+
+  await page.route("**/api/me/llm-credential", async (route) => {
+    if (route.request().method() !== "PUT") {
+      await route.fallback();
+      return;
+    }
+
+    saveRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      status: 400,
+      body: JSON.stringify({
+        error: `供应商拒绝 ${fakeBaseUrl} 使用 ${fakeApiKey} 保存。`
+      })
+    });
+  });
+
+  await loginAsFreshUser(page, "settings-save-failure");
+
+  await page.getByLabel("Base URL").fill(fakeBaseUrl);
+  await page.getByLabel("模型").fill("e2e-save-failure-model");
+  await page.getByLabel("API Key").fill(fakeApiKey);
+  await page.getByRole("button", { name: "保存连接配置" }).click();
+
+  await expect(
+    page.getByText("供应商拒绝 [已隐藏 Base URL] 使用 [已隐藏 API Key] 保存。")
+  ).toBeVisible();
+  await expect(page.getByLabel("Base URL")).toHaveValue(fakeBaseUrl);
+  await expect(page.getByLabel("模型")).toHaveValue("e2e-save-failure-model");
+  await expect(page.getByLabel("API Key")).toHaveValue(fakeApiKey);
+  await expect(page.getByRole("button", { name: "保存连接配置" })).toBeEnabled();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
+  expect(saveRequests).toBe(1);
+});
+
 test("settings reads provider models and keeps API key private", async ({ page }) => {
   const fakeApiKey = `e2e-model-list-key-${Date.now()}-5678`;
   let modelListRequests = 0;

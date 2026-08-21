@@ -36,7 +36,7 @@ VOICE_PROVIDER="shared-llm"
 ```
 
 - 数据库：第一版推荐 Neon PostgreSQL；配置后运行 `npm run db:smoke` 做连通性检查。
-- LLM：默认使用 TryAnotherOne 的 OpenAI-compatible 中转站；用户可在网站内保存自己的 API key。
+- LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
@@ -90,6 +90,7 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:vault
+npm run qa:logging
 npm run pwa:check
 npm run env:readiness
 npm run build
