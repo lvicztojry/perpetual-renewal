@@ -342,7 +342,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `npm run build` 通过。
 - `npm run smoke` 通过。
 - 成本看板只记录脱敏元数据，不记录正文和密钥。
-- 付费订阅、额度系统、审核后台、问卷暂不进入第一版上线范围。
+- 付费订阅、额度系统、内容审核后台、反馈问卷、内测邀请机制暂不进入第一版上线范围。
 
 ## GitHub Actions CI
 

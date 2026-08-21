@@ -151,3 +151,43 @@ test("mobile workspace keeps panels usable without horizontal overflow", async (
   });
   expect(settingsOverflow).toBe(false);
 });
+
+test("relationship create failure shows server copy and keeps the draft editable", async ({
+  page
+}) => {
+  const unique = Date.now();
+  const draftName = `失败回响${unique}`;
+  const serverMessage = "名字不能为空，请给这段关系一个称呼。";
+
+  await page.route("**/api/companions", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 400,
+      body: JSON.stringify({ error: serverMessage })
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`create-failure-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("关系表单 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await expect(page.getByRole("heading", { name: "创建关系对象" })).toBeVisible();
+
+  await page.getByLabel("名字").fill(draftName);
+  await page.getByLabel("具体关系").fill("失败后也要留住的关系");
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+
+  await expect(page.getByText(serverMessage)).toBeVisible();
+  await expect(page.locator(".status-line")).toHaveText("新建关系失败，请检查后重试");
+  await expect(page.getByLabel("名字")).toHaveValue(draftName);
+  await expect(page.getByLabel("具体关系")).toHaveValue("失败后也要留住的关系");
+  await expect(page.getByRole("button", { name: "创建并开始聊天" })).toBeEnabled();
+});

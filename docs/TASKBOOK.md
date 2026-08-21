@@ -12,7 +12,7 @@
 | Phase 1 | 聊天闭环 | 账号、角色创建、一对一聊天、消息存储 |
 | Phase 2 | 关系与记忆 | 记忆提取、记忆管理、关系状态 |
 | Phase 3 | 主动回响与安全 | 主动消息、安全策略、质量评估 |
-| Phase 4 | 打磨与试用 | 体验优化、日志指标、内测反馈 |
+| Phase 4 | 打磨与发布准备 | 体验优化、日志指标、发布验收 |
 
 ## 任务依赖关系
 
@@ -39,7 +39,7 @@
 | QA-1 质量评估集 | PM-1 全关系范围确认 | FS | 需要确认关系设定模型和风险场景 |
 | QA-2 端到端测试 | DEV-4 聊天消息闭环 | FS | 聊天主链路完成后测试 |
 | QA-2 端到端测试 | DEV-8 记忆管理界面 | FS | 记忆链路完成后测试 |
-| QA-3 内测反馈闭环 | QA-2 端到端测试 | FS | 基础质量通过后开始内测 |
+| QA-3 暂缓运营反馈机制 | QA-2 端到端测试 | FS | 后续恢复反馈问卷或内测邀请机制时，以端到端质量基线为前置 |
 
 ## 任务定义
 
@@ -502,25 +502,24 @@
 - 当前覆盖 login -> create relationship -> chat -> confirm memory -> proactive draft -> logout。
 - 当前 `npm run e2e` 已通过；Playwright 使用 `http://localhost:3000` 与系统 Edge `msedge`。
 
-### QA-3 内测反馈闭环
+### QA-3 暂缓运营反馈机制
 
 状态：deferred
 
 目标：
 
-- 邀请小范围用户测试 MVP。
-- 收集对“被记得”“关系还在”“是否越界”的反馈。
+- 记录第一版暂不建设内容审核后台、用户反馈问卷和内测邀请机制的产品决策。
+- 保留后续恢复运营反馈模块时的前置条件和验收口径。
 
 交付物：
 
-- 内测问卷。
-- 反馈标签体系。
-- v0.2 优先级列表。
+- 暂缓项说明。
+- 后续恢复时的前置质量基线。
 
 验收标准：
 
-- 至少沉淀 20 条有效反馈。
-- 明确下一轮优化重点。
+- 第一版发布文档不把反馈问卷、内测邀请机制或内容审核后台列为上线必需项。
+- 后续若恢复该模块，需要先完成端到端质量基线，再单独设计问卷、邀请和反馈标签体系。
 
 ## 当前任务快照
 
@@ -545,7 +544,7 @@
 | DEV-11 安全策略接入 | integrated | 已接入输入/输出/主动消息过滤与脱敏安全事件日志 |
 | QA-1 质量评估集 | integrated | 已建立第一版机器可读样例集，覆盖 10 类关系和 22 条安全/越界/允许回归样例 |
 | QA-2 端到端测试 | integrated | 已接入 Playwright 浏览器 E2E，覆盖登录、创建关系、聊天、记忆确认、主动回响草稿和登出 |
-| QA-3 内测反馈闭环 | deferred | 用户已决策第一版暂不做反馈问卷、内测邀请机制或内容审核后台；后续需要真实内测运营时再恢复 |
+| QA-3 暂缓运营反馈机制 | deferred | 用户已决策第一版暂不做反馈问卷、内测邀请机制或内容审核后台；后续需要真实内测运营时再恢复 |
 
 ## Phase 1.5 并行施工模块
 
@@ -807,7 +806,7 @@
 | M62 密钥与发布门禁加固 | integrated | 主控 + 安全/QA 模块审计 | `src/lib/credentials/vault.ts`、`src/lib/export/snapshot.ts`、`scripts/check-env-leaks.mjs`、`scripts/pwa-check.mjs`、`scripts/db-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`docs/*` | vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；导出 scrub 更保守；secret scan 覆盖通用敏感 env/vault 密文字段；DB smoke 覆盖 ProviderCredential；新增 `pwa:check`、`verify:pr`、`verify:deploy` |
 | M63 文档命令/链接门禁 | integrated | 主控 + 文档门禁模块审计 | `scripts/docs-consistency.mjs`、`.github/pull_request_template.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md` | `docs:check` 纳入 PR 模板、本地 Markdown 链接存在性和文档 `npm run` 脚本存在性检查；PR/交接清单同步 `qa:imports`、`qa:vault` 与 `pwa:check` |
 | M64 结构化导入与 vault QA | integrated | 主控 + 导入/语音/安全模块审计 | `tests/structured-import-smoke.mjs`、`tests/config-vault-security.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`src/lib/import/structured-client-import.ts` | 新增 `qa:imports` 覆盖 HEIC/M4A 空 MIME、CSV/JSON/vCard 通讯录归一化和脱敏；新增 `qa:vault` 覆盖生产 vault secret 强度、HMAC fingerprint 和 config readiness provider/baseUrl 矩阵 |
-| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 81 checks、E2E 基线 8 tests |
+| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 82 checks、E2E 基线 9 tests |
 | M66 本地 session 隔离、cron 边界和文档指标派生门禁 | integrated | 主控 + session/cron/文档模块审计 | `src/lib/auth/session.ts`、`src/lib/users/profile.ts`、`src/lib/users/delete-account.ts`、`src/lib/renewal/in-memory-repository.ts`、`tests/smoke.mjs`、`tests/e2e/memory-isolation.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 无数据库 memory fallback 登录按邮箱派生本地 userId，并同步 fallback profile/删除清理，避免并行 E2E 共享 demo user；memory repository 关系详情按 userId 过滤 conversation/memory；主动回响 all-user cron 覆盖无密钥、错密钥、Bearer/header secret、limit/maxDrafts clamp 和 dry-run 不保存；docs check 自动派生当前 smoke checks、E2E tests、QA 数字和最新 M milestone |
 | M67 主动回响调度文档与交接门禁 | integrated | 主控 + 架构/交接文档模块审计 | `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md`、`docs/PR_DRAFT.md`、`scripts/docs-consistency.mjs` | 架构与部署文档移除“应用内定时任务起步/后续迁移队列”旧说法，明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截主动回响调度边界回流；交接材料同步 M66 后候选状态、PR 草稿路径、生产 `verify:deploy` 前置配置口径 |
 | M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
@@ -825,10 +824,13 @@
 | M80 主动回响重复生成门禁 | integrated | 主控 | `tests/smoke.mjs`、`docs/*` | `POST /api/proactive/run` 保存草稿后，同一 `now` 再跑不会立刻重复生成/保存；已保存草稿会成为下一次候选时间锚点，降低重复站内消息和成本风险 |
 | M81 手动记忆输入边界补强 | integrated | 主控 + QA 模块 | `src/app/api/companions/[companionId]/memories/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 手动创建记忆 smoke 确认 `sourceMessageId` 链接被保留；未知 `sourceMessageId` 与空白 `content` 返回稳定 400，避免写入悬挂/空 pending 记忆 |
 | M82 记忆编辑空内容护栏 | integrated | 主控 | `src/app/api/memories/[memoryId]/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | `PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；拒绝后保留原记忆内容，避免把 active/pending 记忆覆盖为空 |
-| M83 设置页模型列表 E2E 隐私覆盖 | integrated | E2E 模块 + 主控 | `tests/e2e/settings-privacy.spec.ts`、`docs/*` | 设置页读取模型列表成功后清空 API Key 输入框并展示可选模型；点击模型回填输入框；失败文案不回显用户 key；当前 E2E 基线提升到 8 tests |
+| M83 设置页模型列表 E2E 隐私覆盖 | integrated | E2E 模块 + 主控 | `tests/e2e/settings-privacy.spec.ts`、`docs/*` | 设置页读取模型列表成功后清空 API Key 输入框并展示可选模型；点击模型回填输入框；失败文案不回显用户 key；当前 E2E 基线提升到 9 tests |
 | M84 聊天消息输入错误边界 | integrated | 主控 | `src/app/api/conversations/[conversationId]/messages/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 空白聊天消息返回稳定 400 `Message content is required.`；对用户消息执行 `regenerate` 返回稳定 400，避免泛化错误或透传异常对象 |
 | M85 导入错误恢复 E2E 覆盖 | integrated | E2E 模块 | `tests/e2e/relationship-flow.spec.ts`、`docs/QA.md`、`docs/TASKBOOK.md` | 主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复：友好错误可见、导入按钮保持不可用、不读取为已选文件，随后重新选择有效 `.jsonl` 文件可回填并继续导入候选 |
 | M86 关系对象校验错误边界 | integrated | 主控 | `src/app/api/companions/*`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 关系对象创建/编辑对空名称、空语气、非法关系类型返回稳定白名单 400；非法类型不创建记录，空名称编辑不会部分写入 `speakingStyle` 等其他字段 |
+| M87 用量看板查询范围边界 | integrated | API 边界模块 + 主控 | `src/app/api/usage/model-calls/route.ts`、`tests/smoke.mjs`、`docs/*` | `GET /api/usage/model-calls` 只接受 1-90 天有限 `rangeDays`；非法 query 返回稳定 400 `Invalid usage range.`，且不回显 key、Base URL、prompt 或 raw payload |
+| M88 关系表单失败恢复 E2E | integrated | E2E 体验模块 + 主控 | `src/components/renewal-workspace.tsx`、`tests/e2e/relationship-flow.spec.ts`、`docs/*` | 创建/编辑关系失败时读取服务端稳定错误文案，表单草稿不丢、状态栏提示重试、提交按钮恢复可用；E2E 覆盖创建失败恢复 |
+| M89 运营反馈机制暂缓口径 | integrated | 文档发布口径模块 + 主控 | `docs/PRD.md`、`docs/TASKBOOK.md`、`docs/DEPLOYMENT.md`、`docs/*` | 第一版继续暂缓内容审核后台、用户反馈问卷和内测邀请机制；PRD/Taskbook/部署清单改为人工 QA 与后续运营模块口径，避免把暂缓项写成上线必需 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |

@@ -2062,6 +2062,26 @@ async function runSmoke() {
   );
   pass("GET /api/usage/model-calls sanitized dashboard");
 
+  const rejectedUsageRange = await request(
+    "/api/usage/model-calls?rangeDays=Infinity&apiKey=secret-value-that-should-not-leak&baseUrl=https%3A%2F%2Fgateway.example.com%2Fv1&prompt=hidden-prompt",
+    {},
+    { allowError: true }
+  );
+  assert(
+    rejectedUsageRange.response.status === 400 &&
+      rejectedUsageRange.body?.error === "Invalid usage range.",
+    "usage dashboard should reject invalid range query with stable copy"
+  );
+  assert(
+    !JSON.stringify(rejectedUsageRange.body).includes("secret-value-that-should-not-leak") &&
+      !JSON.stringify(rejectedUsageRange.body).includes("gateway.example.com") &&
+      !JSON.stringify(rejectedUsageRange.body).includes("hidden-prompt") &&
+      !JSON.stringify(rejectedUsageRange.body).includes("baseUrl") &&
+      !JSON.stringify(rejectedUsageRange.body).includes("rawPayload"),
+    "usage dashboard invalid range response should stay sanitized"
+  );
+  pass("GET /api/usage/model-calls rejects invalid range");
+
   assertInvalidJsonResponse(
     await request(
       "/api/safety/check",

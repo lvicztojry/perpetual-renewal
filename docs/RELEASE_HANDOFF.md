@@ -12,7 +12,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M86 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, and companion validation boundary coverage.
+- Recent release-candidate commits include M49-M89 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, and deferred operations-feedback wording.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -50,6 +50,9 @@
 - M84 scope: smoke covers blank chat messages and invalid regenerate targets returning stable validation copy without raw exception details.
 - M85 scope: relationship-flow E2E covers recovering from a broken `.json` import by showing stable copy, keeping the import action disabled, and then successfully selecting a valid `.jsonl` file.
 - M86 scope: companion create/update validation now returns stable white-listed 400 copy for blank names, blank speaking styles, and unsupported relationship kinds; rejected creates do not persist records and rejected edits do not partially mutate companion fields.
+- M87 scope: usage dashboard `rangeDays` rejects non-finite or out-of-range values with stable copy and no query/key/Base URL/prompt/raw payload leakage.
+- M88 scope: relationship create/edit failure UI reads safe server copy, keeps drafts editable, restores the submit button, and has E2E coverage for create failure recovery.
+- M89 scope: PRD/Taskbook/deployment wording confirms moderation admin, feedback survey, and beta invite mechanisms stay deferred for the first release.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -63,7 +66,7 @@ Last updated: 2026-08-21
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 81 checks.
+- `npm run smoke`: passed, 82 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.
@@ -73,7 +76,7 @@ Last updated: 2026-08-21
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
 - `npm run build`: passed.
-- `npm run e2e`: passed, 8 tests.
+- `npm run e2e`: passed, 9 tests.
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
 - `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.

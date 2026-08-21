@@ -7,9 +7,24 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const session = await getCurrentSession();
   const { searchParams } = new URL(request.url);
-  const rangeDays = Number(searchParams.get("rangeDays") ?? 7);
+  const rangeDays = readRangeDays(searchParams.get("rangeDays"));
+  if (!rangeDays) {
+    return NextResponse.json({ error: "Invalid usage range." }, { status: 400 });
+  }
+
   const dashboard = await getUsageDashboard(session.userId, rangeDays);
 
   return NextResponse.json({ dashboard });
 }
 
+function readRangeDays(value: string | null) {
+  if (value === null || value.trim() === "") return 7;
+
+  const rangeDays = Number(value);
+  if (!Number.isFinite(rangeDays)) return null;
+
+  const rounded = Math.round(rangeDays);
+  if (rounded < 1 || rounded > 90) return null;
+
+  return rounded;
+}

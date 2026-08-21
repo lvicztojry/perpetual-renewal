@@ -363,7 +363,9 @@ export function RenewalWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toCompanionPayload(form))
       });
-      if (!response.ok) throw new Error("关系设定保存失败。");
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "关系设定保存失败。"));
+      }
       const payload = (await response.json()) as { companion: CompanionProfile };
       setCompanions((current) =>
         current.map((companion) =>
@@ -411,7 +413,9 @@ export function RenewalWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toCompanionPayload(createForm))
       });
-      if (!response.ok) throw new Error("新建关系失败。");
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "新建关系失败。"));
+      }
       const payload = (await response.json()) as { companion: CompanionProfile };
       setCompanions((current) => [payload.companion, ...current]);
       setActiveId(payload.companion.id);
@@ -2341,6 +2345,15 @@ function toCompanionPayload(form: RelationshipObjectFormState) {
     proactiveFrequencyPreset: form.proactiveFrequencyPreset,
     proactiveFrequencyMinutes: form.proactiveFrequencyMinutes
   };
+}
+
+async function readResponseError(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+    return typeof payload.error === "string" && payload.error.trim() ? payload.error : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function canRecordVoice() {
