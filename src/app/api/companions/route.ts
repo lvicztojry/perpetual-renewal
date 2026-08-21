@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getCurrentSession();
   const companions = await getRenewalService(session.userId).listCompanions();
-  return NextResponse.json({ companions });
+  return privateJson({ companions });
 }
 
 export async function POST(request: Request) {
@@ -22,13 +22,13 @@ export async function POST(request: Request) {
     const companion = await getRenewalService(session.userId).createCompanion(
       (await readJsonObject(request)) as unknown as CreateCompanionInput
     );
-    return NextResponse.json({ companion }, { status: 201 });
+    return privateJson({ companion }, { status: 201 });
   } catch (error) {
     if (error instanceof CompanionValidationError) {
-      return NextResponse.json({ error: companionValidationErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: companionValidationErrorMessage(error) }, { status: 400 });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to create companion.") },
       { status: 400 }
     );

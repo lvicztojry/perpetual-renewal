@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService, MessageValidationError } from "@/lib/renewal/service";
@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const { conversationId } = await context.params;
   const session = await getCurrentSession();
   const messages = await getRenewalService(session.userId).listMessages(conversationId);
-  return NextResponse.json({ messages });
+  return privateJson({ messages });
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -27,16 +27,16 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+      return privateJson({ error: "Conversation not found." }, { status: 404 });
     }
 
-    return NextResponse.json(result, { status: 201 });
+    return privateJson(result, { status: 201 });
   } catch (error) {
     if (error instanceof MessageValidationError) {
-      return NextResponse.json({ error: messageValidationErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: messageValidationErrorMessage(error) }, { status: 400 });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to send message.") },
       { status: 400 }
     );
@@ -50,7 +50,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const session = await getCurrentSession();
 
     if (!body.messageId) {
-      return NextResponse.json({ error: "PATCH requires messageId." }, { status: 400 });
+      return privateJson({ error: "PATCH requires messageId." }, { status: 400 });
     }
 
     if (body.action === "regenerate") {
@@ -60,10 +60,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
 
       if (!result) {
-        return NextResponse.json({ error: "Message or conversation not found." }, { status: 404 });
+        return privateJson({ error: "Message or conversation not found." }, { status: 404 });
       }
 
-      return NextResponse.json(result);
+      return privateJson(result);
     }
 
     if (body.action === "set_important") {
@@ -74,22 +74,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
 
       if (!result) {
-        return NextResponse.json({ error: "Message or conversation not found." }, { status: 404 });
+        return privateJson({ error: "Message or conversation not found." }, { status: 404 });
       }
 
-      return NextResponse.json({ message: result });
+      return privateJson({ message: result });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: "Unsupported PATCH action. Use regenerate or set_important." },
       { status: 400 }
     );
   } catch (error) {
     if (error instanceof MessageValidationError) {
-      return NextResponse.json({ error: messageValidationErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: messageValidationErrorMessage(error) }, { status: 400 });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to update message.") },
       { status: 400 }
     );
@@ -103,16 +103,16 @@ export async function DELETE(request: Request, context: RouteContext) {
   const messageId = searchParams.get("messageId");
 
   if (!messageId) {
-    return NextResponse.json({ error: "DELETE requires messageId." }, { status: 400 });
+    return privateJson({ error: "DELETE requires messageId." }, { status: 400 });
   }
 
   const deleted = await getRenewalService(session.userId).deleteMessage(conversationId, messageId);
 
   if (!deleted) {
-    return NextResponse.json({ error: "Message or conversation not found." }, { status: 404 });
+    return privateJson({ error: "Message or conversation not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ deleted: true, messageId });
+  return privateJson({ deleted: true, messageId });
 }
 
 function readMessageCreate(body: Record<string, unknown>) {

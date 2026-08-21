@@ -12,6 +12,7 @@ const START_TIMEOUT_MS = 90_000;
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SAMPLE_PATH = new URL("./qa-samples.json", import.meta.url);
 const SMOKE_CRON_SECRET = "smoke-cron-secret-placeholder";
+const SESSION_COOKIE_NAME = "perpetual_renewal_session";
 
 const samples = await readSamples();
 const checks = [];
@@ -365,6 +366,13 @@ async function runSmoke() {
     !isolatedBList.body.companions.some((item) => item.id === isolatedCompanion.body.companion.id),
     "memory fallback should not leak companions across email sessions"
   );
+  const forgedClient = createRequestClient();
+  forgedClient.cookies.set(SESSION_COOKIE_NAME, isolatedLoginA.body.session.userId);
+  const forgedList = await request("/api/companions", {}, { client: forgedClient });
+  assert(
+    !forgedList.body.companions.some((item) => item.id === isolatedCompanion.body.companion.id),
+    "raw user id session cookies should not grant access to another fallback user's data"
+  );
   pass("POST /api/auth/login memory fallback isolates sessions by email");
 
   const smokeEmail = `smoke-${Date.now()}@perpetual-renewal.local`;
@@ -377,6 +385,7 @@ async function runSmoke() {
   });
   assert(login.body.session?.userId, "login should return a session");
   assert(login.body.user?.id, "login should return a user profile");
+  assertSessionCookieSet(login.response, "login", login.body.session.userId);
   assertInvalidJsonResponse(
     await request(
       "/api/auth/login",
@@ -2031,6 +2040,8 @@ async function runSmoke() {
 
   const logout = await request("/api/auth/logout", { method: "POST" });
   assert(logout.body.ok === true, "logout should return ok");
+  assertSessionCookieCleared(logout.response, "logout");
+  assert(!defaultClient.cookies.has(SESSION_COOKIE_NAME), "logout should clear the client session");
   pass("POST /api/auth/logout");
 
   assertInvalidJsonResponse(
@@ -2519,6 +2530,11 @@ async function runSmoke() {
   });
   assert(deletedAccount.body.deleted === true, "account delete should return deleted=true");
   assert(deletedAccount.body.sessionCleared === true, "account delete should clear the session cookie");
+  assertSessionCookieCleared(deletedAccount.response, "account delete");
+  assert(
+    !defaultClient.cookies.has(SESSION_COOKIE_NAME),
+    "account delete should remove the client session cookie"
+  );
   assert(
     deletedAccount.body.counts?.companions >= 1 &&
       deletedAccount.body.counts?.memories >= 1 &&
@@ -2569,6 +2585,7 @@ async function request(pathname, options = {}, behavior = {}) {
     }
   });
   storeResponseCookies(client, response);
+  assertPrivateNoStoreResponse(response, pathname);
 
   const contentType = response.headers.get("content-type") ?? "";
   const body = contentType.includes("application/json") ? await response.json() : await response.text();
@@ -2580,6 +2597,25 @@ async function request(pathname, options = {}, behavior = {}) {
   return { response, body };
 }
 
+function assertPrivateNoStoreResponse(response, pathname) {
+  if (!pathname.startsWith("/api/")) {
+    return;
+  }
+
+  const cacheControl = (response.headers.get("cache-control") ?? "").toLowerCase();
+  const pragma = (response.headers.get("pragma") ?? "").toLowerCase();
+  const surrogateControl = (response.headers.get("surrogate-control") ?? "").toLowerCase();
+  const vary = (response.headers.get("vary") ?? "").toLowerCase();
+
+  assert(
+    cacheControl.includes("private") && cacheControl.includes("no-store"),
+    `${pathname} should send private no-store cache control`
+  );
+  assert(pragma === "no-cache", `${pathname} should send Pragma: no-cache`);
+  assert(surrogateControl === "no-store", `${pathname} should send Surrogate-Control: no-store`);
+  assert(vary.includes("cookie") && vary.includes("authorization"), `${pathname} should vary on cookie and authorization`);
+}
+
 function formatCookieHeader(client) {
   return Array.from(client.cookies.entries())
     .map(([name, value]) => `${name}=${value}`)
@@ -2587,10 +2623,7 @@ function formatCookieHeader(client) {
 }
 
 function storeResponseCookies(client, response) {
-  const setCookieHeaders =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : splitSetCookieHeader(response.headers.get("set-cookie"));
+  const setCookieHeaders = getSetCookieHeaders(response);
 
   for (const header of setCookieHeaders) {
     const [pair] = header.split(";");
@@ -2607,6 +2640,12 @@ function storeResponseCookies(client, response) {
       client.cookies.set(name, value);
     }
   }
+}
+
+function getSetCookieHeaders(response) {
+  return typeof response.headers.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : splitSetCookieHeader(response.headers.get("set-cookie"));
 }
 
 function splitSetCookieHeader(header) {
@@ -2646,6 +2685,44 @@ function assertSafeJsonErrorBody(result, label) {
       !stringify(result.body).includes("stack"),
     `${label} invalid JSON response should not expose parser internals`
   );
+}
+
+function assertSessionCookieSet(response, label, rawUserId) {
+  const header = findSessionCookieHeader(response, label);
+  const lowerHeader = header.toLowerCase();
+  assert(
+    header.includes(`${SESSION_COOKIE_NAME}=v1.`),
+    `${label} should issue a signed session cookie`
+  );
+  assert(!header.includes(rawUserId), `${label} session cookie should not expose the raw user id`);
+  assert(lowerHeader.includes("httponly"), `${label} session cookie should be HttpOnly`);
+  assert(lowerHeader.includes("samesite=lax"), `${label} session cookie should use SameSite=Lax`);
+  assert(lowerHeader.includes("path=/"), `${label} session cookie should be scoped to /`);
+  assert(
+    lowerHeader.includes("max-age=2592000"),
+    `${label} session cookie should have the expected 30-day max age`
+  );
+}
+
+function assertSessionCookieCleared(response, label) {
+  const header = findSessionCookieHeader(response, label);
+  const lowerHeader = header.toLowerCase();
+  assert(header.includes(`${SESSION_COOKIE_NAME}=`), `${label} should target the session cookie`);
+  assert(lowerHeader.includes("httponly"), `${label} session clear cookie should be HttpOnly`);
+  assert(lowerHeader.includes("samesite=lax"), `${label} session clear cookie should use SameSite=Lax`);
+  assert(lowerHeader.includes("path=/"), `${label} session clear cookie should be scoped to /`);
+  assert(
+    lowerHeader.includes("max-age=0") || lowerHeader.includes("expires=thu, 01 jan 1970"),
+    `${label} should expire the session cookie`
+  );
+}
+
+function findSessionCookieHeader(response, label) {
+  const header = getSetCookieHeaders(response).find((item) =>
+    item.startsWith(`${SESSION_COOKIE_NAME}=`)
+  );
+  assert(header, `${label} should include a Set-Cookie header for ${SESSION_COOKIE_NAME}`);
+  return header;
 }
 
 function assertNoSensitiveProviderDetails(body, label, fragments) {

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService, MemoryUpdateValidationError } from "@/lib/renewal/service";
@@ -20,11 +21,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const nextContent = readString(body.content);
 
     if (readString(body.status) && !nextStatus) {
-      return NextResponse.json({ error: "Unsupported memory status" }, { status: 400 });
+      return privateJson({ error: "Unsupported memory status" }, { status: 400 });
     }
 
     if (readString(body.type) && !nextType) {
-      return NextResponse.json({ error: "Unsupported memory type" }, { status: 400 });
+      return privateJson({ error: "Unsupported memory type" }, { status: 400 });
     }
 
     const session = await getCurrentSession();
@@ -35,16 +36,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     });
 
     if (!memory) {
-      return NextResponse.json({ error: "Memory not found" }, { status: 404 });
+      return privateJson({ error: "Memory not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ memory });
+    return privateJson({ memory });
   } catch (error) {
     if (error instanceof MemoryUpdateValidationError) {
-      return NextResponse.json({ error: memoryUpdateErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: memoryUpdateErrorMessage(error) }, { status: 400 });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to update memory.") },
       { status: 400 }
     );
@@ -57,10 +58,10 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   const memory = await getRenewalService(session.userId).deleteMemory(memoryId);
 
   if (!memory) {
-    return NextResponse.json({ error: "Memory not found" }, { status: 404 });
+    return privateJson({ error: "Memory not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ memory });
+  return privateJson({ memory });
 }
 
 function readString(value: unknown) {

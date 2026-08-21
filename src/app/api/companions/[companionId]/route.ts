@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
@@ -22,10 +22,10 @@ export async function GET(_request: Request, context: RouteContext) {
   );
 
   if (!companion) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ companion });
+  return privateJson({ companion });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -38,16 +38,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (!companion) {
-      return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+      return privateJson({ error: "Companion not found." }, { status: 404 });
     }
 
-    return NextResponse.json({ companion });
+    return privateJson({ companion });
   } catch (error) {
     if (error instanceof CompanionValidationError) {
-      return NextResponse.json({ error: companionValidationErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: companionValidationErrorMessage(error) }, { status: 400 });
     }
 
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to update companion.") },
       { status: 400 }
     );
@@ -60,8 +60,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const deleted = await getRenewalService(session.userId).deleteCompanion(companionId);
 
   if (!deleted) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ deleted: true, companionId });
+  return privateJson({ deleted: true, companionId });
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
@@ -13,7 +13,7 @@ export async function GET() {
   const session = await getCurrentSession();
   const user = await getUserProfile(session.userId);
 
-  return NextResponse.json({
+  return privateJson({
     session: {
       provider: session.provider,
       replaceWith: "Auth.js or another production session provider"
@@ -28,17 +28,17 @@ export async function PATCH(request: Request) {
     const body = await readJsonObject(request);
     const user = await updateUserProfile(session.userId, body);
 
-    return NextResponse.json({ user });
+    return privateJson({ user });
   } catch (error) {
     if (error instanceof JsonRequestError) {
-      return NextResponse.json(
+      return privateJson(
         { error: jsonErrorMessage(error, "Failed to update profile.") },
         { status: 400 }
       );
     }
 
     if (error instanceof ProfileValidationError) {
-      return NextResponse.json({ error: profileErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: profileErrorMessage(error) }, { status: 400 });
     }
 
     throw error;

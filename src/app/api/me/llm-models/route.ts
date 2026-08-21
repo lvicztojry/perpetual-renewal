@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { listAvailableLlmModels } from "@/lib/llm/model-list";
 
@@ -9,13 +9,13 @@ export async function GET() {
 
   try {
     const result = await listAvailableLlmModels(session.userId);
-    return NextResponse.json({
+    return privateJson({
       provider: result.provider,
       credentialSource: result.credentialSource,
       models: result.models
     });
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       {
         error: toModelListError(error)
       },

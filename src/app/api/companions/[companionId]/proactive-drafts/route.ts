@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
@@ -39,7 +39,7 @@ export async function POST(
   try {
     body = await readDraftRequest(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to create proactive drafts.") },
       { status: 400 }
     );
@@ -55,7 +55,7 @@ export async function POST(
   ]);
 
   if (!companion) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
   const proactiveCompanion = toProactiveCompanion(companion);
@@ -120,7 +120,7 @@ export async function POST(
     );
   }
 
-  return NextResponse.json({
+  return privateJson({
     data: records.map((record) => ({
       id: record.id,
       companionId: record.companionId,

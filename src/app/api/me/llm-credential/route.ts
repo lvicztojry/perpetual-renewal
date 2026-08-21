@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import {
   deleteLlmCredential,
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getCurrentSession();
   const credential = await getLlmCredentialStatus(session.userId);
-  return NextResponse.json({ credential });
+  return privateJson({ credential });
 }
 
 export async function PUT(request: Request) {
@@ -37,23 +37,23 @@ export async function PUT(request: Request) {
   try {
     const body = (await readJsonObject(request)) as CredentialRequest;
     const credential = await saveLlmCredential(session.userId, parseCredentialRequest(body));
-    return NextResponse.json({ credential });
+    return privateJson({ credential });
   } catch (error) {
     if (error instanceof JsonRequestError) {
-      return NextResponse.json(
+      return privateJson(
         { error: jsonErrorMessage(error, "Failed to save credential.") },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ error: safeCredentialErrorMessage(error) }, { status: 400 });
+    return privateJson({ error: safeCredentialErrorMessage(error) }, { status: 400 });
   }
 }
 
 export async function DELETE() {
   const session = await getCurrentSession();
   const credential = await deleteLlmCredential(session.userId);
-  return NextResponse.json({ credential });
+  return privateJson({ credential });
 }
 
 function parseCredentialRequest(body: CredentialRequest) {

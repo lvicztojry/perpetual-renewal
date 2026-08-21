@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createUserVoiceProvider } from "@/lib/voice/user-provider";
@@ -23,29 +23,29 @@ export async function POST(request: Request) {
   try {
     body = await readJsonObject(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to transcribe voice.") },
       { status: 400 }
     );
   }
 
   if (!isTranscriptionInput(body)) {
-    return NextResponse.json({ error: "Missing voice transcription input." }, { status: 400 });
+    return privateJson({ error: "Missing voice transcription input." }, { status: 400 });
   }
 
   const validationError = validateTranscriptionInput(body);
   if (validationError) {
-    return NextResponse.json({ error: validationError.error }, { status: validationError.status });
+    return privateJson({ error: validationError.error }, { status: validationError.status });
   }
 
   try {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.transcribe(body);
-    return NextResponse.json(toSafeTranscriptionResponse(result));
+    return privateJson(toSafeTranscriptionResponse(result));
   } catch (error) {
     if (error instanceof VoiceProviderError) {
-      return NextResponse.json(
+      return privateJson(
         {
           error: "Voice provider failed."
         },
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: "Failed to transcribe voice." }, { status: 500 });
+    return privateJson({ error: "Failed to transcribe voice." }, { status: 500 });
   }
 }
 

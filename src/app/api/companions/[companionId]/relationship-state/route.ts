@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import {
   updateRelationshipState,
   type RelationshipSignal,
@@ -24,10 +24,10 @@ export async function GET(
   const companion = await repository.getCompanion(session.userId, companionId);
 
   if (!companion) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return privateJson({
     data: toRelationshipSnapshot(companion.relationshipState),
     persistence: repository.persistence
   });
@@ -43,7 +43,7 @@ export async function POST(
   try {
     body = await readRequest(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to update relationship state.") },
       { status: 400 }
     );
@@ -54,7 +54,7 @@ export async function POST(
   const companion = await repository.getCompanion(session.userId, companionId);
 
   if (!companion) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
   const current = toRelationshipSnapshot(companion.relationshipState);
@@ -67,10 +67,10 @@ export async function POST(
   );
 
   if (!persisted) {
-    return NextResponse.json({ error: "Companion not found." }, { status: 404 });
+    return privateJson({ error: "Companion not found." }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return privateJson({
     data: {
       ...update,
       state: toRelationshipSnapshot(persisted)

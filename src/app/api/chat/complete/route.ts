@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import {
   generateCompanionReply,
   type GenerateCompanionReplyInput
@@ -17,14 +17,14 @@ export async function POST(request: Request) {
   try {
     body = await readJsonObject(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to generate reply.") },
       { status: 400 }
     );
   }
 
   if (!isGenerateReplyInput(body)) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Missing required companion profile or recent messages." },
       { status: 400 }
     );
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       latencyMs: Date.now() - startedAt,
       fallbackReason: result.fallbackReason
     });
-    return NextResponse.json(result);
+    return privateJson(result);
   } catch (error) {
     const session = await getCurrentSession().catch(() => null);
     if (error instanceof LlmProviderError) {
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
           latencyMs: Date.now() - startedAt
         });
       }
-      return NextResponse.json(
+      return privateJson(
         {
           error: "LLM provider failed."
         },
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: "Failed to generate reply." }, { status: 500 });
+    return privateJson({ error: "Failed to generate reply." }, { status: 500 });
   }
 }
 

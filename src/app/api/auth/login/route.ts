@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { createEmailSession, normalizeEmail } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getUserProfile } from "@/lib/users/profile";
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     body = await readJsonObject(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to login.") },
       { status: 400 }
     );
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   try {
     if (typeof body.email !== "string") {
-      return NextResponse.json({ error: "email is required." }, { status: 400 });
+      return privateJson({ error: "email is required." }, { status: 400 });
     }
 
     const email = normalizeEmail(body.email);
@@ -27,9 +27,9 @@ export async function POST(request: Request) {
     const session = await createEmailSession({ email, nickname });
     const user = await getUserProfile(session.userId);
 
-    return NextResponse.json({ session, user });
+    return privateJson({ session, user });
   } catch (error) {
-    return NextResponse.json({ error: safeLoginErrorMessage(error) }, { status: 400 });
+    return privateJson({ error: safeLoginErrorMessage(error) }, { status: 400 });
   }
 }
 

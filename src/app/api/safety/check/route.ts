@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { readJsonObject } from "@/lib/http/json";
 import {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     body = readSafetyCheckRequest(await readJsonObject(request));
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return privateJson({ error: "Invalid JSON body." }, { status: 400 });
   }
   const text = body.text ?? "";
   const result =
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     content: text
   });
 
-  return NextResponse.json({
+  return privateJson({
     data: {
       ...result,
       boundaryReply:

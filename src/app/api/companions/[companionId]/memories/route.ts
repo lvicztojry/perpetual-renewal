@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { getRenewalService, MemoryCandidateValidationError } from "@/lib/renewal/service";
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     includeDeleted
   );
 
-  return NextResponse.json({ memories });
+  return privateJson({ memories });
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     body = await readJsonObject(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to create memory candidates.") },
       { status: 400 }
     );
@@ -41,11 +42,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const explicitType = normalizeMemoryType(readString(body.type));
 
   if (!content) {
-    return NextResponse.json({ error: "content is required" }, { status: 400 });
+    return privateJson({ error: "content is required" }, { status: 400 });
   }
 
   if (readString(body.type) && !explicitType) {
-    return NextResponse.json({ error: "Unsupported memory type" }, { status: 400 });
+    return privateJson({ error: "Unsupported memory type" }, { status: 400 });
   }
 
   const session = await getCurrentSession();
@@ -61,16 +62,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   } catch (error) {
     if (error instanceof MemoryCandidateValidationError) {
-      return NextResponse.json({ error: memoryCandidateErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: memoryCandidateErrorMessage(error) }, { status: 400 });
     }
     throw error;
   }
 
   if (!memories) {
-    return NextResponse.json({ error: "Companion not found" }, { status: 404 });
+    return privateJson({ error: "Companion not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ memories }, { status: 201 });
+  return privateJson({ memories }, { status: 201 });
 }
 
 function readString(value: unknown) {

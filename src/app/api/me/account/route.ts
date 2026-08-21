@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { clearCurrentSession, getCurrentSession } from "@/lib/auth/session";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import {
@@ -19,7 +19,7 @@ export async function DELETE(request: Request) {
     });
     await clearCurrentSession();
 
-    return NextResponse.json({
+    return privateJson({
       deleted: true,
       persistence: summary.persistence,
       counts: summary.counts,
@@ -29,7 +29,7 @@ export async function DELETE(request: Request) {
     });
   } catch (error) {
     if (error instanceof DeleteAccountValidationError) {
-      return NextResponse.json(
+      return privateJson(
         {
           error: deleteAccountErrorMessage(error),
           confirmationRequired: ACCOUNT_DELETE_CONFIRMATION
@@ -39,7 +39,7 @@ export async function DELETE(request: Request) {
     }
 
     if (error instanceof JsonRequestError) {
-      return NextResponse.json(
+      return privateJson(
         { error: jsonErrorMessage(error, "Failed to delete account.") },
         { status: 400 }
       );

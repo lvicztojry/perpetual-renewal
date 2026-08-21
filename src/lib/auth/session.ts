@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
@@ -13,6 +13,8 @@ export type AppSession = {
 };
 
 const cookieMaxAgeSeconds = 60 * 60 * 24 * 30;
+const sessionCookieVersion = "v1";
+const devSessionSigningSecret = "perpetual-renewal-dev-session-secret";
 
 type FallbackSessionRecord = {
   userId: string;
@@ -26,7 +28,7 @@ declare global {
 
 export async function getCurrentSession(): Promise<AppSession> {
   const cookieStore = await cookies();
-  const sessionUserId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const sessionUserId = readSessionCookie(cookieStore.get(SESSION_COOKIE_NAME)?.value);
 
   if (shouldUseFallbackSession()) {
     if (!sessionUserId) {
@@ -145,7 +147,14 @@ function shouldUseFallbackSession() {
 
 export async function clearCurrentSession() {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+  cookieStore.set(SESSION_COOKIE_NAME, "", {
+    expires: new Date(0),
+    httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production"
+  });
 }
 
 function getFallbackSession(userId: string): AppSession {
@@ -184,13 +193,63 @@ function getFallbackSessionStore() {
 }
 
 function setSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, userId: string) {
-  cookieStore.set(SESSION_COOKIE_NAME, userId, {
+  cookieStore.set(SESSION_COOKIE_NAME, signSessionUserId(userId), {
     httpOnly: true,
     maxAge: cookieMaxAgeSeconds,
     path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production"
   });
+}
+
+function readSessionCookie(value?: string) {
+  if (!value) return undefined;
+
+  const parts = value.split(".");
+  if (parts.length !== 3 || parts[0] !== sessionCookieVersion) {
+    return undefined;
+  }
+
+  const [, encodedUserId, signature] = parts;
+  const expectedSignature = signSessionPayload(encodedUserId);
+
+  if (!safeEqual(signature, expectedSignature)) {
+    return undefined;
+  }
+
+  try {
+    const userId = Buffer.from(encodedUserId, "base64url").toString("utf8");
+    return userId.length > 0 && userId.length <= 128 ? userId : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function signSessionUserId(userId: string) {
+  const encodedUserId = Buffer.from(userId, "utf8").toString("base64url");
+  return `${sessionCookieVersion}.${encodedUserId}.${signSessionPayload(encodedUserId)}`;
+}
+
+function signSessionPayload(encodedUserId: string) {
+  return createHmac("sha256", getSessionSigningSecret()).update(encodedUserId).digest("base64url");
+}
+
+function safeEqual(value: string, expected: string) {
+  const valueBuffer = Buffer.from(value);
+  const expectedBuffer = Buffer.from(expected);
+
+  return valueBuffer.length === expectedBuffer.length && timingSafeEqual(valueBuffer, expectedBuffer);
+}
+
+function getSessionSigningSecret() {
+  const secret = process.env.SESSION_COOKIE_SECRET ?? process.env.USER_KEY_VAULT_SECRET;
+  if (secret?.trim()) return secret;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing session signing secret.");
+  }
+
+  return devSessionSigningSecret;
 }
 
 export function normalizeEmail(value: string) {

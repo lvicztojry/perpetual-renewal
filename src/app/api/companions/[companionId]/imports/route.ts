@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import {
   createBatchTextImportPlan,
   createTextImportPlan,
@@ -30,11 +31,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     importRequest = readImportRequest(body);
   } catch (error) {
     if (error instanceof ImportRequestError) {
-      return NextResponse.json({ error: safeImportErrorMessage(error) }, { status: 400 });
+      return privateJson({ error: safeImportErrorMessage(error) }, { status: 400 });
     }
 
     if (error instanceof JsonRequestError) {
-      return NextResponse.json(
+      return privateJson(
         { error: jsonErrorMessage(error, "Failed to import text.") },
         { status: 400 }
       );
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const companion = await repo.getCompanion(session.userId, companionId);
 
   if (!companion) {
-    return NextResponse.json({ error: "Companion not found" }, { status: 404 });
+    return privateJson({ error: "Companion not found" }, { status: 404 });
   }
 
   const plan =
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const parseSkippedCount = importRequest.mode === "single" ? 0 : importRequest.skippedCount;
 
   if (!plan.candidates.length) {
-    return NextResponse.json(
+    return privateJson(
       {
         error: "没有找到可导入候选。",
         redactionCount: plan.redactionCount,
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   });
 
   if (!importableCandidates.length) {
-    return NextResponse.json(
+    return privateJson(
       {
         error: "这些内容已存在，没有新增候选。",
         redactionCount: plan.redactionCount,
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  return NextResponse.json(
+  return privateJson(
     {
       memories,
       importSummary: buildImportSummary(

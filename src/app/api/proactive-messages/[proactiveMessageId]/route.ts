@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createRenewalRepository } from "@/lib/renewal/repository";
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     body = (await readJsonObject(request)) as ProactiveMessagePatch;
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to update proactive message.") },
       { status: 400 }
     );
@@ -31,7 +31,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const status = readStatus(body.status);
   if (!status) {
-    return NextResponse.json({ error: "Unsupported proactive message status." }, { status: 400 });
+    return privateJson({ error: "Unsupported proactive message status." }, { status: 400 });
   }
 
   const session = await getCurrentSession();
@@ -43,10 +43,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   );
 
   if (!proactiveMessage) {
-    return NextResponse.json({ error: "Proactive message not found." }, { status: 404 });
+    return privateJson({ error: "Proactive message not found." }, { status: 404 });
   }
 
-  return NextResponse.json({
+  return privateJson({
     proactiveMessage,
     persistence: repository.persistence
   });

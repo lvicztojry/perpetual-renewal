@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { createUserVoiceProvider } from "@/lib/voice/user-provider";
@@ -22,29 +22,29 @@ export async function POST(request: Request) {
   try {
     body = await readJsonObject(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to synthesize voice.") },
       { status: 400 }
     );
   }
 
   if (!isSynthesisInput(body)) {
-    return NextResponse.json({ error: "Missing text for voice synthesis." }, { status: 400 });
+    return privateJson({ error: "Missing text for voice synthesis." }, { status: 400 });
   }
 
   const validationError = validateSynthesisInput(body);
   if (validationError) {
-    return NextResponse.json({ error: validationError }, { status: 400 });
+    return privateJson({ error: validationError }, { status: 400 });
   }
 
   try {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.synthesize(body);
-    return NextResponse.json(toSafeSynthesisResponse(result));
+    return privateJson(toSafeSynthesisResponse(result));
   } catch (error) {
     if (error instanceof VoiceProviderError) {
-      return NextResponse.json(
+      return privateJson(
         {
           error: "Voice provider failed."
         },
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ error: "Failed to synthesize voice." }, { status: 500 });
+    return privateJson({ error: "Failed to synthesize voice." }, { status: 500 });
   }
 }
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readOptionalJsonObject } from "@/lib/http/json";
 import { runProactiveScheduler } from "@/lib/relationship/proactive-scheduler";
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   try {
     body = await readRequestBody(request);
   } catch (error) {
-    return NextResponse.json(
+    return privateJson(
       { error: jsonErrorMessage(error, "Failed to run proactive scheduler.") },
       { status: 400 }
     );
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const cronAuthorized = isCronAuthorized(request);
 
   if (scope === "all" && !cronAuthorized) {
-    return NextResponse.json(
+    return privateJson(
       { error: "PROACTIVE_CRON_SECRET is required for all-user proactive runs." },
       { status: 401 }
     );
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     now
   });
 
-  return NextResponse.json({
+  return privateJson({
     ...result,
     authMode: scope === "all" ? "cron-secret" : session?.provider ?? "session",
     now: now.toISOString()
