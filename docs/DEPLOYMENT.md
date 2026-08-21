@@ -229,7 +229,9 @@ npm run smoke
 POST /api/proactive/run
 ```
 
-默认 `scope` 是 `current-user`，适合登录用户手动触发或 smoke 验证。生产 cron 若要扫描全部用户，必须设置 `PROACTIVE_CRON_SECRET`，并在请求头携带：
+第一版应用进程内不常驻调度器，也不依赖后台 worker。Vercel Cron、GitHub Actions scheduled workflow 或外部 cron 可以按固定频率调用这个受保护的 POST 入口。
+
+默认 `scope` 是 `current-user`，适合登录用户手动触发或 smoke 验证。生产定时调用若要扫描全部用户，必须使用 `scope: all`，设置 `PROACTIVE_CRON_SECRET`，并在请求头携带：
 
 ```text
 Authorization: Bearer <PROACTIVE_CRON_SECRET>
@@ -280,7 +282,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 ### 4. Proactive Cron Gate
 
-- [ ] 生产 all-user 调度只允许携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET>` 或 `x-proactive-cron-secret` 的请求访问。
+- [ ] 第一版没有应用进程内常驻调度器；生产 all-user 调度由 Vercel Cron、GitHub Actions 或外部 cron 调用 `POST /api/proactive/run`。
+- [ ] `scope: all` 只允许携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET>` 或 `x-proactive-cron-secret` 的请求访问。
 - [ ] Cron 平台中只配置 secret 值，不把 secret 写进 URL query、日志命令或仓库脚本。
 - [ ] 首次上线先用 `dryRun:true` 验证扫描数量和候选时间，再切换为 `dryRun:false`。
 - [ ] 调度响应不包含 cron secret、API key、数据库连接串、prompt 或消息正文。

@@ -8,6 +8,9 @@
 
 This PR promotes the first release-candidate branch for 生生不息, a full-relationship AI companion MVP.
 
+Branch: `codex/mvp-release-candidate`
+PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
+
 Included capabilities:
 
 - Full relationship object creation across romantic, family, friend, mentor, substitute, memorial, ex, public-figure-imagined, fictional, original, and custom kinds.
@@ -40,11 +43,16 @@ Latest local verification on 2026-08-21:
 - `npm run e2e` -> 7 tests
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
+Before creating or updating the PR, use the current wrapper sequence `npm run verify:local -- --skip-e2e`, `npm run e2e`, and `npm run verify:release`, then re-check live branch state with `git status --short --branch` and push with `git push origin codex/mvp-release-candidate` if needed. Do not hard-code ahead/pushed status in the PR body.
+
 ## Production Config Still Required
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
-- `USER_KEY_VAULT_SECRET`: production-only strong random secret.
+- `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
 - `PROACTIVE_CRON_SECRET`: separate strong random secret for all-user proactive scheduling.
 - LLM key/model: user vault via settings page or deployment secret fallback.
+- Voice models: `VOICE_STT_MODEL` and `VOICE_TTS_MODEL` when the shared-LLM gateway requires audio-specific models.
+
+After production secrets and database are configured, run `npm run verify:deploy` in the target environment before treating deployment readiness as passed.
 
 Do not paste real API keys, database URLs, vault secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data into the PR.

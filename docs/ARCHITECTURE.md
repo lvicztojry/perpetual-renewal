@@ -20,7 +20,7 @@
 | ORM | Prisma | schema 清晰，迁移和类型生成方便 |
 | 认证 | Auth.js 或同类 session 方案 | 支持常见登录方式，后续可扩展 |
 | LLM | Provider Adapter 抽象 | 默认多供应商：兼容协议、Anthropic、Gemini、OpenAI Responses；业务层不绑定具体 SDK |
-| 后台任务 | 应用内定时任务起步，后续迁移队列 | MVP 先简单实现记忆提取和主动回响 |
+| 后台任务 | 第一版应用进程内不常驻调度器；使用受保护的 `POST /api/proactive/run` 作为主动回响触发入口 | `scope: all` 需要 `PROACTIVE_CRON_SECRET`，可由 Vercel Cron、GitHub Actions 或外部 cron 调用 |
 | 部署 | 单 Web 服务 + 托管 PostgreSQL | 降低第一版部署复杂度 |
 
 ## 3. 系统模块
@@ -182,6 +182,7 @@ DELETE /api/memories/:id
 GET    /api/companions/:id/relationship-state
 GET    /api/proactive-messages
 PATCH  /api/proactive-settings
+POST   /api/proactive/run
 ```
 
 ## 6. 第一轮开发顺序

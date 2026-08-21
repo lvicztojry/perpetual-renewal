@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate 。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
+当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -83,7 +83,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 | LLM 配置 | 默认 `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1`；key 放用户 vault 或服务端 secret |
 | Voice 配置 | 默认 `VOICE_PROVIDER=shared-llm`，语音模型用 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` |
 | 数据库迁移 | 本地开发用 `npm run prisma:migrate`；生产目标数据库用 `npm run prisma:migrate:deploy` 后跑 `npm run verify:deploy` |
-| 推送前检查 | 必跑 `npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --branch` 与 `git status --short --ignored` |
+| 推送/PR 前检查 | 必跑 `npm run verify:local -- --skip-e2e`、`npm run e2e`、`npm run verify:release`、`git status --short --branch` 与 `git status --short --ignored`；生产环境补齐配置后再跑 `npm run verify:deploy` |
 
 生成 secret 的建议命令：
 
@@ -120,7 +120,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 - M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、生产配置缺口和后续决策点。
-- M48 Pre-push 发布验证：已重新执行 E2E 与 high severity audit；`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
+- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 7 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
 - M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
@@ -139,10 +139,11 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M64 结构化导入与 vault QA：新增 `qa:imports` 与 `qa:vault`，分别覆盖媒体/通讯录 planner 脱敏兼容和生产 vault/config readiness 安全矩阵。
 - M65 导出隐私、DB credential 和设置页 E2E 硬化：导出层新增字符串级敏感内容脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束和级联清理；E2E 增加设置页密钥、连接失败态、导出下载、账号删除确认和 320px/768px 响应式覆盖。
 - M66 本地 session 隔离、cron 边界和文档指标派生门禁：memory fallback 登录按邮箱派生隔离 userId，避免并行 E2E 共享 demo user；主动回响 all-user cron 覆盖 Bearer/header secret 与 guard clamp；`docs:check` 从测试源自动派生 smoke/E2E/QA 数字和最新 M milestone。
+- M67 主动回响调度文档与交接门禁：架构与部署文档明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截旧调度表述回流；交接材料同步 PR 草稿路径、M66 后候选状态和生产 `verify:deploy` 前置配置口径。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 
-- PR 自动创建：本机未安装 `gh`，且没有 `GITHUB_TOKEN` / `GH_TOKEN`；已提供 GitHub PR 创建页和 [PR_DRAFT.md](PR_DRAFT.md)。
+- PR 自动创建：本机未安装 `gh`，且没有 `GITHUB_TOKEN` / `GH_TOKEN`；已提供 GitHub PR 创建页和 [docs/PR_DRAFT.md](PR_DRAFT.md)，创建或更新 PR 前用 `git status --short --branch` 重新检查实时分支状态。
 
 仍需外部配置后再做的模块：
 

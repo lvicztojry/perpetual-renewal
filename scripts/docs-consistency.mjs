@@ -34,6 +34,7 @@ checkTaskbookDecisions();
 checkTaskbookStatusSync();
 checkReleaseMilestoneSync();
 checkVerificationCommandSync();
+checkProactiveSchedulerDocs();
 
 if (findings.length > 0) {
   console.error("Documentation consistency check failed:");
@@ -572,6 +573,42 @@ function checkVerificationCommandSync() {
   for (const command of ciCommands.filter((item) => item.startsWith("npm run "))) {
     if (!release.includes(command)) {
       findings.push(`docs/RELEASE_HANDOFF.md CI expectations should include workflow command: ${command}.`);
+    }
+  }
+}
+
+function checkProactiveSchedulerDocs() {
+  const staleSnippets = [
+    ["docs/ARCHITECTURE.md", "应用内定时任务起步"],
+    ["docs/ARCHITECTURE.md", "后续迁移队列"],
+    ["docs/ARCHITECTURE.md", "应用进程内常驻后台定时器"],
+    ["docs/DEPLOYMENT.md", "应用内定时任务起步"],
+    ["docs/DEPLOYMENT.md", "后续迁移队列"],
+    ["docs/DEPLOYMENT.md", "应用进程内常驻后台定时器"]
+  ];
+
+  for (const [file, snippet] of staleSnippets) {
+    const content = readText(file) ?? "";
+    if (content.includes(snippet)) {
+      findings.push(`${file} contains stale proactive scheduler wording: ${snippet}.`);
+    }
+  }
+
+  const requiredSnippets = [
+    ["docs/ARCHITECTURE.md", "POST /api/proactive/run"],
+    ["docs/ARCHITECTURE.md", "PROACTIVE_CRON_SECRET"],
+    ["docs/ARCHITECTURE.md", "Vercel Cron"],
+    ["docs/ARCHITECTURE.md", "应用进程内不常驻调度器"],
+    ["docs/DEPLOYMENT.md", "POST /api/proactive/run"],
+    ["docs/DEPLOYMENT.md", "PROACTIVE_CRON_SECRET"],
+    ["docs/DEPLOYMENT.md", "Vercel Cron"],
+    ["docs/DEPLOYMENT.md", "应用进程内不常驻调度器"]
+  ];
+
+  for (const [file, snippet] of requiredSnippets) {
+    const content = readText(file) ?? "";
+    if (!content.includes(snippet)) {
+      findings.push(`${file} should document proactive scheduler boundary: ${snippet}.`);
     }
   }
 }

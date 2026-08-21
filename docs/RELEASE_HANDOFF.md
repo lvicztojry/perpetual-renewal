@@ -10,7 +10,8 @@
 - Status follow-up commit: `dbd9714 docs: record baseline commit status`
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
-- Recent local commits include M49-M66 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, and release gate cleanup.
+- M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
+- Recent release-candidate commits include M49-M67 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, and proactive scheduler handoff guardrails.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -28,6 +29,7 @@
 - M64 scope: structured import planner QA and config/vault security QA.
 - M65 scope: export scrub string-level secret redaction, ProviderCredential DB smoke coverage, settings/privacy E2E expansion, and volatile push-state docs guard.
 - M66 scope: memory fallback session/user isolation, proactive all-user cron auth guard coverage, and docs metrics derived from test sources.
+- M67 scope: proactive scheduler architecture/deployment wording guard, PR draft path/status sync, and production-only `verify:deploy` handoff wording.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -57,7 +59,7 @@ Last updated: 2026-08-21
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
 - M57-M66 follow-up: smoke now covers account deletion, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings, memory fallback session isolation, and all-user cron auth boundaries; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, and memory isolation E2E.
 
-## Before Push
+## Before Push Or PR Update
 
 Run:
 
@@ -65,11 +67,12 @@ Run:
 npm run verify:local -- --skip-e2e
 npm run e2e
 npm run verify:release
-npm run verify:deploy
 git status --short --ignored
 ```
 
 Expected local status after commit should only show ignored generated folders such as `.next/`, `.npm-cache/`, `node_modules/`, `test-results/`, and `tsconfig.tsbuildinfo`.
+
+Run `npm run verify:deploy` only in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, and `PROACTIVE_CRON_SECRET` are configured. A local machine without those production secrets should not mark deploy readiness as passed.
 
 ## Push And PR
 
