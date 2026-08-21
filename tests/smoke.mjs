@@ -1022,6 +1022,9 @@ async function runSmoke() {
   const accidentalGithubToken = ["github", "_pat_", "fixture", "_".repeat(2), "token".repeat(8)].join("");
   const accidentalMessageSecret = "accidental-message-secret-value-012345";
   const providerEndpointInMessage = "https://tryanotherone.example.com/v1/chat/completions";
+  const accidentalRawPayload = "export-raw-payload-should-not-leak";
+  const accidentalStackValue = "ExportProviderStackTraceShouldStayPrivate";
+  const accidentalStackFrame = "at provider.fetch (src/lib/provider.ts:12:3)";
   const memoryWithAccidentalSecrets = await request(
     `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
     {
@@ -1033,7 +1036,10 @@ async function runSmoke() {
           `endpoint ${providerEndpointInMemory}`,
           `Authorization: Bearer ${accidentalBearerToken}`,
           `DATABASE_URL=${accidentalDatabaseUrl}`,
-          `external token ${accidentalGithubToken}`
+          `external token ${accidentalGithubToken}`,
+          `rawPayload=${accidentalRawPayload}`,
+          `stack=${accidentalStackValue}`,
+          accidentalStackFrame
         ].join(" ")
       })
     }
@@ -1592,18 +1598,25 @@ async function runSmoke() {
       !exportedText.includes(accidentalGithubToken) &&
       !exportedText.includes(accidentalMessageSecret) &&
       !exportedText.includes(providerEndpointInMessage) &&
+      !exportedText.includes(accidentalRawPayload) &&
+      !exportedText.includes(accidentalStackValue) &&
+      !exportedText.includes(accidentalStackFrame) &&
+      !exportedText.includes("rawPayload") &&
+      !exportedText.includes("src/lib/provider.ts") &&
       !exportedText.includes("baseUrl") &&
       !exportedText.includes("encryptedApiKey") &&
       !exportedText.includes("keyIv") &&
       !exportedText.includes("keyAuthTag"),
-    "user export should not expose provider secrets, endpoint URL, accidental secret strings or vault ciphertext"
+    "user export should not expose provider secrets, endpoint URL, accidental debug strings or vault ciphertext"
   );
   assert(
     exportedText.includes("[REDACTED_SECRET]") &&
       exportedText.includes("[REDACTED_PROVIDER_ENDPOINT]") &&
       exportedText.includes("[REDACTED_DATABASE_URL]") &&
-      exportedText.includes("Bearer [REDACTED]"),
-    "user export should replace accidental high-risk secret strings with placeholders"
+      exportedText.includes("Bearer [REDACTED]") &&
+      exportedText.includes("[REDACTED_DEBUG_FIELD]") &&
+      exportedText.includes("[REDACTED_STACK]"),
+    "user export should replace accidental high-risk secret and debug strings with placeholders"
   );
   pass("GET /api/me/export sanitized user snapshot");
 

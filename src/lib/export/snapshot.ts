@@ -64,6 +64,14 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
     replacement: "[REDACTED_SECRET]"
   },
   {
+    pattern: /\b(?:prompt|rawPayload|raw_payload|stack)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
+    replacement: "[REDACTED_DEBUG_FIELD]"
+  },
+  {
+    pattern: /\bat\s+[A-Za-z0-9_.$<>]+\s*\([^)"']+\)/g,
+    replacement: "[REDACTED_STACK]"
+  },
+  {
     pattern: /https?:\/\/[^\s"'<>]*(?:\/v1|\/v1beta|\/chat\/completions)[^\s"'<>]*/gi,
     replacement: "[REDACTED_PROVIDER_ENDPOINT]"
   },
