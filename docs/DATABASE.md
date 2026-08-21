@@ -107,5 +107,5 @@ RENEWAL_REPOSITORY="memory"
 ## Current Limits
 
 - DB smoke validates direct Prisma persistence, not the full HTTP app running against PostgreSQL.
-- Renewal API routes now use `getCurrentSession()`, but authentication is still a mock-dev session.
-- Relationship-state standalone API remains mock-oriented; the main renewal workspace path is repository-backed.
+- Renewal API routes use `getCurrentSession()` and are scoped by the current session userId. Local development supports email sessions plus a fallback demo user when no explicit login exists.
+- The relationship-state API is repository-backed: reads and writes use the same Prisma or memory fallback persistence as the main renewal workspace.
