@@ -46,12 +46,7 @@ export async function POST(request: Request) {
     if (error instanceof VoiceProviderError) {
       return NextResponse.json(
         {
-          error: "Voice provider failed.",
-          kind: error.details.kind,
-          provider: error.details.provider,
-          model: error.details.model,
-          status: error.details.status,
-          retryable: error.details.retryable
+          error: "Voice provider failed."
         },
         { status: 502 }
       );

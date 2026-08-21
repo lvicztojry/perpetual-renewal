@@ -31,7 +31,7 @@ export async function DELETE(request: Request) {
     if (error instanceof DeleteAccountValidationError) {
       return NextResponse.json(
         {
-          error: error.message,
+          error: deleteAccountErrorMessage(error),
           confirmationRequired: ACCOUNT_DELETE_CONFIRMATION
         },
         { status: 400 }
@@ -47,4 +47,12 @@ export async function DELETE(request: Request) {
 
     throw error;
   }
+}
+
+function deleteAccountErrorMessage(error: DeleteAccountValidationError) {
+  if (error.message === `请输入“${ACCOUNT_DELETE_CONFIRMATION}”确认删除。`) {
+    return `请输入“${ACCOUNT_DELETE_CONFIRMATION}”确认删除。`;
+  }
+
+  return "Failed to delete account.";
 }

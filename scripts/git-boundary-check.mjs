@@ -170,7 +170,10 @@ function checkApiPrivacyBoundaries(files) {
     const content = readSourceFile(file);
     if (!content) continue;
 
-    if (/NextResponse\.json\(\s*\{\s*error\s*:\s*error\s+instanceof\s+Error\s*\?\s*error\.message\b/.test(content)) {
+    if (
+      /NextResponse\.json\(\s*\{\s*error\s*:\s*error\s+instanceof\s+Error\s*\?\s*error\.message\b/.test(content) ||
+      /NextResponse\.json\([\s\S]{0,260}\berror\s*:\s*error\.message\b/.test(content)
+    ) {
       findings.push(
         `${file} returns raw error.message from an API route; map expected validation errors to stable safe copy.`
       );

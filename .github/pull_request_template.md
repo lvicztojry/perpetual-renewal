@@ -2,7 +2,8 @@
 
 - Relationship AI MVP baseline for 生生不息 / perpetual-renewal.
 - Branch: `codex/mvp-release-candidate`
-- Baseline commit: `ef4939e feat: build relationship ai mvp baseline`
+- Current branch tip: check `git log -1 --oneline` before opening PR.
+- Initial baseline commit: `ef4939e feat: build relationship ai mvp baseline`
 
 ## Scope
 

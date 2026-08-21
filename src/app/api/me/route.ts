@@ -38,9 +38,32 @@ export async function PATCH(request: Request) {
     }
 
     if (error instanceof ProfileValidationError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: profileErrorMessage(error) }, { status: 400 });
     }
 
     throw error;
+  }
+}
+
+function profileErrorMessage(error: ProfileValidationError) {
+  switch (error.message) {
+    case "nickname must be a string.":
+      return "nickname must be a string.";
+    case "nickname must be between 1 and 40 characters.":
+      return "nickname must be between 1 and 40 characters.";
+    case "timezone must be a string.":
+      return "timezone must be a string.";
+    case "timezone must be between 1 and 64 characters.":
+      return "timezone must be between 1 and 64 characters.";
+    case "language must be a string.":
+      return "language must be a string.";
+    case "language must be between 2 and 16 characters.":
+      return "language must be between 2 and 16 characters.";
+    case "proactiveMessagesEnabled must be a boolean.":
+      return "proactiveMessagesEnabled must be a boolean.";
+    case "proactiveFrequencyHours must be an integer from 1 to 168.":
+      return "proactiveFrequencyHours must be an integer from 1 to 168.";
+    default:
+      return "Failed to update profile.";
   }
 }

@@ -64,12 +64,7 @@ export async function POST(request: Request) {
       }
       return NextResponse.json(
         {
-          error: "LLM provider failed.",
-          kind: error.details.kind,
-          provider: error.details.provider,
-          model: error.details.model,
-          status: error.details.status,
-          retryable: error.details.retryable
+          error: "LLM provider failed."
         },
         { status: 502 }
       );

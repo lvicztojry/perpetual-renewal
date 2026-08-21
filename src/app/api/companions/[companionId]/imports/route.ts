@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     importRequest = readImportRequest(body);
   } catch (error) {
     if (error instanceof ImportRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: safeImportErrorMessage(error) }, { status: 400 });
     }
 
     if (error instanceof JsonRequestError) {
@@ -270,3 +270,15 @@ function readString(value: unknown) {
 }
 
 class ImportRequestError extends Error {}
+
+function safeImportErrorMessage(error: ImportRequestError) {
+  if (error.message === "JSON object body is required") {
+    return "JSON object body is required";
+  }
+
+  if (error.message === "text, batchTexts, texts, batch, jsonLines, or jsonl is required") {
+    return "text, batchTexts, texts, batch, jsonLines, or jsonl is required";
+  }
+
+  return "Failed to import text.";
+}

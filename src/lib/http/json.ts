@@ -48,9 +48,5 @@ function requireJsonObject(body: unknown): Record<string, unknown> {
 }
 
 export function jsonErrorMessage(error: unknown, fallback: string) {
-  return error instanceof JsonRequestError
-    ? error.message
-    : error instanceof Error
-      ? error.message
-      : fallback;
+  return error instanceof JsonRequestError ? error.message : fallback;
 }

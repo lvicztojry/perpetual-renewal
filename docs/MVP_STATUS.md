@@ -8,7 +8,7 @@
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选 baseline 已提交到 `codex/mvp-release-candidate`，提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户自带 API key 或服务端 LLM API key/model。
+当前发布候选分支为 `codex/mvp-release-candidate`；当前同步点以 `git status --short --branch` 和 `git log -1 --oneline` 的实时结果为准；首个 baseline 提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。剩余真正外部阻塞项是生产环境配置：真实 PostgreSQL `DATABASE_URL`、生产级 `USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`，以及至少一个可用的用户自带 API key 或服务端 LLM API key/model。
 
 ## 已集成能力
 
@@ -60,7 +60,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：78 checks passed。
+- `smoke`：80 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：7 tests passed。
@@ -152,6 +152,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M75 运行时隐私与决策口径收束：运行时 fallback warning 使用 `safeLogValue()` 脱敏；用户 LLM vault 状态不返回 Base URL 明文或 `baseUrl` 字段；模型列表失败不透传 provider 原始异常；smoke 覆盖 profile 关闭主动回响、credential endpoint 隐私和模型列表失败脱敏；docs check 收束 TryAnotherOne、用户自带 API key、`VOICE_PROVIDER=shared-llm` 和暂缓产品项口径。
 - M76 手动记忆候选 API 覆盖：smoke 覆盖 `POST /api/companions/:id/memories` 成功创建指定类型 pending 记忆、列表可见，以及 unsupported memory type 返回 400。
 - M77 API/导出隐私边界补强：LLM credential 保存失败只返回白名单业务文案；voice unsupported provider fallback 不回显误配值；用户导出会脱敏 profile 内误写入的 token/provider endpoint；git boundary 阻止 API route 直接返回 raw `error.message` 和 voice raw payload。
+- M78 API 校验错误边界收束：import/profile/account 路由不再直接返回异常对象 `error.message`；profile invalid PATCH smoke 覆盖多字段校验失败不会造成部分写入；git boundary 拦截 API route 直接回传 `error.message`。
+- M79 模型列表供应商分支覆盖：smoke 覆盖已保存 `anthropic` 等非 compatible provider 后调用 `/api/me/llm-models` 返回稳定“仅支持兼容中转站”文案，且不泄露 key、endpoint、Bearer、`baseUrl` 或 raw payload。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

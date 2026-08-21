@@ -391,7 +391,7 @@
 - 用户能为每个关系对象选择预设频率或完全自定义频率。
 - 主动消息可以撒娇、亲昵、轻微表达想念，但不能责备、控诉、冷暴力或制造愧疚。
 - 主动消息能引用近期事件但不过度窥探。
-- API 返回草稿的 `scheduledAt`、`nextCandidateAt` 和频率元数据，供后续调度器接入。
+- API 返回草稿的 `scheduledAt`、`nextCandidateAt` 和频率元数据，供当前受保护 cron 入口执行、审计和排查调度结果。
 - `scope:"all"` 未携带 cron secret 时返回 401；响应不暴露 cron secret、API key、数据库连接串或 prompt。
 - `dryRun:true` 只返回候选摘要，`dryRun:false` 保存站内草稿。
 
@@ -807,7 +807,7 @@
 | M62 密钥与发布门禁加固 | integrated | 主控 + 安全/QA 模块审计 | `src/lib/credentials/vault.ts`、`src/lib/export/snapshot.ts`、`scripts/check-env-leaks.mjs`、`scripts/pwa-check.mjs`、`scripts/db-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`docs/*` | vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；导出 scrub 更保守；secret scan 覆盖通用敏感 env/vault 密文字段；DB smoke 覆盖 ProviderCredential；新增 `pwa:check`、`verify:pr`、`verify:deploy` |
 | M63 文档命令/链接门禁 | integrated | 主控 + 文档门禁模块审计 | `scripts/docs-consistency.mjs`、`.github/pull_request_template.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md` | `docs:check` 纳入 PR 模板、本地 Markdown 链接存在性和文档 `npm run` 脚本存在性检查；PR/交接清单同步 `qa:imports`、`qa:vault` 与 `pwa:check` |
 | M64 结构化导入与 vault QA | integrated | 主控 + 导入/语音/安全模块审计 | `tests/structured-import-smoke.mjs`、`tests/config-vault-security.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`src/lib/import/structured-client-import.ts` | 新增 `qa:imports` 覆盖 HEIC/M4A 空 MIME、CSV/JSON/vCard 通讯录归一化和脱敏；新增 `qa:vault` 覆盖生产 vault secret 强度、HMAC fingerprint 和 config readiness provider/baseUrl 矩阵 |
-| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 78 checks、E2E 基线 7 tests |
+| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 80 checks、E2E 基线 7 tests |
 | M66 本地 session 隔离、cron 边界和文档指标派生门禁 | integrated | 主控 + session/cron/文档模块审计 | `src/lib/auth/session.ts`、`src/lib/users/profile.ts`、`src/lib/users/delete-account.ts`、`src/lib/renewal/in-memory-repository.ts`、`tests/smoke.mjs`、`tests/e2e/memory-isolation.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 无数据库 memory fallback 登录按邮箱派生本地 userId，并同步 fallback profile/删除清理，避免并行 E2E 共享 demo user；memory repository 关系详情按 userId 过滤 conversation/memory；主动回响 all-user cron 覆盖无密钥、错密钥、Bearer/header secret、limit/maxDrafts clamp 和 dry-run 不保存；docs check 自动派生当前 smoke checks、E2E tests、QA 数字和最新 M milestone |
 | M67 主动回响调度文档与交接门禁 | integrated | 主控 + 架构/交接文档模块审计 | `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md`、`docs/PR_DRAFT.md`、`scripts/docs-consistency.mjs` | 架构与部署文档移除“应用内定时任务起步/后续迁移队列”旧说法，明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截主动回响调度边界回流；交接材料同步 M66 后候选状态、PR 草稿路径、生产 `verify:deploy` 前置配置口径 |
 | M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
@@ -820,6 +820,8 @@
 | M75 运行时隐私与决策口径收束 | integrated | 主控 + API/隐私/测试/文档模块审计 | `src/lib/logging/sanitize.ts`、`src/lib/credentials/*`、`src/app/api/me/llm-*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`tests/logging-sanitize-smoke.mjs`、`scripts/*`、`docs/*` | 运行时 fallback warning 统一脱敏；用户 LLM vault 状态不再返回 Base URL 明文或 `baseUrl` 字段，只返回端点配置状态与指纹；模型列表失败返回稳定友好错误；smoke 覆盖 profile 关闭主动回响、credential endpoint 隐私和模型列表失败脱敏；docs check 收束 BYOK、TryAnotherOne、shared-LLM voice、已暂缓产品项和外部配置口径 |
 | M76 手动记忆候选 API 覆盖 | integrated | 主控 + 测试覆盖模块审计 | `tests/smoke.mjs`、`docs/*` | `POST /api/companions/:id/memories` 成功路径进入 smoke：显式 type/content 创建 pending 记忆、`GET /api/companions/:id/memories` 可见，并覆盖 unsupported memory type 400 |
 | M77 API/导出隐私边界补强 | integrated | 主控 + API/测试/文档模块审计 | `src/app/api/me/llm-credential/route.ts`、`src/lib/voice/provider.ts`、`src/lib/export/snapshot.ts`、`scripts/git-boundary-check.mjs`、`tests/smoke.mjs`、`docs/*` | LLM credential 保存失败不再透传非白名单 `error.message`；语音 unsupported provider fallback 不回显误配 env 值；导出 profile 字段同样脱敏 token/provider endpoint；git boundary 防止 API route raw error 和 voice raw payload 回流 |
+| M78 API 校验错误边界收束 | integrated | 主控 + API/QA 模块审计 | `src/app/api/companions/[companionId]/imports/route.ts`、`src/app/api/me/route.ts`、`src/app/api/me/account/route.ts`、`scripts/git-boundary-check.mjs`、`tests/smoke.mjs`、`docs/*` | import/profile/account 路由从直接返回异常 `error.message` 改为稳定白名单文案；profile invalid PATCH smoke 覆盖 400 且不发生部分写入；git boundary 拦截 API route 直接返回 `error.message` |
+| M79 模型列表供应商分支覆盖 | integrated | QA 模块 + 主控 | `tests/smoke.mjs`、`docs/*` | 已保存 `anthropic` 等非 compatible provider 后，`GET /api/me/llm-models` 返回稳定“兼容中转站”提示；响应不泄露 key、endpoint、Bearer、`baseUrl` 或 raw payload |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -868,9 +870,9 @@ M12 当前落点：
 - 真实 key 只允许放在 `.env.local`、CI secret 或部署平台 secret；推送前运行 `npm run secrets:check`。
 - 数据库上线流程包含 `npm run prisma:generate`、`npm run prisma:validate`、本地开发 `npm run prisma:migrate` 或生产 `npm run prisma:migrate:deploy`、`npm run db:smoke`。
 - 语音供应商按用户决策与 LLM 共用中转站/供应商路线，仍保留独立 `VOICE_*` 环境变量便于后续换模型。
-- 已新增用户级 LLM API key vault 第一版：设置页保存/删除；服务端只返回 key 尾号和指纹；聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
+- 已新增用户级 LLM API key vault 第一版：设置页保存/删除；服务端只返回 key 尾号、key 指纹、端点是否已配置和端点指纹，不返回 key 原文、Base URL 明文或 `baseUrl` 字段；聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
 - 已新增模型列表读取：`GET /api/me/llm-models` 使用用户 vault 或服务端 env key 读取 TryAnotherOne `/models`，设置页可选择模型名。
-- M13 已优化模型供应商设置体验：用户可以先保存 API key 与 baseUrl，再读取兼容中转站模型列表；已保存 key 后可只修改 provider、baseUrl 或 model 并保存，后端沿用 vault 加密 key，响应不返回 key 原文。
+- M13 已优化模型供应商设置体验：用户可以先保存 API key 与 Base URL，再读取兼容中转站模型列表；已保存 key 后可修改 provider/model，或输入新的 Base URL 更新端点，留空则沿用已保存端点；后端沿用 vault 加密 key，响应不返回 key 原文、Base URL 明文或 `baseUrl` 字段。
 - 生产环境必须配置 `USER_KEY_VAULT_SECRET`，真实 key 不写入仓库、日志、成本看板或前端响应。
 
 M-DB-READINESS 当前落点：

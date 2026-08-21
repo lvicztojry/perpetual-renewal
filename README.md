@@ -16,7 +16,8 @@ npm run dev
 ## 当前发布候选
 
 - 分支：`codex/mvp-release-candidate`
-- Baseline：`ef4939e feat: build relationship ai mvp baseline`
+- 当前同步点：运行 `git status --short --branch` 和 `git log -1 --oneline` 查看。
+- 初始 baseline：`ef4939e feat: build relationship ai mvp baseline`
 - 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；真实部署前在目标环境运行 `npm run verify:deploy`。
 - 类型检查：`npm run typecheck` 会先运行 `npm run next:typegen`，确保 Next route types 已生成且 `next-env.d.ts` 保持稳定。
 

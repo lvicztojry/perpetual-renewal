@@ -1205,6 +1205,33 @@ async function runSmoke() {
   );
   pass("PATCH /api/me persists profile and disables proactive scheduler");
 
+  const rejectedProfilePatch = await request(
+    "/api/me",
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        nickname: "x".repeat(41),
+        proactiveMessagesEnabled: "false",
+        proactiveFrequencyHours: 0
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedProfilePatch.response.status === 400 &&
+      !JSON.stringify(rejectedProfilePatch.body).includes("Bearer") &&
+      !JSON.stringify(rejectedProfilePatch.body).includes("baseUrl") &&
+      !JSON.stringify(rejectedProfilePatch.body).includes("stack"),
+    "profile validation error should return a sanitized 400"
+  );
+  const meAfterRejectedProfilePatch = await request("/api/me");
+  assert(
+    meAfterRejectedProfilePatch.body.user?.proactiveMessagesEnabled === false &&
+      meAfterRejectedProfilePatch.body.user?.proactiveFrequencyHours === 3,
+    "rejected profile update should not partially mutate existing profile settings"
+  );
+  pass("PATCH /api/me rejects invalid profile without partial writes");
+
   const fakeKey = "vault-test-user-key-value";
   const savedEndpoint = "https://gateway.example.com/v1";
   const credential = await request("/api/me/llm-credential", {
@@ -1384,6 +1411,42 @@ async function runSmoke() {
     "voice synthesis with user credential should not expose key or endpoint"
   );
   pass("POST /api/voice/synthesize uses sanitized user vault fallback");
+
+  const nonCompatibleCredential = await request("/api/me/llm-credential", {
+    method: "PUT",
+    body: JSON.stringify({
+      provider: "anthropic",
+      model: "claude-smoke-model"
+    })
+  });
+  assert(
+    nonCompatibleCredential.body.credential?.provider === "anthropic" &&
+      nonCompatibleCredential.body.credential?.configured === true,
+    "credential update should allow switching to a non-compatible provider without re-entering api key"
+  );
+  const modelListWithNonCompatibleProvider = await request(
+    "/api/me/llm-models",
+    {},
+    { allowError: true }
+  );
+  assert(
+    modelListWithNonCompatibleProvider.response.status === 400,
+    "model list should reject saved non-compatible providers"
+  );
+  assert(
+    typeof modelListWithNonCompatibleProvider.body.error === "string" &&
+      modelListWithNonCompatibleProvider.body.error.includes("兼容中转站"),
+    "model list should return stable copy for saved non-compatible providers"
+  );
+  assert(
+    !JSON.stringify(modelListWithNonCompatibleProvider.body).includes(fakeKey) &&
+      !JSON.stringify(modelListWithNonCompatibleProvider.body).includes(savedEndpoint) &&
+      !JSON.stringify(modelListWithNonCompatibleProvider.body).includes("Bearer") &&
+      !JSON.stringify(modelListWithNonCompatibleProvider.body).includes("baseUrl") &&
+      !JSON.stringify(modelListWithNonCompatibleProvider.body).includes("rawPayload"),
+    "model list non-compatible provider errors should not expose key, endpoint, headers, or raw payload"
+  );
+  pass("GET /api/me/llm-models rejects saved non-compatible providers");
 
   const invalidEndpoint = "https://%";
   const credentialWithInvalidEndpoint = await request("/api/me/llm-credential", {

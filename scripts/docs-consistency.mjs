@@ -21,6 +21,7 @@ const verifyLocalScripts = readVerifyLocalBaseScripts();
 
 checkDocsText(docsAndReadmes);
 checkVolatileReleaseStateWording(docsAndReadmes);
+checkReleaseSyncWording();
 checkMarkdownLinks(docsAndReadmes);
 checkDocumentedNpmScripts(docsAndReadmes);
 checkMigrationContexts(docsAndReadmes);
@@ -137,9 +138,50 @@ function checkDocsText(targetFiles) {
 
 function staleDocumentationSnippets() {
   return [
+    "当前还没有真实 `DATABASE_URL`、LLM key 或模型名",
     "只返回 provider、model、baseUrl、key 尾号和指纹",
-    "已保存 key 后可只更新 provider/baseUrl/model"
+    "服务端只返回 key 尾号与指纹",
+    "服务端只返回 key 尾号和指纹",
+    "已保存 key 后可只更新 provider/baseUrl/model",
+    "已保存 key 后可只修改 provider、baseUrl 或 model",
+    "供后续调度器接入",
+    "当前 API 是非流式草案",
+    "DEV-4 聊天闭环可先接它",
+    "remaining user decisions",
+    "Follow-up Decisions"
   ];
+}
+
+function checkReleaseSyncWording() {
+  const releaseFiles = ["README.md", ".github/pull_request_template.md", "docs/MVP_STATUS.md", "docs/RELEASE_HANDOFF.md"];
+
+  for (const file of releaseFiles) {
+    const content = readText(file);
+    if (!content) {
+      findings.push(`${file} is missing.`);
+      continue;
+    }
+
+    if (/^\s*-\s*Baseline(?: commit)?[:：]\s*`ef4939e feat: build relationship ai mvp baseline`/im.test(content)) {
+      findings.push(
+        `${file} labels ef4939e as the current baseline; call it the initial baseline and use live git status/log for the current synced commit.`
+      );
+    }
+  }
+
+  const requiredSnippets = [
+    ["README.md", "git log -1 --oneline"],
+    [".github/pull_request_template.md", "Initial baseline commit"],
+    ["docs/MVP_STATUS.md", "首个 baseline"],
+    ["docs/RELEASE_HANDOFF.md", "Current branch tip"]
+  ];
+
+  for (const [file, snippet] of requiredSnippets) {
+    const content = readText(file) ?? "";
+    if (!content.includes(snippet)) {
+      findings.push(`${file} should document release sync wording: ${snippet}.`);
+    }
+  }
 }
 
 function checkDerivedCount(location, line, pattern, expected, label, options = {}) {

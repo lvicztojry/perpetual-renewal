@@ -1,6 +1,6 @@
 # Deployment
 
-本文件记录“生生不息 / perpetual-renewal”第一版推荐上线流程。当前还没有真实 `DATABASE_URL`、LLM key 或模型名，因此这里只写流程和占位，不写任何密钥。
+本文件记录“生生不息 / perpetual-renewal”第一版推荐上线流程。仓库文档只写配置流程、变量名和占位值；真实 `DATABASE_URL`、LLM key、模型名和 secret 只放本机、部署平台或用户 vault。
 
 ## Recommended Stack
 
@@ -70,7 +70,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `PROACTIVE_CRON_SECRET` 用于保护 `/api/proactive/run` 的 all-user 调度入口。不要和 `USER_KEY_VAULT_SECRET` 复用。
 - `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
-- 用户也可以在设置页保存自己的 LLM API key。服务端只返回 key 尾号与指纹，不返回原文；聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
+- 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
 - 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、cron secret 或 Base URL 原文。
 
 本地或 CI 也可以运行命令行就绪检查：

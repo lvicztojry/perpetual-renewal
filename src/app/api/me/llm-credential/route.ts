@@ -114,7 +114,22 @@ function readOptionalString(value: unknown, fieldName: string, min: number, max:
 
 function safeCredentialErrorMessage(error: unknown) {
   if (error instanceof CredentialValidationError) {
-    return error.message;
+    switch (error.message) {
+      case "Base URL must start with http:// or https://.":
+        return "Base URL must start with http:// or https://.";
+      case "Unsupported provider.":
+        return "Unsupported provider.";
+      case "apiKey must be a string.":
+        return "apiKey must be a string.";
+      case "apiKey must be between 8 and 4096 characters.":
+        return "apiKey must be between 8 and 4096 characters.";
+      case "model must be a string.":
+        return "model must be a string.";
+      case "model must be between 1 and 128 characters.":
+        return "model must be between 1 and 128 characters.";
+      default:
+        return "Failed to save credential.";
+    }
   }
 
   const message = error instanceof Error ? error.message : "";

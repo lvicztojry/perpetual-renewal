@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   const validationError = validateTranscriptionInput(body);
   if (validationError) {
-    return NextResponse.json({ error: validationError.message }, { status: validationError.status });
+    return NextResponse.json({ error: validationError.error }, { status: validationError.status });
   }
 
   try {
@@ -42,12 +42,7 @@ export async function POST(request: Request) {
     if (error instanceof VoiceProviderError) {
       return NextResponse.json(
         {
-          error: "Voice provider failed.",
-          kind: error.details.kind,
-          provider: error.details.provider,
-          model: error.details.model,
-          status: error.details.status,
-          retryable: error.details.retryable
+          error: "Voice provider failed."
         },
         { status: 502 }
       );
@@ -106,24 +101,24 @@ function isTranscriptionInput(value: unknown): value is VoiceTranscriptionOption
   );
 }
 
-function validateTranscriptionInput(input: VoiceTranscriptionOptions): { message: string; status: number } | null {
+function validateTranscriptionInput(input: VoiceTranscriptionOptions): { error: string; status: number } | null {
   const audioBase64 = input.audioBase64?.trim();
   if (!audioBase64) {
     return null;
   }
 
   if (input.mimeType && !input.mimeType.toLowerCase().startsWith("audio/")) {
-    return { message: "Voice input must use an audio MIME type.", status: 400 };
+    return { error: "Voice input must use an audio MIME type.", status: 400 };
   }
 
   const compact = stripDataUrlPrefix(audioBase64).replace(/\s+/g, "");
   if (!compact || !/^[A-Za-z0-9+/]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
-    return { message: "Voice input must be valid base64 audio.", status: 400 };
+    return { error: "Voice input must be valid base64 audio.", status: 400 };
   }
 
   const decodedBytes = Math.floor((compact.length * 3) / 4) - (compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0);
   if (decodedBytes > maxVoiceInputBytes) {
-    return { message: "Voice input is too large.", status: 413 };
+    return { error: "Voice input is too large.", status: 413 };
   }
 
   return null;

@@ -287,7 +287,7 @@ M-COST 第一版已加入模型调用观测层：
 - `deleted`、`archived`、`pending` 记忆不得进入生成上下文；builder 只会使用 `active` 记忆。
 - active 记忆和最近消息不得无上限进入 LLM 上下文；必须经过 prompt builder 的预算、排序和截断策略。
 - 高风险规则位于系统 prompt 最高优先级，角色设定不能覆盖。
-- 当前 API 是非流式草案；DEV-4 聊天闭环可先接它，后续在 `LlmProvider` 上增加 stream 方法。
+- 当前聊天链路使用非流式响应；如需增加流式输出，应在 `LlmProvider` 上扩展 stream 方法，并保持同样的 prompt、正文、key、Base URL 和 raw payload 脱敏边界。
 - API 不负责消息持久化。调用方应在服务函数前后保存 user/assistant 消息和错误状态。
 - 调用日志必须保持脱敏，不允许把 prompt、正文、key、baseUrl 或供应商 raw payload 写入 usage 表。
 

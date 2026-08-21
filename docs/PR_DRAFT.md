@@ -32,7 +32,7 @@ Latest local verification on 2026-08-21:
 - `npm run secrets:check`
 - `npm run git:boundary`
 - `npm run build`
-- `npm run smoke` -> 78 checks
+- `npm run smoke` -> 80 checks
 - `npm run qa:samples`
 - `npm run qa:prompt`
 - `npm run qa:imports`

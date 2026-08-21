@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
 function safeLoginErrorMessage(error: unknown) {
   if (error instanceof Error && error.message === "请输入有效的邮箱地址。") {
-    return error.message;
+    return "请输入有效的邮箱地址。";
   }
 
   return "Failed to login.";
