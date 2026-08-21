@@ -1,6 +1,7 @@
 import { createLlmProvider } from "@/lib/llm/provider";
 import type { LlmProvider, LlmTokenUsage } from "@/lib/llm/types";
 import { buildRenewalPrompt, type BuildPromptInput } from "@/lib/prompt-builder";
+import { normalizeAssistantReplyContent } from "./reply-format";
 
 export type GenerateCompanionReplyInput = BuildPromptInput & {
   model?: string;
@@ -30,7 +31,7 @@ export async function generateCompanionReply(
   });
 
   return {
-    content: completion.content,
+    content: normalizeAssistantReplyContent(completion.content),
     provider: completion.provider,
     model: completion.model,
     usage: completion.usage,

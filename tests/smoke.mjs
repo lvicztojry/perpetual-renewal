@@ -6,6 +6,8 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import process from "node:process";
+import vm from "node:vm";
+import * as ts from "typescript";
 
 const DEFAULT_PORT = 3210;
 const START_TIMEOUT_MS = 90_000;
@@ -228,6 +230,43 @@ async function runApiBoundaryStaticSmoke() {
     usageRepositorySource.includes("redactSensitiveResponseText") &&
       /fallbackReason:\s*redactSensitiveResponseText\(/.test(usageRepositorySource),
     "usage logs should sanitize fallbackReason before persistence"
+  );
+
+  const generateReplySource = await readFile(
+    resolve(ROOT_DIR, "src/lib/chat/generate-reply.ts"),
+    "utf8"
+  );
+  assert(
+    generateReplySource.includes("normalizeAssistantReplyContent(completion.content)"),
+    "assistant replies should be normalized before persistence or API response"
+  );
+
+  const promptBuilderSource = await readFile(
+    resolve(ROOT_DIR, "src/lib/prompt-builder/builder.ts"),
+    "utf8"
+  );
+  assert(
+    promptBuilderSource.includes("不使用 Markdown 格式") &&
+      promptBuilderSource.includes("星号包裹动作"),
+    "chat prompt should ask providers not to emit markdown emphasis or star actions"
+  );
+
+  const normalizeAssistantReplyContent = await loadReplyFormatModule();
+  const markdownReply = [
+    "**我在这里**，*轻轻把你的话接住*。",
+    "```text",
+    "不用害怕。",
+    "```",
+    "也可以看[这里](https://example.com)。"
+  ].join("\n");
+  const normalizedReply = normalizeAssistantReplyContent(markdownReply);
+  assert(
+    normalizedReply === "我在这里，轻轻把你的话接住。\n不用害怕。\n\n也可以看这里。",
+    "assistant reply normalizer should remove markdown emphasis, code fences, and markdown links"
+  );
+  assert(
+    normalizeAssistantReplyContent("*嗯*，我在。") === "嗯，我在。",
+    "assistant reply normalizer should remove single-character star emphasis"
   );
   pass("API route response boundaries stay private and sanitized");
 }
@@ -3072,6 +3111,27 @@ async function readSamples() {
 
     throw error;
   }
+}
+
+async function loadReplyFormatModule() {
+  const source = await readFile(resolve(ROOT_DIR, "src/lib/chat/reply-format.ts"), "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020
+    },
+    fileName: "reply-format.ts"
+  });
+  const sandbox = { exports: {} };
+
+  vm.createContext(sandbox);
+  new vm.Script(transpiled.outputText, { filename: "reply-format.js" }).runInContext(sandbox);
+
+  if (typeof sandbox.exports.normalizeAssistantReplyContent !== "function") {
+    throw new Error("reply format module did not export normalizeAssistantReplyContent");
+  }
+
+  return sandbox.exports.normalizeAssistantReplyContent;
 }
 
 async function listFiles(directory) {

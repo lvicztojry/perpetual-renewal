@@ -83,6 +83,8 @@ for (const sample of samples.relationshipCases ?? []) {
   assertIncludes(systemPrompt, `你对用户的称呼：${sample.userAddress}`, `${sample.id}: user address`);
   assertIncludes(systemPrompt, `用户对你的称呼：${sample.companionAddress}`, `${sample.id}: companion address`);
   assertIncludes(systemPrompt, "沉浸模式开启", `${sample.id}: immersion boundary`);
+  assertIncludes(systemPrompt, "不使用 Markdown 格式", `${sample.id}: markdown-free reply rule`);
+  assertIncludes(systemPrompt, "星号包裹动作", `${sample.id}: star-action-free reply rule`);
   assertIncludes(systemPrompt, activeMemory, `${sample.id}: active memory`);
   assertNotIncludes(systemPrompt, pendingMemory, `${sample.id}: pending memory`);
   assertNotIncludes(systemPrompt, deletedMemory, `${sample.id}: deleted memory`);
