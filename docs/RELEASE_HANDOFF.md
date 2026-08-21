@@ -12,7 +12,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M84 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, and chat message validation coverage.
+- Recent release-candidate commits include M49-M86 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, and companion validation boundary coverage.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -48,6 +48,8 @@
 - M82 scope: smoke covers blank memory edits returning stable 400 and preserving the existing memory content.
 - M83 scope: settings E2E covers model-list read/select success and failure without displaying the full user API key.
 - M84 scope: smoke covers blank chat messages and invalid regenerate targets returning stable validation copy without raw exception details.
+- M85 scope: relationship-flow E2E covers recovering from a broken `.json` import by showing stable copy, keeping the import action disabled, and then successfully selecting a valid `.jsonl` file.
+- M86 scope: companion create/update validation now returns stable white-listed 400 copy for blank names, blank speaking styles, and unsupported relationship kinds; rejected creates do not persist records and rejected edits do not partially mutate companion fields.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)

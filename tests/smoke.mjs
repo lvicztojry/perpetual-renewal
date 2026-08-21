@@ -382,6 +382,32 @@ async function runSmoke() {
     ),
     "companion creation"
   );
+  const invalidRelationshipKindName = "不应该被创建的关系对象";
+  const invalidRelationshipKind = await request(
+    "/api/companions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: invalidRelationshipKindName,
+        relationshipKind: "NOT_A_RELATIONSHIP_KIND",
+        speakingStyle: "温柔稳定"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    invalidRelationshipKind.response.status === 400 &&
+      invalidRelationshipKind.body.error === "Unsupported relationship kind." &&
+      !JSON.stringify(invalidRelationshipKind.body).includes("NOT_A_RELATIONSHIP_KIND"),
+    "companion creation should reject unsupported relationship kinds with stable copy"
+  );
+  const companionsAfterInvalidKind = await request("/api/companions");
+  assert(
+    !companionsAfterInvalidKind.body.companions?.some(
+      (companion) => companion.name === invalidRelationshipKindName
+    ),
+    "rejected companion creation should not persist invalid relationship objects"
+  );
 
   const companionInput = samples.relationshipCases.find((item) => item.kind === "CUSTOM");
   const created = await request("/api/companions", {
@@ -413,6 +439,30 @@ async function runSmoke() {
       { allowError: true }
     ),
     "companion update"
+  );
+  const rejectedCompanionPatch = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "   ",
+        speakingStyle: "这次更新不应该局部写入。"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    rejectedCompanionPatch.response.status === 400 &&
+      rejectedCompanionPatch.body.error === "Companion name is required.",
+    "companion update should reject blank names with stable copy"
+  );
+  const companionAfterRejectedPatch = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}`
+  );
+  assert(
+    companionAfterRejectedPatch.body.companion?.name === companionInput.companionName &&
+      companionAfterRejectedPatch.body.companion?.speakingStyle === companionInput.speakingStyle,
+    "rejected companion update should not partially mutate companion fields"
   );
   pass("POST /api/companions with custom relationship");
 

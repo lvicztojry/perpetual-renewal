@@ -54,6 +54,17 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: "导入为候选" }).click();
   await expect(page.getByText("这些内容已存在，没有新增候选。")).toBeVisible();
   await expect(page.getByText(/已存在 1 条/)).toBeVisible();
+  await page.getByRole("button", { name: "JSONL" }).click();
+  await page.getByLabel("JSON Lines").fill("");
+  await expect(page.getByLabel("JSON Lines")).toHaveValue("");
+  await page.getByLabel("选择文本文件").setInputFiles({
+    name: "broken-import.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("{not valid json")
+  });
+  await expect(page.getByText("JSON 文件无法解析，请检查格式后再导入。")).toBeVisible();
+  await expect(page.getByText("已读取：broken-import.json")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "导入为候选" })).toBeDisabled();
   await page.getByLabel("选择文本文件").setInputFiles({
     name: "e2e-memories.jsonl",
     mimeType: "application/x-ndjson",

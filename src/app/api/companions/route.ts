@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
-import { getRenewalService } from "@/lib/renewal/service";
+import {
+  companionValidationErrorMessage,
+  CompanionValidationError,
+  getRenewalService
+} from "@/lib/renewal/service";
 import type { CreateCompanionInput } from "@/lib/renewal/types";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +24,10 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ companion }, { status: 201 });
   } catch (error) {
+    if (error instanceof CompanionValidationError) {
+      return NextResponse.json({ error: companionValidationErrorMessage(error) }, { status: 400 });
+    }
+
     return NextResponse.json(
       { error: jsonErrorMessage(error, "Failed to create companion.") },
       { status: 400 }

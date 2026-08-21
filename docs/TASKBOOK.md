@@ -827,6 +827,8 @@
 | M82 记忆编辑空内容护栏 | integrated | 主控 | `src/app/api/memories/[memoryId]/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | `PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；拒绝后保留原记忆内容，避免把 active/pending 记忆覆盖为空 |
 | M83 设置页模型列表 E2E 隐私覆盖 | integrated | E2E 模块 + 主控 | `tests/e2e/settings-privacy.spec.ts`、`docs/*` | 设置页读取模型列表成功后清空 API Key 输入框并展示可选模型；点击模型回填输入框；失败文案不回显用户 key；当前 E2E 基线提升到 8 tests |
 | M84 聊天消息输入错误边界 | integrated | 主控 | `src/app/api/conversations/[conversationId]/messages/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 空白聊天消息返回稳定 400 `Message content is required.`；对用户消息执行 `regenerate` 返回稳定 400，避免泛化错误或透传异常对象 |
+| M85 导入错误恢复 E2E 覆盖 | integrated | E2E 模块 | `tests/e2e/relationship-flow.spec.ts`、`docs/QA.md`、`docs/TASKBOOK.md` | 主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复：友好错误可见、导入按钮保持不可用、不读取为已选文件，随后重新选择有效 `.jsonl` 文件可回填并继续导入候选 |
+| M86 关系对象校验错误边界 | integrated | 主控 | `src/app/api/companions/*`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 关系对象创建/编辑对空名称、空语气、非法关系类型返回稳定白名单 400；非法类型不创建记录，空名称编辑不会部分写入 `speakingStyle` 等其他字段 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -941,6 +943,7 @@ M51 当前落点：
 - `src/lib/import/text-import.ts` 先在脱敏和分段之后做候选去重，重复计入 `duplicateCount` 和 `skippedCount`。
 - 导入 API 会按当前关系已有非 deleted 记忆再次过滤重复内容；全是重复时返回友好错误和完整摘要，不新增 pending。
 - 工作台导入摘要展示“本次重复”和“已存在”数量；E2E 覆盖重复行、重复再次导入和 JSONL 文件导入连续流程。
+- E2E 也覆盖坏 `.json` 文件解析失败后的恢复路径：失败时按钮不可用，重新选择有效 `.jsonl` 文件后仍能继续导入为 pending 候选。
 
 M52 当前落点：
 

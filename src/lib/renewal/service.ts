@@ -23,6 +23,20 @@ import { createRenewalRepository } from "./repository";
 
 const repository = createRenewalRepository();
 
+export class CompanionValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CompanionValidationError";
+  }
+}
+
+export function companionValidationErrorMessage(error: CompanionValidationError) {
+  if (error.message === "Companion name is required.") return "Companion name is required.";
+  if (error.message === "Speaking style is required.") return "Speaking style is required.";
+  if (error.message === "Unsupported relationship kind.") return "Unsupported relationship kind.";
+  return "Failed to save companion.";
+}
+
 export class MemoryCandidateValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -404,8 +418,8 @@ function normalizeCreateInput(input: CreateCompanionInput): CreateCompanionInput
   const name = input.name?.trim();
   const speakingStyle = input.speakingStyle?.trim();
 
-  if (!name) throw new Error("Companion name is required.");
-  if (!speakingStyle) throw new Error("Speaking style is required.");
+  if (!name) throw new CompanionValidationError("Companion name is required.");
+  if (!speakingStyle) throw new CompanionValidationError("Speaking style is required.");
 
   const proactiveFrequency = normalizeProactiveFrequency({
     preset: input.proactiveFrequencyPreset,
@@ -426,9 +440,11 @@ function normalizeCreateInput(input: CreateCompanionInput): CreateCompanionInput
 
 function normalizeUpdateInput(input: UpdateCompanionInput): UpdateCompanionInput {
   if (input.relationshipKind) assertRelationshipKind(input.relationshipKind);
-  if (input.name !== undefined && !input.name.trim()) throw new Error("Companion name is required.");
+  if (input.name !== undefined && !input.name.trim()) {
+    throw new CompanionValidationError("Companion name is required.");
+  }
   if (input.speakingStyle !== undefined && !input.speakingStyle.trim()) {
-    throw new Error("Speaking style is required.");
+    throw new CompanionValidationError("Speaking style is required.");
   }
 
   const proactiveFrequency =
@@ -454,7 +470,7 @@ function normalizePersonality(personality?: string[]) {
 
 function assertRelationshipKind(kind: RelationshipKind) {
   if (!relationshipKinds.includes(kind)) {
-    throw new Error(`Unsupported relationship kind: ${kind}`);
+    throw new CompanionValidationError("Unsupported relationship kind.");
   }
 }
 

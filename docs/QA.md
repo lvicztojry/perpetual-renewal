@@ -82,7 +82,7 @@ npm run db:smoke
 | 首页健康 | `GET /` | 返回 2xx 且 content-type 为 HTML |
 | companions | `GET /api/companions` | 返回 companions 数组 |
 | auth | `POST /api/auth/login` / `POST /api/auth/logout` | 登录返回 session/user，登出返回 ok |
-| 关系设定 | `POST /api/companions` | 可创建 `CUSTOM` 自定义关系，并返回 conversationId |
+| 关系设定 | `POST/PATCH /api/companions` | 可创建 `CUSTOM` 自定义关系，并返回 conversationId；空名称、空语气、非法关系类型返回稳定 400，失败时不创建记录或部分写入 |
 | 素材导入 | `POST /api/companions/:id/imports` | 支持单段文本、批量文本数组、JSON Lines；默认写入 pending 记忆，返回 created/skipped/redaction/duplicate summary |
 | 聊天与记忆 | `POST /api/conversations/:id/messages` | 生成 user/assistant 消息，mock provider fallback，产生 pending memory |
 | 主动回响 | `POST /api/companions/:id/proactive-drafts` | 生成站内草稿，保存为 `draft`，报告 `memory/prisma` persistence |
@@ -110,7 +110,7 @@ npm run db:smoke
 | 关系创建 | 创建关系对象表单 | 自定义关系对象创建后进入对应聊天页 |
 | 聊天 | 消息输入与发送 | 用户消息保存，AI 回复或保存状态可见，provider/model 标识可见 |
 | 记忆确认 | 记忆管理视图 | pending 记忆可确认，确认后出现 `active` 状态 |
-| 素材导入 | 导入素材视图 | 可切换多段模式，每行一条导入为 pending 候选并显示导入结果；已覆盖本次重复、已存在重复、JSONL 本地文本文件读入、文本框回填和继续导入 |
+| 素材导入 | 导入素材视图 | 可切换多段模式，每行一条导入为 pending 候选并显示导入结果；已覆盖本次重复、已存在重复、坏 JSON 文件友好拒绝、错误后重新选择 JSONL 本地文本文件、文本框回填和继续导入 |
 | 主动回响 | 主动回响视图 | 站内草稿与“撒娇式”草稿可见 |
 | 登出 | 设置页退出 | 退出后回到 `/login` |
 | 移动端工作台 | 390px 宽视口 | rail/main/inspector、创建表单、设置页无横向溢出，关键入口可见可点 |
@@ -254,13 +254,14 @@ npm run e2e
 
 - 切换多段模式后，每行一条导入并得到 pending 候选记忆。
 - 重复行只生成一条候选，并在摘要里显示“本次重复”；再次导入已存在内容会显示“已存在”，不会新增候选。
+- 选择解析失败的 `.json` 文件后，前端显示友好错误，保持导入按钮不可用，不请求导入 API。
 - 选择 `.jsonl` 本地文本文件后，前端把文件内容读入 JSON Lines 文本框。
 - 继续点击“导入为候选”后，复用现有导入 API，生成 pending 候选记忆。
 
 人工补充检查：
 
 - `.txt` 文件会读入单段文本，不上传原文件。
-- `.json` 文件会在前端解析后转为 JSON Lines，解析失败时不请求导入 API。
+- `.json` 文件会在前端解析后转为 JSON Lines；解析失败时不请求导入 API，错误后重新选择有效文件可恢复。
 - `.jsonl` 文件中含疑似密钥形态时，导入结果只保存脱敏占位，不保存原始 key/token。
 - 非 `.txt`、`.jsonl`、`.json` 文件会被前端拒绝。
 - 大于 512KB 的文件会被前端拒绝。
