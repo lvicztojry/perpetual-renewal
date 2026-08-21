@@ -51,6 +51,7 @@ checkForbiddenFiles("tracked", trackedFiles);
 checkForbiddenFiles("committable", committableFiles);
 checkRequiredFiles(committableFiles);
 checkNextEnvTypeImports();
+checkRuntimeSourceBoundaries(committableFiles);
 
 if (findings.length > 0) {
   console.error("Git boundary check failed:");
@@ -112,5 +113,40 @@ function checkNextEnvTypeImports() {
 
   if (content.includes("./.next/dev/types/")) {
     findings.push("next-env.d.ts references .next/dev/types; run npm run next:typegen before committing.");
+  }
+}
+
+function checkRuntimeSourceBoundaries(files) {
+  const apiRouteFiles = files.filter((file) => /^src\/app\/api\/.*\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(file));
+  for (const file of apiRouteFiles) {
+    const content = readSourceFile(file);
+    if (!content) continue;
+
+    if (/\b(?:request|req)\s*\.\s*json\s*\(/.test(content)) {
+      findings.push(
+        `${file} directly calls request.json(); use src/lib/http/json.ts helpers so invalid and non-object JSON responses stay consistent.`
+      );
+    }
+  }
+
+  const runtimeFiles = files.filter((file) => /^src\/(?:app|lib)\/.*\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(file));
+  for (const file of runtimeFiles) {
+    const content = readSourceFile(file);
+    if (!content) continue;
+
+    if (/\bDEV-\d+\b/.test(content)) {
+      findings.push(
+        `${file} contains DEV-* handoff metadata in runtime source; keep milestone/task labels in docs or tests only.`
+      );
+    }
+  }
+}
+
+function readSourceFile(file) {
+  try {
+    return readFileSync(file, "utf8");
+  } catch (error) {
+    findings.push(`${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    return "";
   }
 }

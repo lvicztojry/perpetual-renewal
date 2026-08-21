@@ -146,6 +146,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M71 JSON 解析入口收口：API 目录不再直接调用 `request.json()`；chat、导入、语音和主动调度入口统一共享 JSON helper；`POST /api/proactive/run` 保留空 body 默认 dry-run，但坏 JSON、`null`、数组等非对象 body 返回友好 400；QA/错误文案文档补齐 JSON body 护栏口径。
 - M72 运行时 handoff 元数据清理：安全检查 API 不再向客户端返回早期 `next`/`DEV-11` handoff 字段；smoke 在全部安全样例中防止旧 DEV 元数据、prompt、key、Base URL 或输入原文回流。
 - M73 数据库文档状态收口：`docs/DATABASE.md` 移除旧的 mock-dev session 和 relationship-state mock-oriented 口径，改为当前 session userId 隔离、email session fallback demo user，以及 relationship-state API 走 Prisma/memory repository 持久化。
+- M74 运行时代码边界门禁：`git:boundary` 新增 API 路由不得直接调用 `request.json()`、运行时 `src/app`/`src/lib` 不得包含 `DEV-*` handoff 元数据的检查，防止 M71/M72 清理项回流。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 
