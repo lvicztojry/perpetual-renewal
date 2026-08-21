@@ -60,7 +60,7 @@ function parseCredentialRequest(body: CredentialRequest) {
   const provider = readProvider(body.provider);
   const apiKey = readOptionalString(body.apiKey, "apiKey", 8, 4096);
   const model = readOptionalString(body.model, "model", 1, 128);
-  const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl.trim() : undefined;
+  const baseUrl = readOptionalString(body.baseUrl, "baseUrl", 1, 512);
 
   if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
     throw new CredentialValidationError("Base URL must start with http:// or https://.");
@@ -127,6 +127,10 @@ function safeCredentialErrorMessage(error: unknown) {
         return "model must be a string.";
       case "model must be between 1 and 128 characters.":
         return "model must be between 1 and 128 characters.";
+      case "baseUrl must be a string.":
+        return "baseUrl must be a string.";
+      case "baseUrl must be between 1 and 512 characters.":
+        return "baseUrl must be between 1 and 512 characters.";
       default:
         return "Failed to save credential.";
     }

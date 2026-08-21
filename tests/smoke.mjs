@@ -1685,15 +1685,35 @@ async function runSmoke() {
       malformedCredentialEndpoint.body.error === "Base URL must start with http:// or https://.",
     "credential save should return stable copy for malformed endpoints"
   );
+  const nonStringCredentialEndpoint = await request(
+    "/api/me/llm-credential",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: fakeKey,
+        baseUrl: 12345,
+        model: "smoke-model-updated"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    nonStringCredentialEndpoint.response.status === 400 &&
+      nonStringCredentialEndpoint.body.error === "baseUrl must be a string.",
+    "credential save should reject non-string endpoint values"
+  );
   assert(
     !JSON.stringify(unsupportedCredentialProvider.body).includes(fakeKey) &&
       !JSON.stringify(unsupportedCredentialProvider.body).includes(savedEndpoint) &&
       !JSON.stringify(malformedCredentialEndpoint.body).includes(fakeKey) &&
       !JSON.stringify(malformedCredentialEndpoint.body).includes("gateway.example.com/v1") &&
+      !JSON.stringify(nonStringCredentialEndpoint.body).includes(fakeKey) &&
       !JSON.stringify(malformedCredentialEndpoint.body).includes("Bearer") &&
       !JSON.stringify(malformedCredentialEndpoint.body).includes("baseUrl"),
     "credential validation errors should not expose submitted key or endpoint values"
   );
+  pass("PUT /api/me/llm-credential rejects non-string endpoint");
   pass("PUT /api/me/llm-credential returns stable validation errors");
 
   const deletedCredential = await request("/api/me/llm-credential", { method: "DELETE" });

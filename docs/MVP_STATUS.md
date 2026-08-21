@@ -60,7 +60,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：82 checks passed。
+- `smoke`：83 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：9 tests passed。
@@ -164,6 +164,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M87 用量看板查询范围边界：`GET /api/usage/model-calls` 只接受 1-90 天有限 `rangeDays`；非法 query 返回稳定 400，不回显 key、Base URL、prompt 或 raw payload。
 - M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；E2E 基线提升到 9 tests。
 - M89 运营反馈机制暂缓口径：PRD、Taskbook 和部署清单明确内容审核后台、反馈问卷、内测邀请机制不进入第一版，后续恢复时单独设计运营反馈模块。
+- M90 用户模型端点类型校验：`PUT /api/me/llm-credential` 对非字符串 `baseUrl` 返回稳定 400，不静默忽略异常类型，也不回显用户 API key 或端点字段。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

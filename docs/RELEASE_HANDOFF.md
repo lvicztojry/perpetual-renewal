@@ -12,7 +12,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M89 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, and deferred operations-feedback wording.
+- Recent release-candidate commits include M49-M90 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, and credential endpoint type validation.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -53,6 +53,7 @@
 - M87 scope: usage dashboard `rangeDays` rejects non-finite or out-of-range values with stable copy and no query/key/Base URL/prompt/raw payload leakage.
 - M88 scope: relationship create/edit failure UI reads safe server copy, keeps drafts editable, restores the submit button, and has E2E coverage for create failure recovery.
 - M89 scope: PRD/Taskbook/deployment wording confirms moderation admin, feedback survey, and beta invite mechanisms stay deferred for the first release.
+- M90 scope: LLM credential save rejects non-string `baseUrl` values with stable validation copy and no submitted key or endpoint field leakage.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -66,7 +67,7 @@ Last updated: 2026-08-21
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 82 checks.
+- `npm run smoke`: passed, 83 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.
