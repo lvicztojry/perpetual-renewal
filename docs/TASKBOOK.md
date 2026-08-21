@@ -684,7 +684,7 @@
 - M-PROACTIVE-FREQ 已完成第一版：Companion 保存 `proactiveMessagesEnabled`、`proactiveFrequencyPreset`、`proactiveFrequencyMinutes`。
 - 已新增 `normalizeProactiveFrequency` 与 `buildProactiveScheduleCandidate`，预设和自定义统一转为分钟。
 - `/api/companions/:id/proactive-drafts` 兼容旧 `frequencyHours` 请求；手动生成使用 `force`，不会把 0 小时保存为真实频率。
-- 草稿响应新增频率元数据与 `nextCandidateAt`，供后续后台调度模块读取。
+- 草稿响应新增频率元数据与 `nextCandidateAt`，供当前受保护的 `POST /api/proactive/run` 调度入口读取。
 - M-PROACTIVE-SCHEDULER 已完成第一版：`POST /api/proactive/run` 支持 current-user dry-run/save-run，all-user scope 必须携带 `PROACTIVE_CRON_SECRET`。
 - 调度响应只返回扫描数量、生成数量、保存数量、候选时间和原因，不返回 secret、key、连接串、prompt 或消息正文。
 
@@ -823,6 +823,7 @@
 | M78 API 校验错误边界收束 | integrated | 主控 + API/QA 模块审计 | `src/app/api/companions/[companionId]/imports/route.ts`、`src/app/api/me/route.ts`、`src/app/api/me/account/route.ts`、`scripts/git-boundary-check.mjs`、`tests/smoke.mjs`、`docs/*` | import/profile/account 路由从直接返回异常 `error.message` 改为稳定白名单文案；profile invalid PATCH smoke 覆盖 400 且不发生部分写入；git boundary 拦截 API route 直接返回 `error.message` |
 | M79 模型列表供应商分支覆盖 | integrated | QA 模块 + 主控 | `tests/smoke.mjs`、`docs/*` | 已保存 `anthropic` 等非 compatible provider 后，`GET /api/me/llm-models` 返回稳定“兼容中转站”提示；响应不泄露 key、endpoint、Bearer、`baseUrl` 或 raw payload |
 | M80 主动回响重复生成门禁 | integrated | 主控 | `tests/smoke.mjs`、`docs/*` | `POST /api/proactive/run` 保存草稿后，同一 `now` 再跑不会立刻重复生成/保存；已保存草稿会成为下一次候选时间锚点，降低重复站内消息和成本风险 |
+| M81 手动记忆输入边界补强 | integrated | 主控 + QA 模块 | `src/app/api/companions/[companionId]/memories/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 手动创建记忆 smoke 确认 `sourceMessageId` 链接被保留；未知 `sourceMessageId` 与空白 `content` 返回稳定 400，避免写入悬挂/空 pending 记忆 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |

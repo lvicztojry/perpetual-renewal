@@ -671,6 +671,7 @@ async function runSmoke() {
     manualMemories.body.memories?.length === 1 &&
       manualMemories.body.memories[0].type === "emotional_preference" &&
       manualMemories.body.memories[0].status === "pending" &&
+      manualMemories.body.memories[0].sourceMessageId === sent.body.userMessage.id &&
       manualMemories.body.memories[0].content === manualMemoryContent,
     "manual memory creation should persist the requested pending memory"
   );
@@ -699,7 +700,53 @@ async function runSmoke() {
       unsupportedManualMemory.body.error === "Unsupported memory type",
     "manual memory creation should reject unsupported memory types"
   );
-  pass("POST /api/companions/:id/memories creates manual memory candidates");
+  const danglingSourceMessageId = "message-does-not-exist";
+  const danglingSourceMemoryContent = "这条不应该用不存在的消息作为来源。";
+  const danglingSourceManualMemory = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        sourceMessageId: danglingSourceMessageId,
+        type: "emotional_preference",
+        content: danglingSourceMemoryContent
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    danglingSourceManualMemory.response.status === 400 &&
+      danglingSourceManualMemory.body.error === "sourceMessageId was not found",
+    "manual memory creation should reject unknown sourceMessageId"
+  );
+  const emptyManualMemory = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        type: "emotional_preference",
+        content: "   "
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    emptyManualMemory.response.status === 400 &&
+      emptyManualMemory.body.error === "content is required",
+    "manual memory creation should reject empty content"
+  );
+  const memoriesAfterRejectedManualCreate = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`
+  );
+  assert(
+    !memoriesAfterRejectedManualCreate.body.memories?.some(
+      (memory) =>
+        memory.content === danglingSourceMemoryContent ||
+        memory.sourceMessageId === danglingSourceMessageId
+    ),
+    "rejected manual memory inputs should not create dangling records"
+  );
+  pass("POST /api/companions/:id/memories creates and validates manual memory candidates");
 
   const regenerated = await request(
     `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,

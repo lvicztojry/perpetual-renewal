@@ -23,6 +23,13 @@ import { createRenewalRepository } from "./repository";
 
 const repository = createRenewalRepository();
 
+export class MemoryCandidateValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MemoryCandidateValidationError";
+  }
+}
+
 export function getRenewalService(userId = DEMO_USER_ID) {
   return new RenewalService(repository, userId);
 }
@@ -66,7 +73,18 @@ export class RenewalService {
     if (!companion) return null;
 
     const content = input.content.trim();
-    if (!content) throw new Error("Memory content is required.");
+    if (!content) throw new MemoryCandidateValidationError("content is required");
+
+    if (input.sourceMessageId) {
+      const sourceMessage = await this.repo.getMessage(
+        this.userId,
+        companion.conversationId,
+        input.sourceMessageId
+      );
+      if (!sourceMessage) {
+        throw new MemoryCandidateValidationError("sourceMessageId was not found");
+      }
+    }
 
     const candidates = input.type
       ? [

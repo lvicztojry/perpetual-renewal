@@ -145,6 +145,8 @@ function staleDocumentationSnippets() {
     "已保存 key 后可只更新 provider/baseUrl/model",
     "已保存 key 后可只修改 provider、baseUrl 或 model",
     "供后续调度器接入",
+    "供后续后台调度模块读取",
+    "供后续调度模块读取",
     "当前 API 是非流式草案",
     "DEV-4 聊天闭环可先接它",
     "remaining user decisions",
@@ -457,8 +459,9 @@ function checkReleaseHandoff() {
 
   const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
   for (const snippet of [
-    "d7a72f2",
-    "sync taskbook status gates",
+    "Current branch tip",
+    "git log -1 --oneline",
+    "Initial baseline commit",
     `${smokeMetrics.checkCount} checks`,
     `${qaMetrics.safetyAreaCount} safety areas`
   ]) {
@@ -650,9 +653,15 @@ function checkProactiveSchedulerDocs() {
   const staleSnippets = [
     ["docs/ARCHITECTURE.md", "应用内定时任务起步"],
     ["docs/ARCHITECTURE.md", "后续迁移队列"],
+    ["docs/ARCHITECTURE.md", "后续后台调度模块"],
+    ["docs/ARCHITECTURE.md", "后续调度模块"],
     ["docs/ARCHITECTURE.md", "应用进程内常驻后台定时器"],
     ["docs/DEPLOYMENT.md", "应用内定时任务起步"],
     ["docs/DEPLOYMENT.md", "后续迁移队列"],
+    ["docs/DEPLOYMENT.md", "后续后台调度模块"],
+    ["docs/DEPLOYMENT.md", "后续调度模块"],
+    ["docs/TASKBOOK.md", "供后续后台调度模块"],
+    ["docs/TASKBOOK.md", "供后续调度模块"],
     ["docs/DEPLOYMENT.md", "应用进程内常驻后台定时器"]
   ];
 

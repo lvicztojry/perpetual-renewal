@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
-import { getRenewalService } from "@/lib/renewal/service";
+import { getRenewalService, MemoryCandidateValidationError } from "@/lib/renewal/service";
 import type { MemoryType } from "@/lib/renewal/types";
 
 type RouteContext = {
@@ -49,14 +49,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const session = await getCurrentSession();
-  const memories = await getRenewalService(session.userId).createMemoryCandidates(
-    companionId,
-    {
-      sourceMessageId,
-      content,
-      type: explicitType
+  let memories;
+  try {
+    memories = await getRenewalService(session.userId).createMemoryCandidates(
+      companionId,
+      {
+        sourceMessageId,
+        content,
+        type: explicitType
+      }
+    );
+  } catch (error) {
+    if (error instanceof MemoryCandidateValidationError) {
+      return NextResponse.json({ error: memoryCandidateErrorMessage(error) }, { status: 400 });
     }
-  );
+    throw error;
+  }
 
   if (!memories) {
     return NextResponse.json({ error: "Companion not found" }, { status: 404 });
@@ -81,4 +89,10 @@ function normalizeMemoryType(value: string | undefined): MemoryType | undefined 
   }
 
   return undefined;
+}
+
+function memoryCandidateErrorMessage(error: MemoryCandidateValidationError) {
+  if (error.message === "content is required") return "content is required";
+  if (error.message === "sourceMessageId was not found") return "sourceMessageId was not found";
+  return "Failed to create memory candidates.";
 }
