@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
-import { getRenewalService } from "@/lib/renewal/service";
+import { getRenewalService, MessageValidationError } from "@/lib/renewal/service";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof MessageValidationError) {
+      return NextResponse.json({ error: messageValidationErrorMessage(error) }, { status: 400 });
+    }
+
     return NextResponse.json(
       { error: jsonErrorMessage(error, "Failed to send message.") },
       { status: 400 }
@@ -81,6 +85,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: 400 }
     );
   } catch (error) {
+    if (error instanceof MessageValidationError) {
+      return NextResponse.json({ error: messageValidationErrorMessage(error) }, { status: 400 });
+    }
+
     return NextResponse.json(
       { error: jsonErrorMessage(error, "Failed to update message.") },
       { status: 400 }
@@ -119,4 +127,15 @@ function readMessagePatch(body: Record<string, unknown>) {
     messageId: typeof body.messageId === "string" ? body.messageId : undefined,
     important: typeof body.important === "boolean" ? body.important : undefined
   };
+}
+
+function messageValidationErrorMessage(error: MessageValidationError) {
+  if (error.message === "Message content is required.") return "Message content is required.";
+  if (error.message === "Only assistant messages can be regenerated.") {
+    return "Only assistant messages can be regenerated.";
+  }
+  if (error.message === "Regeneration requires at least one prior user message.") {
+    return "Regeneration requires at least one prior user message.";
+  }
+  return "Failed to update message.";
 }

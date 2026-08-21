@@ -37,6 +37,13 @@ export class MemoryUpdateValidationError extends Error {
   }
 }
 
+export class MessageValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MessageValidationError";
+  }
+}
+
 export function getRenewalService(userId = DEMO_USER_ID) {
   return new RenewalService(repository, userId);
 }
@@ -153,7 +160,7 @@ export class RenewalService {
     if (!companion) return null;
 
     const trimmed = content.trim();
-    if (!trimmed) throw new Error("Message content is required.");
+    if (!trimmed) throw new MessageValidationError("Message content is required.");
 
     const userMessage = await this.repo.appendMessage(conversationId, "user", trimmed);
     const relationshipState = await this.repo.updateRelationshipAfterMessage(
@@ -278,7 +285,7 @@ export class RenewalService {
     const target = await this.repo.getMessage(this.userId, conversationId, messageId);
     if (!target) return null;
     if (target.role !== "assistant") {
-      throw new Error("Only assistant messages can be regenerated.");
+      throw new MessageValidationError("Only assistant messages can be regenerated.");
     }
 
     const history = await this.repo.listMessages(this.userId, conversationId);
@@ -286,7 +293,7 @@ export class RenewalService {
     const promptHistory = messagesForPrompt(targetIndex >= 0 ? history.slice(0, targetIndex) : history);
 
     if (!promptHistory.some((message) => message.role === "user")) {
-      throw new Error("Regeneration requires at least one prior user message.");
+      throw new MessageValidationError("Regeneration requires at least one prior user message.");
     }
 
     const startedAt = Date.now();

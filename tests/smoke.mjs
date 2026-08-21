@@ -630,6 +630,20 @@ async function runSmoke() {
     ),
     "message creation"
   );
+  const emptyConversationMessage = await request(
+    `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content: "   " })
+    },
+    { allowError: true }
+  );
+  assert(
+    emptyConversationMessage.response.status === 400 &&
+      emptyConversationMessage.body.error === "Message content is required." &&
+      !JSON.stringify(emptyConversationMessage.body).includes("stack"),
+    "message creation should reject empty content with stable copy"
+  );
   assertInvalidJsonResponse(
     await request(
       `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
@@ -748,6 +762,22 @@ async function runSmoke() {
   );
   pass("POST /api/companions/:id/memories creates and validates manual memory candidates");
 
+  const regenerateUserMessage = await request(
+    `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "regenerate",
+        messageId: sent.body.userMessage.id
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    regenerateUserMessage.response.status === 400 &&
+      regenerateUserMessage.body.error === "Only assistant messages can be regenerated.",
+    "regenerate should reject user messages with stable copy"
+  );
   const regenerated = await request(
     `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
     {
