@@ -120,14 +120,14 @@ async function resolveConnectionConfig(
   if (!baseUrl) {
     throw new LlmConnectionTestConfigurationError(
       "invalid_configuration",
-      "请先填写供应商 Base URL。"
+      "请先填写模型供应商地址。"
     );
   }
 
   if (!/^https?:\/\//i.test(baseUrl)) {
     throw new LlmConnectionTestConfigurationError(
       "invalid_configuration",
-      "Base URL 必须以 http:// 或 https:// 开头。"
+      "模型供应商地址必须以 http:// 或 https:// 开头。"
     );
   }
 

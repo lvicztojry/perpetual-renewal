@@ -89,7 +89,7 @@ npm run db:smoke
 | safety | `POST /api/safety/check` | 撒娇式允许、非性化未成年人陪伴、医疗/法律担心的情绪支持、公众人物想象式鼓励、自伤、他伤、现实行动、公众人物授权、金钱法律、排他依赖、关系施压、角色越权、未成年人性化、隐私跟踪、专业建议、身份欺骗均命中预期策略 |
 | safety event | `POST /api/safety/check` | `action != allow` 时记录脱敏事件；只返回 `contentHash`/`riskHash` 等审计元数据，不返回原文、prompt、API key 或 baseUrl |
 | 数据导出 | `GET /api/me/export` | 当前 session 用户 JSON 快照；包含关系、消息、记忆、主动回响、模型调用和安全事件 hash；不返回供应商密钥、endpoint URL 或 vault 字段 |
-| 模型连接测试 | `POST /api/me/llm-test` | 无 key 时返回可预测失败；响应只包含状态、provider/model、credentialSource、latencyMs 和友好错误，不返回 API key、Base URL 原文、prompt 或供应商 raw payload |
+| 模型连接测试 | `POST /api/me/llm-test` | 无 key、URL 构造失败、供应商 HTTP 失败或底层 fetch 失败均返回可预测失败；响应只包含状态、provider/model、credentialSource、latencyMs 和友好错误，不返回 API key、Bearer、Base URL 原文、prompt、供应商 raw payload、底层网络原文或堆栈 |
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
 | 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
 | 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
@@ -117,8 +117,9 @@ npm run db:smoke
 | 账号删除 | 设置页危险区 | 错误确认短语无法点击；正确输入“删除我的账号”后清理 session 并回到登录页 |
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 | 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误且不泄露完整 key |
+| 工作台错误脱敏 | 调用看板错误态 | 后端错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时，工作台只显示脱敏占位，不展示敏感原文 |
 
-当前基线：`npm run e2e` 已通过 10 tests。
+当前基线：`npm run e2e` 已通过 11 tests。
 
 当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
 

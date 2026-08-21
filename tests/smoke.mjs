@@ -3,7 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import process from "node:process";
 
 const DEFAULT_PORT = 3210;
@@ -203,7 +204,7 @@ async function findAvailablePort(startPort) {
 
 function isPortAvailable(port) {
   return new Promise((resolvePort) => {
-    const server = createServer();
+    const server = createNetServer();
 
     server.once("error", () => resolvePort(false));
     server.once("listening", () => {
@@ -211,6 +212,35 @@ function isPortAvailable(port) {
     });
     server.listen(port, "127.0.0.1");
   });
+}
+
+async function startSensitiveModelProviderServer(readBody) {
+  const server = createHttpServer((request, response) => {
+    if (request.url !== "/models") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "not found" }));
+      return;
+    }
+
+    response.writeHead(502, { "content-type": "application/json" });
+    response.end(readBody(request));
+  });
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+
+  const address = server.address();
+  assert(address && typeof address === "object", "sensitive model provider should bind to a local port");
+
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    stop: () =>
+      new Promise((resolveClose) => {
+        server.close(() => resolveClose());
+      })
+  };
 }
 
 async function waitForServer(url) {
@@ -1652,6 +1682,38 @@ async function runSmoke() {
   );
   pass("GET /api/me/llm-models sanitizes provider failures");
 
+  const llmTestWithInvalidEndpoint = await request(
+    "/api/me/llm-test",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: invalidEndpoint,
+        model: "smoke-model-updated",
+        prompt: "invalid-url-prompt-should-not-leak",
+        rawPayload: "invalid-url-raw-payload-should-not-leak"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    llmTestWithInvalidEndpoint.body.ok === false &&
+      llmTestWithInvalidEndpoint.body.errorType === "network",
+    "LLM connection test URL construction failures should return a sanitized network failure"
+  );
+  assertNoSensitiveProviderDetails(
+    llmTestWithInvalidEndpoint.body,
+    "LLM connection test URL construction failure",
+    [
+      invalidEndpoint,
+      savedEndpoint,
+      fakeKey,
+      "invalid-url-prompt-should-not-leak",
+      "invalid-url-raw-payload-should-not-leak"
+    ]
+  );
+  pass("POST /api/me/llm-test sanitizes URL construction failures");
+
   const unsupportedCredentialProvider = await request(
     "/api/me/llm-credential",
     {
@@ -1825,6 +1887,124 @@ async function runSmoke() {
     "LLM connection test"
   );
   pass("POST /api/me/llm-test sanitized missing-key result");
+
+  const sensitivePrompt = "connection-test-prompt-value";
+  const sensitiveRawPayload = "connection-test-raw-payload-value";
+  const sensitiveProviderStack = "ProviderStackTraceShouldStayServerSide";
+  const sensitiveProvider = await startSensitiveModelProviderServer(() =>
+    JSON.stringify({
+      error: {
+        message:
+          `Authorization: Bearer ${fakeKey}; endpoint=${sensitiveProvider.url}; ` +
+          `prompt=${sensitivePrompt}; rawPayload=${sensitiveRawPayload}; stack=${sensitiveProviderStack}`
+      }
+    })
+  );
+  try {
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: fakeKey,
+        baseUrl: sensitiveProvider.url,
+        model: "smoke-provider-failure-model"
+      })
+    });
+
+    const modelListProviderError = await request("/api/me/llm-models", {}, { allowError: true });
+    assert(
+      modelListProviderError.response.status === 400,
+      "model list provider HTTP failures should return 400"
+    );
+    assertNoSensitiveProviderDetails(modelListProviderError.body, "model list provider HTTP failure", [
+      fakeKey,
+      sensitiveProvider.url,
+      sensitivePrompt,
+      sensitiveRawPayload,
+      sensitiveProviderStack
+    ]);
+
+    const llmTestProviderError = await request(
+      "/api/me/llm-test",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          provider: "compatible",
+          baseUrl: sensitiveProvider.url,
+          model: "smoke-provider-failure-model",
+          prompt: sensitivePrompt,
+          rawPayload: sensitiveRawPayload
+        })
+      },
+      { allowError: true }
+    );
+    assert(llmTestProviderError.body.ok === false, "LLM connection test provider failures should fail safely");
+    assert(
+      llmTestProviderError.body.errorType === "provider_response",
+      "LLM connection test provider HTTP failures should classify provider responses"
+    );
+    assertNoSensitiveProviderDetails(llmTestProviderError.body, "LLM connection test provider HTTP failure", [
+      fakeKey,
+      sensitiveProvider.url,
+      sensitivePrompt,
+      sensitiveRawPayload,
+      sensitiveProviderStack
+    ]);
+
+    const unreachableProviderUrl = `http://127.0.0.1:${await findAvailablePort(39000)}`;
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: fakeKey,
+        baseUrl: unreachableProviderUrl,
+        model: "smoke-fetch-failure-model"
+      })
+    });
+
+    const modelListFetchError = await request("/api/me/llm-models", {}, { allowError: true });
+    assert(
+      modelListFetchError.response.status === 400,
+      "model list fetch failures should return 400"
+    );
+    assertNoSensitiveProviderDetails(modelListFetchError.body, "model list fetch failure", [
+      fakeKey,
+      unreachableProviderUrl,
+      sensitivePrompt,
+      sensitiveRawPayload,
+      sensitiveProviderStack
+    ]);
+
+    const llmTestFetchError = await request(
+      "/api/me/llm-test",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          provider: "compatible",
+          baseUrl: unreachableProviderUrl,
+          model: "smoke-fetch-failure-model",
+          prompt: sensitivePrompt,
+          rawPayload: sensitiveRawPayload
+        })
+      },
+      { allowError: true }
+    );
+    assert(
+      llmTestFetchError.body.ok === false && llmTestFetchError.body.errorType === "network",
+      "LLM connection test fetch failures should return a sanitized network failure"
+    );
+    assertNoSensitiveProviderDetails(llmTestFetchError.body, "LLM connection test fetch failure", [
+      fakeKey,
+      unreachableProviderUrl,
+      sensitivePrompt,
+      sensitiveRawPayload,
+      sensitiveProviderStack
+    ]);
+  } finally {
+    await sensitiveProvider.stop();
+    await request("/api/me/llm-credential", { method: "DELETE" });
+  }
+  pass("POST /api/me/llm-test and GET /api/me/llm-models sanitize provider and fetch failures");
 
   const configStatus = await request("/api/me/config-status");
   assert(
@@ -2465,6 +2645,28 @@ function assertSafeJsonErrorBody(result, label) {
       !stringify(result.body).includes("rawPayload") &&
       !stringify(result.body).includes("stack"),
     `${label} invalid JSON response should not expose parser internals`
+  );
+}
+
+function assertNoSensitiveProviderDetails(body, label, fragments) {
+  const serialized = stringify(body);
+  for (const fragment of fragments) {
+    assert(!serialized.includes(fragment), `${label} should not expose ${fragment}`);
+  }
+
+  assert(
+    !("baseUrl" in (body ?? {})) &&
+      !("prompt" in (body ?? {})) &&
+      !("rawPayload" in (body ?? {})) &&
+      !serialized.includes("Authorization") &&
+      !serialized.includes("Bearer") &&
+      !serialized.includes("baseUrl") &&
+      !serialized.includes("endpoint=") &&
+      !serialized.includes("prompt=") &&
+      !serialized.includes("rawPayload") &&
+      !serialized.includes("stack") &&
+      !serialized.includes("ProviderStackTrace"),
+    `${label} response should not expose transport headers, endpoint, prompt, raw payload, or stack details`
   );
 }
 

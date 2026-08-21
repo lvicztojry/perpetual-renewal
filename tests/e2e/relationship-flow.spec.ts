@@ -191,3 +191,42 @@ test("relationship create failure shows server copy and keeps the draft editable
   await expect(page.getByLabel("具体关系")).toHaveValue("失败后也要留住的关系");
   await expect(page.getByRole("button", { name: "创建并开始聊天" })).toBeEnabled();
 });
+
+test("workspace usage errors redact provider secrets before display", async ({ page }) => {
+  const unique = Date.now();
+  const fakeApiKey = `sk-workspace-usage-${unique}-redaction-key`;
+  const fakeBaseUrl = "https://workspace-usage.failure.example.com/v1";
+  const leakedMessage = [
+    "调用看板读取失败",
+    `Authorization: Bearer ${fakeApiKey}`,
+    `endpoint ${fakeBaseUrl}`,
+    "prompt rawPayload stack",
+    "at provider.fetch (src/lib/provider.ts:12:3)"
+  ].join(" ");
+
+  await page.route("**/api/usage/model-calls?rangeDays=7", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 500,
+      body: JSON.stringify({ error: leakedMessage })
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`usage-redaction-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("调用看板 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "模型调用看板" }).click();
+
+  await expect(page.getByText("调用看板读取失败")).toBeVisible();
+  await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
+  await expect(page.getByText("[已隐藏 Base URL]")).toBeVisible();
+  await expect(page.getByText("[已隐藏调试字段]").first()).toBeVisible();
+  await expect(page.getByText("[已隐藏堆栈]")).toBeVisible();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
+  await expect(page.getByText("rawPayload")).toHaveCount(0);
+  await expect(page.getByText("src/lib/provider.ts")).toHaveCount(0);
+});

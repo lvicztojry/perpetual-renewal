@@ -300,7 +300,7 @@ export function RenewalWorkspace() {
         setStatus(first ? "已连接到内存服务层" : "还没有关系对象");
       } catch (loadError) {
         if (!mounted) return;
-        setError(loadError instanceof Error ? loadError.message : "关系对象加载失败。");
+        setError(toSafeWorkspaceError(loadError, "关系对象加载失败。"));
       } finally {
         if (mounted) setIsBooting(false);
       }
@@ -326,7 +326,7 @@ export function RenewalWorkspace() {
         if (mounted) setMessages(payload.messages);
       } catch (loadError) {
         if (mounted) {
-          setError(loadError instanceof Error ? loadError.message : "消息加载失败。");
+          setError(toSafeWorkspaceError(loadError, "消息加载失败。"));
         }
       }
     }
@@ -376,7 +376,7 @@ export function RenewalWorkspace() {
       setInspectorMode("profile");
       setStatus("关系设定已通过 API 保存");
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "关系设定保存失败。";
+      const message = toSafeWorkspaceError(saveError, "关系设定保存失败。");
       setFormError(message);
       setStatus("关系设定保存失败，请检查后重试");
     } finally {
@@ -426,7 +426,7 @@ export function RenewalWorkspace() {
       setDraft("");
       setStatus("新关系对象已创建，可以开始聊天");
     } catch (createError) {
-      const message = createError instanceof Error ? createError.message : "新建关系失败。";
+      const message = toSafeWorkspaceError(createError, "新建关系失败。");
       setFormError(message);
       setStatus("新建关系失败，请检查后重试");
     } finally {
@@ -470,7 +470,7 @@ export function RenewalWorkspace() {
       setInspectorMode("profile");
       setStatus("关系对象已删除");
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "删除关系对象失败。");
+      setError(toSafeWorkspaceError(deleteError, "删除关系对象失败。"));
       setStatus("删除关系对象失败，请稍后重试");
     } finally {
       setIsSaving(false);
@@ -526,10 +526,10 @@ export function RenewalWorkspace() {
           : `用户消息已保存，回复可重试 · ${formatProviderLabel(payload.assistantError)}`
       );
       if (payload.assistantError) {
-        setError(`回复生成失败：${payload.assistantError.message}`);
+        setError(`回复生成失败：${redactWorkspaceError(payload.assistantError.message)}`);
       }
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "消息发送失败。");
+      setError(toSafeWorkspaceError(sendError, "消息发送失败。"));
     } finally {
       setIsSending(false);
     }
@@ -568,7 +568,7 @@ export function RenewalWorkspace() {
           : "已重新生成"
       );
     } catch (regenerateError) {
-      setError(regenerateError instanceof Error ? regenerateError.message : "重新生成失败。");
+      setError(toSafeWorkspaceError(regenerateError, "重新生成失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -596,7 +596,7 @@ export function RenewalWorkspace() {
       setMessages((current) => current.filter((message) => message.id !== messageId));
       setStatus("消息已删除");
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "删除消息失败。");
+      setError(toSafeWorkspaceError(deleteError, "删除消息失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -629,7 +629,7 @@ export function RenewalWorkspace() {
       );
       setStatus(isMessageImportant(payload.message) ? "已标记为重要消息" : "已取消重要标记");
     } catch (importantError) {
-      setError(importantError instanceof Error ? importantError.message : "重要消息更新失败。");
+      setError(toSafeWorkspaceError(importantError, "重要消息更新失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -669,7 +669,7 @@ export function RenewalWorkspace() {
       );
       setStatus(`主动回响已标记为${formatDraftStatus(status, null)}`);
     } catch (draftError) {
-      const message = draftError instanceof Error ? draftError.message : "主动回响状态更新失败。";
+      const message = toSafeWorkspaceError(draftError, "主动回响状态更新失败。");
       setProactiveError(message);
       setStatus("主动回响状态更新失败，请稍后重试");
     } finally {
@@ -696,7 +696,7 @@ export function RenewalWorkspace() {
       mergeMemory(payload.memory);
       setStatus("记忆状态已更新");
     } catch (memoryError) {
-      setError(memoryError instanceof Error ? memoryError.message : "记忆更新失败。");
+      setError(toSafeWorkspaceError(memoryError, "记忆更新失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -730,7 +730,7 @@ export function RenewalWorkspace() {
       setEditingMemoryType("user_fact");
       setStatus("记忆内容已更新");
     } catch (memoryError) {
-      setError(memoryError instanceof Error ? memoryError.message : "记忆保存失败。");
+      setError(toSafeWorkspaceError(memoryError, "记忆保存失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -767,7 +767,7 @@ export function RenewalWorkspace() {
       );
       setStatus("记忆已删除");
     } catch (memoryError) {
-      setError(memoryError instanceof Error ? memoryError.message : "记忆删除失败。");
+      setError(toSafeWorkspaceError(memoryError, "记忆删除失败。"));
     } finally {
       setBusyMessageId(null);
     }
@@ -811,7 +811,7 @@ export function RenewalWorkspace() {
       setProactiveSafety(payload.safety ?? null);
       setStatus(payload.data?.length ? "主动回响草稿已生成" : "暂无可发送的主动回响草稿");
     } catch (draftError) {
-      const message = draftError instanceof Error ? draftError.message : "主动回响生成失败。";
+      const message = toSafeWorkspaceError(draftError, "主动回响生成失败。");
       setProactiveError(message);
       setStatus("主动回响生成失败，请稍后重试");
     } finally {
@@ -858,7 +858,7 @@ export function RenewalWorkspace() {
         `已导入 ${payload.importSummary?.createdCount ?? payload.memories.length} 条候选记忆`
       );
     } catch (importFailure) {
-      const message = importFailure instanceof Error ? importFailure.message : "导入失败。";
+      const message = toSafeWorkspaceError(importFailure, "导入失败。");
       setImportError(message);
       setStatus("导入失败，请检查内容后重试");
     } finally {
@@ -1087,7 +1087,7 @@ export function RenewalWorkspace() {
       setDraft(payload.text);
       setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
-      setError(voiceError instanceof Error ? voiceError.message : "语音转写失败。");
+      setError(toSafeWorkspaceError(voiceError, "语音转写失败。"));
       setStatus("语音转写失败，请稍后重试");
     } finally {
       setIsTranscribing(false);
@@ -1138,7 +1138,7 @@ export function RenewalWorkspace() {
       setDraft(payload.text);
       setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
-      setError(voiceError instanceof Error ? voiceError.message : "语音转写失败。");
+      setError(toSafeWorkspaceError(voiceError, "语音转写失败。"));
       setStatus("语音转写失败，请稍后重试");
     } finally {
       setIsTranscribing(false);
@@ -1180,7 +1180,7 @@ export function RenewalWorkspace() {
       setVoicePreview(payload);
       setStatus(`语音回复已生成 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
-      setError(voiceError instanceof Error ? voiceError.message : "语音回复生成失败。");
+      setError(toSafeWorkspaceError(voiceError, "语音回复生成失败。"));
       setStatus("语音回复生成失败，请稍后重试");
     } finally {
       setIsSynthesizing(false);
@@ -1208,8 +1208,7 @@ export function RenewalWorkspace() {
       setUsageDashboard(payload.dashboard);
       setStatus("模型调用看板已更新");
     } catch (usageLoadError) {
-      const message =
-        usageLoadError instanceof Error ? usageLoadError.message : "模型调用看板加载失败。";
+      const message = toSafeWorkspaceError(usageLoadError, "模型调用看板加载失败。");
       setUsageError(message);
       setStatus("模型调用看板加载失败，请稍后重试");
     } finally {
@@ -2350,10 +2349,52 @@ function toCompanionPayload(form: RelationshipObjectFormState) {
 async function readResponseError(response: Response, fallback: string) {
   try {
     const payload = (await response.json()) as { error?: unknown };
-    return typeof payload.error === "string" && payload.error.trim() ? payload.error : fallback;
+    return typeof payload.error === "string" && payload.error.trim()
+      ? redactWorkspaceError(payload.error, fallback)
+      : fallback;
   } catch {
     return fallback;
   }
+}
+
+function toSafeWorkspaceError(error: unknown, fallback: string) {
+  return redactWorkspaceError(error instanceof Error ? error.message : fallback, fallback);
+}
+
+function redactWorkspaceError(message: string, fallback = "操作失败，请稍后重试。") {
+  const trimmed = message.trim();
+  if (!trimmed) return fallback;
+
+  return [
+    {
+      pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+      replacement: "Bearer [已隐藏]"
+    },
+    {
+      pattern: /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
+      pattern: /\b(?:github_pat_[A-Za-z0-9_]{16,}|gh[pousr]_[A-Za-z0-9_]{16,})\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
+      pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
+      replacement: "[已隐藏敏感字段]"
+    },
+    {
+      pattern: /https?:\/\/[^\s"',;<>]+/gi,
+      replacement: "[已隐藏 Base URL]"
+    },
+    {
+      pattern: /\b(?:prompt|rawPayload|stack)\b/gi,
+      replacement: "[已隐藏调试字段]"
+    },
+    {
+      pattern: /\bat\s+\S+\s+\([^)]*\)/gi,
+      replacement: "[已隐藏堆栈]"
+    }
+  ].reduce((current, item) => current.replace(item.pattern, item.replacement), trimmed);
 }
 
 function canRecordVoice() {
