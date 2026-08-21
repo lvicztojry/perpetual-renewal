@@ -54,6 +54,7 @@ checkRequiredFiles(committableFiles);
 checkNextEnvTypeImports();
 checkRuntimeSourceBoundaries(committableFiles);
 checkRuntimeLoggingBoundaries(committableFiles);
+checkApiPrivacyBoundaries(committableFiles);
 
 if (findings.length > 0) {
   console.error("Git boundary check failed:");
@@ -158,6 +159,32 @@ function checkRuntimeLoggingBoundaries(files) {
     if (rawErrorLogPatterns.some((pattern) => pattern.test(content))) {
       findings.push(
         `${file} logs raw error details; use src/lib/logging/sanitize.ts safeLogValue() before runtime console output.`
+      );
+    }
+  }
+}
+
+function checkApiPrivacyBoundaries(files) {
+  const apiRouteFiles = files.filter((file) => /^src\/app\/api\/.*\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(file));
+  for (const file of apiRouteFiles) {
+    const content = readSourceFile(file);
+    if (!content) continue;
+
+    if (/NextResponse\.json\(\s*\{\s*error\s*:\s*error\s+instanceof\s+Error\s*\?\s*error\.message\b/.test(content)) {
+      findings.push(
+        `${file} returns raw error.message from an API route; map expected validation errors to stable safe copy.`
+      );
+    }
+  }
+
+  const voiceRouteFiles = files.filter((file) => /^src\/app\/api\/voice\/.*\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(file));
+  for (const file of voiceRouteFiles) {
+    const content = readSourceFile(file);
+    if (!content) continue;
+
+    if (/\bNextResponse\.json\(\s*result\s*\)/.test(content) || /\braw\s*:/.test(content)) {
+      findings.push(
+        `${file} may expose raw voice provider payloads; return only explicit safe response fields.`
       );
     }
   }

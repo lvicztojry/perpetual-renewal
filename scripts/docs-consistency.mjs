@@ -62,6 +62,12 @@ function checkDocsText(targetFiles) {
         findings.push(`${location} uses npm install; use npm ci for this lockfile-backed app.`);
       }
 
+      for (const snippet of staleDocumentationSnippets()) {
+        if (line.includes(snippet)) {
+          findings.push(`${location} contains stale documentation wording: ${snippet}.`);
+        }
+      }
+
       checkDerivedCount(
         location,
         line,
@@ -127,6 +133,13 @@ function checkDocsText(targetFiles) {
       }
     });
   }
+}
+
+function staleDocumentationSnippets() {
+  return [
+    "只返回 provider、model、baseUrl、key 尾号和指纹",
+    "已保存 key 后可只更新 provider/baseUrl/model"
+  ];
 }
 
 function checkDerivedCount(location, line, pattern, expected, label, options = {}) {
@@ -513,6 +526,8 @@ function checkDeploymentDocs() {
     ["docs/PR_DRAFT.md", "LLM_BASE_URL=https://api.tryanotherone.com/v1"],
     ["docs/PR_DRAFT.md", "VOICE_PROVIDER=shared-llm"],
     ["docs/PR_DRAFT.md", "user vault"],
+    ["docs/LLM.md", "端点是否已配置和端点指纹"],
+    ["docs/LLM.md", "不返回 key 原文、Base URL 明文或 `baseUrl` 字段"],
     ["docs/MVP_STATUS.md", "用户自带 API key"],
     ["docs/MVP_STATUS.md", "VOICE_PROVIDER=shared-llm"],
     ["docs/DEPLOYMENT.md", "https://api.tryanotherone.com/v1"],

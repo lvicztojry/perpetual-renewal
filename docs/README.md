@@ -18,7 +18,7 @@
 7. [PRIVACY.md](PRIVACY.md)：用户数据导出、用户自带 API key 不入仓库、不入导出快照的隐私规则。
 8. [ERROR_COPY.md](ERROR_COPY.md)：聊天、导入、语音、模型连接、导出、数据库和 cron secret 等错误状态的中文文案规范。
 9. [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md)：发布候选 20 分钟人工演示/验收脚本，覆盖全关系、聊天、记忆、导入、主动回响、模型、语音、用量、导出和移动端快检。
-10. [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)：发布候选 push/PR 交接说明、CI 预期、生产配置缺口和后续决策点。
+10. [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)：发布候选 push/PR 交接说明、CI 预期、生产配置缺口和后续动作。
 11. [PRE_COMMIT_CHECKLIST.md](PRE_COMMIT_CHECKLIST.md)：第一次 commit/push 前的文件边界、密钥、验收命令和真实配置检查。
 12. [COMMIT_PLAN.md](COMMIT_PLAN.md)：首次提交的推荐分组、提交信息和应纳入/排除文件范围。
 

@@ -60,7 +60,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：76 checks passed。
+- `smoke`：78 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：7 tests passed。
@@ -121,14 +121,14 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M44 发布口径自动检查：已新增 `npm run docs:check` 并接入 CI 与本地 verify，自动检查旧安装命令、裸 audit、旧 smoke 数字、生产迁移口径、`latest` 依赖、危险 `.env.example` 和 CI 文档门禁。
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
-- M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、生产配置缺口和后续决策点。
+- M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、生产配置缺口和后续动作。
 - M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 7 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
 - M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
 - M52 语音 shared-LLM 兼容性加固：语音 API 返回脱敏 runtime metadata，剥离内部 raw 字段，并兼容常见 STT/TTS 响应变体。
 - M53 主动回响成本护栏：`POST /api/proactive/run` 新增 `maxDrafts` 调度上限，默认限制单轮生成/保存草稿数量，降低全量 cron 一次生成过多草稿的风险。
-- M54 施工决策点收束：Taskbook 末尾旧的技术栈/模型/数据库/部署疑问已改为“已决策基线”和“仍需用户决策”。
+- M54 施工决策点收束：Taskbook 末尾旧的技术栈/模型/数据库/部署疑问已改为“已决策基线”和“仍需外部配置”。
 - M55 Session 接入状态收束：Taskbook 中 M1 的旧 userId 待接入状态已更新为当前 session `userId` 已接入 renewal API。
 - M56 Taskbook 状态门禁：已同步任务定义与当前任务快照的状态口径，并让 `npm run docs:check` 拦截关键任务状态漂移。
 - M57 账号删除：新增 `/api/me/account` 与设置页危险区，确认短语为“删除我的账号”，删除当前用户数据、vault、日志并清除 session；smoke 覆盖错误确认和正确删除。
@@ -150,6 +150,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M73 数据库文档状态收口：`docs/DATABASE.md` 移除旧的 mock-dev session 和 relationship-state mock-oriented 口径，改为当前 session userId 隔离、email session fallback demo user，以及 relationship-state API 走 Prisma/memory repository 持久化。
 - M74 运行时代码边界门禁：`git:boundary` 新增 API 路由不得直接调用 `request.json()`、运行时 `src/app`/`src/lib` 不得包含 `DEV-*` handoff 元数据的检查，防止 M71/M72 清理项回流。
 - M75 运行时隐私与决策口径收束：运行时 fallback warning 使用 `safeLogValue()` 脱敏；用户 LLM vault 状态不返回 Base URL 明文或 `baseUrl` 字段；模型列表失败不透传 provider 原始异常；smoke 覆盖 profile 关闭主动回响、credential endpoint 隐私和模型列表失败脱敏；docs check 收束 TryAnotherOne、用户自带 API key、`VOICE_PROVIDER=shared-llm` 和暂缓产品项口径。
+- M76 手动记忆候选 API 覆盖：smoke 覆盖 `POST /api/companions/:id/memories` 成功创建指定类型 pending 记忆、列表可见，以及 unsupported memory type 返回 400。
+- M77 API/导出隐私边界补强：LLM credential 保存失败只返回白名单业务文案；voice unsupported provider fallback 不回显误配值；用户导出会脱敏 profile 内误写入的 token/provider endpoint；git boundary 阻止 API route 直接返回 raw `error.message` 和 voice raw payload。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

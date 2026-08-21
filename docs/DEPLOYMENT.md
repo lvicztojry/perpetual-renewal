@@ -161,7 +161,7 @@ npm run smoke
 
 如果缺少 key/baseUrl/model，开发环境会 fallback 到 mock provider，并在响应里返回 `fallbackReason`。这适合无密钥开发，但不应作为生产配置。
 
-TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先保存用户 API key 和 `LLM_BASE_URL=https://api.tryanotherone.com/v1`，然后点击“读取模型列表”，从 `/api/me/llm-models` 返回的可选模型中选择模型名并保存连接配置。已保存 key 后，后续修改 provider/baseUrl/model 不需要重新输入 API key；服务端只沿用 vault 中的加密 key，不会把 key 原文返回到响应或日志。
+TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先保存用户 API key 和 `LLM_BASE_URL=https://api.tryanotherone.com/v1`，然后点击“读取模型列表”，从 `/api/me/llm-models` 返回的可选模型中选择模型名并保存连接配置。已保存 key 后，后续修改 provider/model 或输入新的 Base URL 不需要重新输入 API key；Base URL 输入框留空时沿用已保存端点。服务端只沿用 vault 中的加密 key 和端点配置，前端状态只返回端点是否已配置与端点指纹，不会把 key 原文、Base URL 明文或 provider 原始错误返回到响应或日志。
 
 保存配置后，可以在设置页点击“测试连接”。该按钮调用 `POST /api/me/llm-test`，复用用户 vault 或服务端 env key，低成本读取模型列表确认连接状态。无 key 时应返回明确的 `missing_api_key` 失败；成功或失败响应都不得包含 API key、Base URL 原文、Authorization header、prompt 或供应商 raw payload。测试连接不代表平台扣费、订阅或额度能力，仍然是用户自带 API 或部署方 env key 的连通性检查。
 

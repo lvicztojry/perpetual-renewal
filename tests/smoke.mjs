@@ -654,6 +654,53 @@ async function runSmoke() {
   );
   pass("conversation message plus pending memory");
 
+  const manualMemoryContent = "手动记忆：用户希望被记住喜欢夜里收到轻轻的问候。";
+  const manualMemories = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        sourceMessageId: sent.body.userMessage.id,
+        type: "emotional_preference",
+        content: manualMemoryContent
+      })
+    }
+  );
+  assert(manualMemories.response.status === 201, "manual memory creation should return 201");
+  assert(
+    manualMemories.body.memories?.length === 1 &&
+      manualMemories.body.memories[0].type === "emotional_preference" &&
+      manualMemories.body.memories[0].status === "pending" &&
+      manualMemories.body.memories[0].content === manualMemoryContent,
+    "manual memory creation should persist the requested pending memory"
+  );
+  const memoriesAfterManualCreate = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`
+  );
+  assert(
+    memoriesAfterManualCreate.body.memories?.some(
+      (memory) => memory.id === manualMemories.body.memories[0].id
+    ),
+    "manual memory should be visible in the companion memory list"
+  );
+  const unsupportedManualMemory = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        type: "unsupported_memory_type",
+        content: "这条不应该被写入。"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    unsupportedManualMemory.response.status === 400 &&
+      unsupportedManualMemory.body.error === "Unsupported memory type",
+    "manual memory creation should reject unsupported memory types"
+  );
+  pass("POST /api/companions/:id/memories creates manual memory candidates");
+
   const regenerated = await request(
     `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
     {
@@ -1290,6 +1337,26 @@ async function runSmoke() {
   );
   pass("GET /api/me/export sanitized user snapshot");
 
+  const profileEndpoint = "https://profile-gateway.example.com";
+  const profileToken = "token=profile-secret-0123456789";
+  await request("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify({
+      nickname: profileToken,
+      timezone: profileEndpoint,
+      language: "zh-CN"
+    })
+  });
+  const exportedWithProfileSecrets = await request("/api/me/export");
+  const exportedProfileText = JSON.stringify(exportedWithProfileSecrets.body);
+  assert(
+    !exportedProfileText.includes(profileEndpoint) &&
+      !exportedProfileText.includes("profile-secret-0123456789") &&
+      exportedProfileText.includes("[REDACTED_PROVIDER_ENDPOINT]") &&
+      exportedProfileText.includes("[REDACTED_SECRET]"),
+    "user export should scrub high-risk strings from profile fields"
+  );
+
   const voiceWithUserCredential = await request("/api/voice/synthesize", {
     method: "POST",
     body: JSON.stringify({
@@ -1350,6 +1417,53 @@ async function runSmoke() {
     "model list provider failures should not expose endpoint, key, headers, or raw payload"
   );
   pass("GET /api/me/llm-models sanitizes provider failures");
+
+  const unsupportedCredentialProvider = await request(
+    "/api/me/llm-credential",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "unsupported-provider",
+        apiKey: fakeKey,
+        baseUrl: savedEndpoint,
+        model: "smoke-model-updated"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    unsupportedCredentialProvider.response.status === 400 &&
+      unsupportedCredentialProvider.body.error === "Unsupported provider.",
+    "credential save should return stable copy for unsupported providers"
+  );
+  const malformedCredentialEndpoint = await request(
+    "/api/me/llm-credential",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: fakeKey,
+        baseUrl: "gateway.example.com/v1",
+        model: "smoke-model-updated"
+      })
+    },
+    { allowError: true }
+  );
+  assert(
+    malformedCredentialEndpoint.response.status === 400 &&
+      malformedCredentialEndpoint.body.error === "Base URL must start with http:// or https://.",
+    "credential save should return stable copy for malformed endpoints"
+  );
+  assert(
+    !JSON.stringify(unsupportedCredentialProvider.body).includes(fakeKey) &&
+      !JSON.stringify(unsupportedCredentialProvider.body).includes(savedEndpoint) &&
+      !JSON.stringify(malformedCredentialEndpoint.body).includes(fakeKey) &&
+      !JSON.stringify(malformedCredentialEndpoint.body).includes("gateway.example.com/v1") &&
+      !JSON.stringify(malformedCredentialEndpoint.body).includes("Bearer") &&
+      !JSON.stringify(malformedCredentialEndpoint.body).includes("baseUrl"),
+    "credential validation errors should not expose submitted key or endpoint values"
+  );
+  pass("PUT /api/me/llm-credential returns stable validation errors");
 
   const deletedCredential = await request("/api/me/llm-credential", { method: "DELETE" });
   assert(

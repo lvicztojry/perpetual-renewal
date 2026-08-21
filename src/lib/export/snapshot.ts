@@ -61,6 +61,10 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
   {
     pattern: /https?:\/\/[^\s"'<>]*(?:\/v1|\/v1beta|\/chat\/completions)[^\s"'<>]*/gi,
     replacement: "[REDACTED_PROVIDER_ENDPOINT]"
+  },
+  {
+    pattern: /https?:\/\/[^\s"'<>]*(?:gateway|provider|tryanotherone|openai|anthropic|gemini|api\.)[^\s"'<>]*/gi,
+    replacement: "[REDACTED_PROVIDER_ENDPOINT]"
   }
 ];
 
@@ -100,7 +104,7 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
     persistence: {
       renewal: repository.persistence
     },
-    profile,
+    profile: scrubSensitiveValue(profile) as typeof profile,
     credentialSummary: {
       llm: toCredentialSummary(credentialStatus)
     },

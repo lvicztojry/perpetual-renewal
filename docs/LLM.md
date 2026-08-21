@@ -38,9 +38,9 @@ LLM_MODEL=""
 设置页提供第一版用户级 LLM 密钥保存能力：
 
 - 保存接口：`PUT /api/me/llm-credential`。
-- 查询接口：`GET /api/me/llm-credential`，只返回 provider、model、baseUrl、key 尾号和指纹，不返回 key 原文。
+- 查询接口：`GET /api/me/llm-credential`，只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。
 - 删除接口：`DELETE /api/me/llm-credential`。
-- 模型列表接口：`GET /api/me/llm-models`，使用用户 vault 或服务端 env key 读取兼容中转站 `/models`，不返回 API key。
+- 模型列表接口：`GET /api/me/llm-models`，使用用户 vault 或服务端 env key 读取兼容中转站 `/models`，不返回 API key、Base URL 明文或 provider 原始错误。
 - 连接测试接口：`POST /api/me/llm-test`，使用用户 vault 中已保存的 key 或服务端 env key，并采用当前表单传入的 provider、baseUrl、model 做一次低成本模型列表探测。
 - 聊天链路优先使用当前用户 vault 中的 LLM 配置；未配置时回落服务端环境变量或 mock provider。
 - 密钥用 AES-256-GCM 加密保存，生产环境必须配置 `USER_KEY_VAULT_SECRET`。
@@ -310,7 +310,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `VOICE_PROVIDER=shared-llm`：语音与文本 LLM 共用 `LLM_API_KEY`、`LLM_BASE_URL`；STT/TTS 模型优先读取 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL`，为空时 fallback 到 `LLM_MODEL`。
 - `VOICE_PROVIDER=compatible`：`shared-llm` 的兼容别名，保留给兼容网关语义；新配置推荐只用 `LLM_*`。
 - `VOICE_CREDENTIAL_SOURCE=server-env`：服务端统一环境变量模式，适合自部署内测。
-- 用户级 vault：当当前用户保存了 `compatible` 或 `openai-compatible` 的 LLM key/baseUrl/model，语音 API 会优先复用这组加密凭据；非兼容音频协议的供应商继续走服务端 env 或 mock fallback。
+- 用户级 vault：当当前用户保存了 `compatible` 或 `openai-compatible` 的 LLM key、Base URL 和 model，语音 API 会优先复用这组服务端加密凭据；前端状态只显示端点配置状态和端点指纹，不显示 Base URL 明文。非兼容音频协议的供应商继续走服务端 env 或 mock fallback。
 - `VOICE_CREDENTIAL_SOURCE=user-vault`：表示真实语音请求来自用户 vault；key 加密保存，不写入仓库，也不返回给前端。
 - `.env.local`、`.env.*.local` 已在 `.gitignore`，真实 key 只放本地或部署平台 secret。
 - 如果缺少 key/baseUrl/model，或真实语音请求出现鉴权、限流、网络、超时、供应商响应异常，API 会安全 fallback 到 mock provider。

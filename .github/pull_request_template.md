@@ -37,7 +37,7 @@
 - Production secrets required before real deployment: `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, `PROACTIVE_CRON_SECRET`, and usable LLM key/model through user vault or deployment secret.
 - Voice defaults to `VOICE_PROVIDER=shared-llm`.
 
-## Follow-up Decisions
+## Follow-up Actions
 
 - [ ] Push branch and open PR.
 - [ ] Configure production PostgreSQL and secrets before deployment.

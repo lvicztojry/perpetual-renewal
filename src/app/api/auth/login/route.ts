@@ -29,9 +29,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ session, user });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to login." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: safeLoginErrorMessage(error) }, { status: 400 });
   }
+}
+
+function safeLoginErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message === "请输入有效的邮箱地址。") {
+    return error.message;
+  }
+
+  return "Failed to login.";
 }

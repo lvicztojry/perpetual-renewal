@@ -203,7 +203,7 @@ function readMockFallbackReason(requestedProvider: string | undefined) {
     return "VOICE_PROVIDER=mock; using mock voice provider.";
   }
 
-  return `Unsupported VOICE_PROVIDER=${requestedProvider}; using mock voice provider.`;
+  return "Unsupported VOICE_PROVIDER; using mock voice provider.";
 }
 
 function readFailureLabel(error: VoiceProviderError) {

@@ -11,7 +11,7 @@
 - Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
 - M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
 - M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M75 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, and runtime privacy hardening.
+- Recent release-candidate commits include M49-M77 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, and API/export privacy boundary hardening.
 - Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
 - M51 scope: import candidate dedupe.
 - M52 scope: shared-LLM voice metadata hardening.
@@ -38,6 +38,8 @@
 - M73 scope: database docs now match current session-scoped repository behavior and relationship-state persistence, replacing stale mock-dev/mock-oriented wording.
 - M74 scope: git boundary now blocks direct `request.json()` calls in API routes and `DEV-*` handoff metadata in runtime `src/app` or `src/lib` code.
 - M75 scope: runtime fallback warnings are sanitized, user LLM vault status no longer returns Base URL plaintext or a `baseUrl` field, model-list errors use stable friendly copy, smoke covers profile-driven proactive disable and endpoint privacy, and docs checks guard BYOK/TryAnotherOne/shared-LLM/deferred-product scope.
+- M76 scope: smoke now covers manual companion memory candidate creation success, list visibility, and unsupported memory type rejection.
+- M77 scope: credential save errors are mapped to stable safe copy, voice unsupported-provider fallback no longer echoes misconfigured env values, export scrubs profile fields, and git boundary blocks raw API error/voice payload regressions.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -51,7 +53,7 @@ Last updated: 2026-08-21
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 76 checks.
+- `npm run smoke`: passed, 78 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.

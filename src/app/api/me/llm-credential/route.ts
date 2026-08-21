@@ -46,10 +46,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to save credential." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: safeCredentialErrorMessage(error) }, { status: 400 });
   }
 }
 
@@ -66,7 +63,7 @@ function parseCredentialRequest(body: CredentialRequest) {
   const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl.trim() : undefined;
 
   if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
-    throw new Error("Base URL must start with http:// or https://.");
+    throw new CredentialValidationError("Base URL must start with http:// or https://.");
   }
 
   return {
@@ -79,7 +76,7 @@ function parseCredentialRequest(body: CredentialRequest) {
 
 function readProvider(value: unknown): LlmProviderAlias {
   if (typeof value !== "string" || !allowedProviders.has(value as LlmProviderAlias)) {
-    throw new Error("Unsupported provider.");
+    throw new CredentialValidationError("Unsupported provider.");
   }
 
   return value as LlmProviderAlias;
@@ -87,12 +84,12 @@ function readProvider(value: unknown): LlmProviderAlias {
 
 function readString(value: unknown, fieldName: string, min: number, max: number) {
   if (typeof value !== "string") {
-    throw new Error(`${fieldName} must be a string.`);
+    throw new CredentialValidationError(`${fieldName} must be a string.`);
   }
 
   const trimmed = value.trim();
   if (trimmed.length < min || trimmed.length > max) {
-    throw new Error(`${fieldName} must be between ${min} and ${max} characters.`);
+    throw new CredentialValidationError(`${fieldName} must be between ${min} and ${max} characters.`);
   }
 
   return trimmed;
@@ -109,8 +106,31 @@ function readOptionalString(value: unknown, fieldName: string, min: number, max:
   }
 
   if (trimmed.length < min) {
-    throw new Error(`${fieldName} must be between ${min} and ${max} characters.`);
+    throw new CredentialValidationError(`${fieldName} must be between ${min} and ${max} characters.`);
   }
 
   return trimmed;
+}
+
+function safeCredentialErrorMessage(error: unknown) {
+  if (error instanceof CredentialValidationError) {
+    return error.message;
+  }
+
+  const message = error instanceof Error ? error.message : "";
+  if (
+    message === "apiKey is required when no saved credential exists." ||
+    message === "compatible provider requires Base URL."
+  ) {
+    return message;
+  }
+
+  return "Failed to save credential.";
+}
+
+class CredentialValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialValidationError";
+  }
 }
