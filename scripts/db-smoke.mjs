@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import process from "node:process";
 import { loadLocalEnv } from "./load-local-env.mjs";
 
@@ -291,11 +292,11 @@ async function assertCleanup() {
 }
 
 function runPrismaCommand(label, command) {
-  const result = spawnSync(command[0], command.slice(1), {
+  const resolved = resolveCommand(command);
+  const result = spawnSync(resolved.command, resolved.args, {
     cwd: process.cwd(),
     env: process.env,
-    encoding: "utf8",
-    shell: process.platform === "win32"
+    encoding: "utf8"
   });
 
   if (result.stdout) {
@@ -307,6 +308,16 @@ function runPrismaCommand(label, command) {
   if (result.status !== 0) {
     throw new Error(`Prisma ${label} failed with exit code ${result.status ?? "unknown"}.`);
   }
+}
+
+function resolveCommand(command) {
+  if (command[0] === "prisma") {
+    return {
+      command: process.execPath,
+      args: [join(process.cwd(), "node_modules", "prisma", "build", "index.js"), ...command.slice(1)]
+    };
+  }
+  return { command: command[0], args: command.slice(1) };
 }
 
 function sanitize(value) {

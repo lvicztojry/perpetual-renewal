@@ -99,6 +99,8 @@ npm run env:readiness -- --strict
 
 该脚本只输出状态、说明和下一步，不打印真实连接串、API key、Base URL 或 secret。默认不强制要求服务端 LLM key，因为第一版支持用户在设置页保存自己的 API key；如部署策略要求服务端兜底 key，可运行 `npm run env:readiness -- --strict --server-llm-required`。
 
+Prisma 相关 npm 脚本也会先读取项目根目录的 `.env.local`/`.env`，再调用本地 Prisma CLI；因此 `npm run prisma:migrate`、`npm run prisma:migrate:deploy`、`npm run prisma:generate` 和 `npm run prisma:seed` 与 `env:readiness` 使用同一套本地配置来源。
+
 ## Local PostgreSQL Setup
 
 1. 在 Neon 创建 PostgreSQL 项目。

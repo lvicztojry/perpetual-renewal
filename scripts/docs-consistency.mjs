@@ -381,10 +381,14 @@ function checkPackageJson() {
   }
 
   const scripts = packageJson.scripts ?? {};
-  expectEqual(scripts["prisma:migrate"], "prisma migrate dev", "package.json scripts.prisma:migrate");
+  expectEqual(
+    scripts["prisma:migrate"],
+    "node scripts/prisma-command.mjs migrate dev",
+    "package.json scripts.prisma:migrate"
+  );
   expectEqual(
     scripts["prisma:migrate:deploy"],
-    "prisma migrate deploy",
+    "node scripts/prisma-command.mjs migrate deploy",
     "package.json scripts.prisma:migrate:deploy"
   );
   expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
