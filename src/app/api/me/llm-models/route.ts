@@ -36,9 +36,23 @@ function toModelListError(error: unknown) {
     }
 
     if (error.code === "provider_http_error") {
-      return error.options.httpStatus === 401 || error.options.httpStatus === 403
-        ? "模型供应商拒绝了这次请求，请检查 API key 权限或额度。"
-        : "模型供应商返回了异常状态，请检查模型供应商配置或稍后再试。";
+      if (error.options.httpStatus === 401 || error.options.httpStatus === 403) {
+        return "模型供应商拒绝了这次请求，请检查 API key 权限或额度。";
+      }
+
+      if (error.options.httpStatus === 404) {
+        return "模型列表端点不可用，可以手动填写模型名后测试连接。";
+      }
+
+      if (error.options.httpStatus === 429) {
+        return "模型供应商暂时限流，请稍后重试；也可以手动填写模型名。";
+      }
+
+      if (typeof error.options.httpStatus === "number" && error.options.httpStatus >= 500) {
+        return "模型供应商暂时异常，请稍后重试；也可以手动填写模型名。";
+      }
+
+      return "模型供应商返回了异常状态，请检查模型供应商配置或稍后再试。";
     }
 
     if (error.code === "provider_timeout") {

@@ -16,7 +16,7 @@ const checks = [
   databaseUnpooledCheck(),
   secretCheck("USER_KEY_VAULT_SECRET", "用户 API key vault 加密主密钥"),
   sessionCookieSecretCheck(),
-  secretCheck("PROACTIVE_CRON_SECRET", "主动回响 all-user cron 密钥"),
+  proactiveCronSecretCheck(),
   llmProviderCheck(),
   llmCredentialCheck(),
   llmModelCheck(),
@@ -183,6 +183,47 @@ function sessionCookieSecretCheck() {
       source === "SESSION_COOKIE_SECRET"
         ? "Keep the value out of source control and screenshots."
         : "Optionally set SESSION_COOKIE_SECRET separately to split signing and vault responsibilities."
+  };
+}
+
+function proactiveCronSecretCheck() {
+  const primary = process.env.PROACTIVE_CRON_SECRET?.trim();
+  const vercelAlias = process.env.CRON_SECRET?.trim();
+  const source = primary ? "PROACTIVE_CRON_SECRET" : vercelAlias ? "CRON_SECRET" : null;
+  const value = primary || vercelAlias;
+
+  if (!value) {
+    return {
+      label: "PROACTIVE_CRON_SECRET",
+      status: "missing",
+      required: true,
+      strictWarning: false,
+      detail: "主动回响 all-user cron 密钥 is not configured.",
+      next: "Set PROACTIVE_CRON_SECRET, or CRON_SECRET for Vercel Cron, to a 32-byte-or-longer random value."
+    };
+  }
+
+  if (Buffer.byteLength(value, "utf8") < minimumSecretBytes) {
+    return {
+      label: "PROACTIVE_CRON_SECRET",
+      status: "warning",
+      required: true,
+      strictWarning: true,
+      detail: `${source} is present but shorter than ${minimumSecretBytes} bytes.`,
+      next: "Replace it with a stronger random value before production."
+    };
+  }
+
+  return {
+    label: "PROACTIVE_CRON_SECRET",
+    status: "ready",
+    required: true,
+    strictWarning: false,
+    detail:
+      source === "CRON_SECRET"
+        ? "Vercel Cron CRON_SECRET alias is configured with sufficient length."
+        : "主动回响 all-user cron 密钥 is configured with sufficient length.",
+    next: "Keep the value out of source control and screenshots."
   };
 }
 

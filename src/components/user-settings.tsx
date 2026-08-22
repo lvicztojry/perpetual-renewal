@@ -83,6 +83,13 @@ type LlmConnectionTestResponse = {
   retryable?: boolean;
 };
 
+type ModelListFailure = {
+  message: string;
+  hint: string;
+  retryable: boolean;
+  manualModelAllowed: boolean;
+};
+
 type ConfigReadinessItem = {
   id: string;
   label: string;
@@ -148,6 +155,7 @@ export function UserSettings() {
     provider: string;
     credentialSource: "user-vault" | "server-env";
   } | null>(null);
+  const [modelListFailure, setModelListFailure] = useState<ModelListFailure | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [connectionTestStatus, setConnectionTestStatus] = useState<
     "idle" | "testing" | "success" | "error"
@@ -331,6 +339,7 @@ export function UserSettings() {
       });
       setModels([]);
       setModelListMeta(null);
+      setModelListFailure(null);
       setConnectionTestResult(null);
       setConnectionTestStatus("idle");
       void reloadConfigStatus();
@@ -346,6 +355,8 @@ export function UserSettings() {
   async function loadModels() {
     setIsLoadingModels(true);
     setCredentialError("");
+    setModelListFailure(null);
+    let nextFailure: ModelListFailure | null = null;
 
     try {
       if (!isCompatibleProvider) {
@@ -360,7 +371,9 @@ export function UserSettings() {
       const payload: LlmModelListResponse = await response.json();
 
       if (!response.ok || !payload.models) {
-        throw new Error(formatModelListError(payload));
+        const message = formatModelListError(payload);
+        nextFailure = toModelListFailure(payload, message);
+        throw new Error(message);
       }
 
       setModels(payload.models);
@@ -368,9 +381,11 @@ export function UserSettings() {
         provider: payload.provider ?? "compatible",
         credentialSource: payload.credentialSource ?? "server-env"
       });
+      setModelListFailure(null);
     } catch (modelLoadError) {
       const message = modelLoadError instanceof Error ? modelLoadError.message : "读取模型列表失败";
-      setCredentialError(redactCredentialSecrets(message, credentialForm));
+      const safeMessage = redactCredentialSecrets(message, credentialForm);
+      setModelListFailure(nextFailure ?? toGenericModelListFailure(safeMessage));
     } finally {
       setIsLoadingModels(false);
     }
@@ -382,6 +397,10 @@ export function UserSettings() {
     setCredentialError("");
 
     try {
+      if (credentialForm.apiKey.trim() || (credentialHasSavedKey && hasCredentialConfigChanges)) {
+        await persistCredential({ quiet: true });
+      }
+
       const response = await fetch("/api/me/llm-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -552,12 +571,18 @@ export function UserSettings() {
     }));
     setModels([]);
     setModelListMeta(null);
+    setModelListFailure(null);
     setConnectionTestResult(null);
     setConnectionTestStatus("idle");
   }
 
   function updateCredentialField(field: keyof CredentialFormState, value: string) {
     setCredentialForm((current) => ({ ...current, [field]: value }));
+    if (field === "provider" || field === "baseUrl" || field === "apiKey") {
+      setModels([]);
+      setModelListMeta(null);
+      setModelListFailure(null);
+    }
     setConnectionTestResult(null);
     setConnectionTestStatus("idle");
   }
@@ -811,6 +836,38 @@ export function UserSettings() {
               <RefreshCw size={17} />
               {isLoadingModels ? "读取中" : "读取模型列表"}
             </button>
+            {modelListFailure ? (
+              <div aria-live="polite" className="status-box">
+                <strong>{modelListFailure.message}</strong>
+                <span>{modelListFailure.hint}</span>
+                <div className="settings-actions">
+                  {modelListFailure.retryable ? (
+                    <button
+                      className="text-button"
+                      disabled={isLoadingModels}
+                      onClick={loadModels}
+                      type="button"
+                    >
+                      <RefreshCw size={17} />
+                      重试读取
+                    </button>
+                  ) : null}
+                  {modelListFailure.manualModelAllowed ? (
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setModelListFailure(null);
+                        setCredentialError("");
+                      }}
+                      type="button"
+                    >
+                      <Check size={17} />
+                      改为手动填写
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {models.length ? (
               <>
                 {modelListMeta ? (
@@ -1042,6 +1099,95 @@ function readModelListErrorDetail(payload: LlmModelListResponse) {
   }
 
   return "";
+}
+
+function toModelListFailure(
+  payload: LlmModelListResponse,
+  message: string
+): ModelListFailure {
+  const retryable = payload.retryable === true;
+  const manualModelAllowed =
+    payload.errorType !== "missing_api_key" && payload.errorType !== "unsupported_provider";
+
+  if (payload.errorType === "provider_http_error" && payload.httpStatus === 404) {
+    return {
+      message,
+      retryable: false,
+      manualModelAllowed: true,
+      hint:
+        "这个中转站可能没有开放 /models 列表端点。可以直接在“模型”里填写中转站控制台给出的模型名，再点“测试连接”。"
+    };
+  }
+
+  if (payload.errorType === "invalid_provider_response") {
+    return {
+      message,
+      retryable: false,
+      manualModelAllowed: true,
+      hint:
+        "模型列表返回格式和 OpenAI-compatible 列表不一致，但聊天接口仍可能可用。请手动填写模型名后测试连接。"
+    };
+  }
+
+  if (payload.errorType === "provider_timeout" || payload.errorType === "provider_network_error") {
+    return {
+      message,
+      retryable: true,
+      manualModelAllowed: true,
+      hint:
+        "这通常是网络波动、网关临时不可达或地址写错。确认供应商地址后可以重试；也可以先手动填写模型名测试聊天链路。"
+    };
+  }
+
+  if (payload.errorType === "provider_http_error" && payload.httpStatus === 429) {
+    return {
+      message,
+      retryable: true,
+      manualModelAllowed: true,
+      hint:
+        "供应商暂时限流。稍后可以重试读取列表；如果已经知道模型名，可以先手动填写并测试连接。"
+    };
+  }
+
+  if (payload.errorType === "provider_http_error" && payload.httpStatus && payload.httpStatus >= 500) {
+    return {
+      message,
+      retryable,
+      manualModelAllowed: true,
+      hint:
+        "供应商服务暂时异常。可以稍后重试；如果模型名已知，可以手动填写后先验证聊天连接。"
+    };
+  }
+
+  if (payload.errorType === "missing_api_key") {
+    return {
+      message,
+      retryable: false,
+      manualModelAllowed: false,
+      hint: "请先保存 API Key，或在服务端配置可用的 LLM_API_KEY。页面不会展示已保存的完整 key。"
+    };
+  }
+
+  return {
+    message,
+    retryable,
+    manualModelAllowed,
+    hint: manualModelAllowed
+      ? "读取列表失败不阻断使用。可以手动填写模型名，然后用“测试连接”确认配置是否可用。"
+      : "请先保存 API Key，或在服务端配置可用的 LLM_API_KEY。页面不会展示已保存的完整 key。"
+  };
+}
+
+function toGenericModelListFailure(message: string): ModelListFailure {
+  const manualModelAllowed = !message.includes("API Key");
+  return {
+    message,
+    retryable: true,
+    manualModelAllowed,
+    hint: manualModelAllowed
+      ? "读取列表失败不阻断使用。可以手动填写模型名，然后用“测试连接”确认配置是否可用。"
+      : "请先保存 API Key，或在服务端配置可用的 LLM_API_KEY。页面不会展示已保存的完整 key。"
+  };
 }
 
 function toFriendlyExportError(error: unknown) {

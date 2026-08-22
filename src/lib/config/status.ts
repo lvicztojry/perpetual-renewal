@@ -58,14 +58,7 @@ export async function getConfigReadinessSnapshot(
         "生成 32 bytes 以上强随机值，并只写入 .env.local 或部署平台 secret。"
     }),
     sessionSecretItem(),
-    secretItem({
-      id: "cron_secret",
-      label: "主动回响 cron secret",
-      envName: "PROACTIVE_CRON_SECRET",
-      configuredDescription: "已检测到 all-user 主动回响调度密钥。",
-      missingNextStep:
-        "生成另一段强随机值，不能和 vault secret、数据库密码或 API key 复用。"
-    }),
+    proactiveCronSecretItem(),
     {
       id: "llm_key",
       label: "LLM API key",
@@ -174,6 +167,45 @@ function secretItem(input: {
     label: input.label,
     status: "ready",
     description: input.configuredDescription,
+    nextStep: "继续确认该值只存在于本机或部署平台 secret。"
+  };
+}
+
+function proactiveCronSecretItem(): ConfigReadinessItem {
+  const primary = process.env.PROACTIVE_CRON_SECRET?.trim();
+  const vercelAlias = process.env.CRON_SECRET?.trim();
+  const source = primary ? "PROACTIVE_CRON_SECRET" : vercelAlias ? "CRON_SECRET" : null;
+  const value = primary || vercelAlias;
+
+  if (!value) {
+    return {
+      id: "cron_secret",
+      label: "主动回响 cron secret",
+      status: "missing",
+      description: "未检测到生产 secret。",
+      nextStep:
+        "生成另一段强随机值；外部 cron 可配置 PROACTIVE_CRON_SECRET，Vercel Cron 可配置 CRON_SECRET。"
+    };
+  }
+
+  if (Buffer.byteLength(value, "utf8") < minimumSecretBytes) {
+    return {
+      id: "cron_secret",
+      label: "主动回响 cron secret",
+      status: "warning",
+      description: `${source} 已配置，但长度偏短。`,
+      nextStep: "更换为 32 bytes 以上强随机值，不要写入仓库。"
+    };
+  }
+
+  return {
+    id: "cron_secret",
+    label: "主动回响 cron secret",
+    status: "ready",
+    description:
+      source === "CRON_SECRET"
+        ? "已检测到 Vercel Cron 使用的 CRON_SECRET。"
+        : "已检测到 all-user 主动回响调度密钥。",
     nextStep: "继续确认该值只存在于本机或部署平台 secret。"
   };
 }

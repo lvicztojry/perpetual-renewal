@@ -436,7 +436,8 @@ function checkEnvExample() {
     "DATABASE_URL_UNPOOLED",
     "USER_KEY_VAULT_SECRET",
     "SESSION_COOKIE_SECRET",
-    "PROACTIVE_CRON_SECRET"
+    "PROACTIVE_CRON_SECRET",
+    "CRON_SECRET"
   ];
 
   for (const envName of requiredEmptyEnv) {
@@ -692,9 +693,12 @@ function checkProactiveSchedulerDocs() {
     ["docs/DEPLOYMENT.md", "后续迁移队列"],
     ["docs/DEPLOYMENT.md", "后续后台调度模块"],
     ["docs/DEPLOYMENT.md", "后续调度模块"],
+    ["docs/DEPLOYMENT.md", "仓库已包含 `vercel.json`"],
     ["docs/TASKBOOK.md", "供后续后台调度模块"],
     ["docs/TASKBOOK.md", "供后续调度模块"],
-    ["docs/DEPLOYMENT.md", "应用进程内常驻后台定时器"]
+    ["docs/DEPLOYMENT.md", "应用进程内常驻后台定时器"],
+    ["docs/RELEASE_HANDOFF.md", "`vercel.json` minute cadence"],
+    ["docs/RELEASE_HANDOFF.md", "`vercel.json` wires the protected proactive scheduler path"]
   ];
 
   for (const [file, snippet] of staleSnippets) {
@@ -710,8 +714,11 @@ function checkProactiveSchedulerDocs() {
     ["docs/ARCHITECTURE.md", "Vercel Cron"],
     ["docs/ARCHITECTURE.md", "应用进程内不常驻调度器"],
     ["docs/DEPLOYMENT.md", "POST /api/proactive/run"],
+    ["docs/DEPLOYMENT.md", "GET /api/proactive/run"],
     ["docs/DEPLOYMENT.md", "PROACTIVE_CRON_SECRET"],
+    ["docs/DEPLOYMENT.md", "CRON_SECRET"],
     ["docs/DEPLOYMENT.md", "Vercel Cron"],
+    ["docs/DEPLOYMENT.md", "GitHub Actions scheduled workflow"],
     ["docs/DEPLOYMENT.md", "应用进程内不常驻调度器"]
   ];
 

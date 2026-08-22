@@ -150,7 +150,9 @@ test("settings reads provider models and keeps API key private", async ({ page }
       contentType: "application/json",
       status: 400,
       body: JSON.stringify({
-        error: "读取模型列表失败，请检查模型供应商配置或稍后再试。"
+        error: "读取模型列表超时，请稍后再试。",
+        errorType: "provider_timeout",
+        retryable: true
       })
     });
   });
@@ -171,7 +173,10 @@ test("settings reads provider models and keeps API key private", async ({ page }
   await expect(page.getByLabel("模型")).toHaveValue("tryanotherone/e2e-memory-pro");
 
   await page.getByRole("button", { name: "读取模型列表" }).click();
-  await expect(page.getByText("读取模型列表失败，请检查模型供应商配置或稍后再试。")).toBeVisible();
+  await expect(page.getByText("读取模型列表超时，请稍后再试。（请求超时，可以稍后重试）")).toBeVisible();
+  await expect(page.getByText("这通常是网络波动、网关临时不可达或地址写错。确认供应商地址后可以重试；也可以先手动填写模型名测试聊天链路。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "重试读取" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "改为手动填写" })).toBeVisible();
   await expect(page.getByText(fakeApiKey)).toHaveCount(0);
   expect(modelListRequests).toBe(2);
 });

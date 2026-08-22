@@ -62,6 +62,7 @@ LLM_MODEL="provider-model-name"
 USER_KEY_VAULT_SECRET="generate-a-long-random-secret"
 SESSION_COOKIE_SECRET=""
 PROACTIVE_CRON_SECRET="generate-a-different-long-random-secret"
+CRON_SECRET=""
 
 LLM_INPUT_COST_USD_PER_1M="0"
 LLM_OUTPUT_COST_USD_PER_1M="0"
@@ -81,6 +82,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `USER_KEY_VAULT_SECRET` 用于用户级 API key vault 加密。生产必须配置强随机值，泄露后应轮换用户密钥。
 - `SESSION_COOKIE_SECRET` 可单独用于 HMAC 签名 session cookie。为空时会复用强 `USER_KEY_VAULT_SECRET`，但生产更推荐单独配置以拆分职责。
 - `PROACTIVE_CRON_SECRET` 用于保护 `/api/proactive/run` 的 all-user 调度入口。不要和 `USER_KEY_VAULT_SECRET` 复用。
+- `CRON_SECRET` 是 Vercel Cron 的同用途 alias；Vercel 会把它作为 Bearer token 发给 cron 路径。使用 Vercel Cron 时，可把它设置为与 `PROACTIVE_CRON_SECRET` 相同的强随机值，或只设置 `CRON_SECRET`。
 - `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
 - 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
@@ -94,7 +96,7 @@ npm run env:readiness
 
 该命令会读取项目根目录的 `.env.local`/`.env`，便于本地真实配置和 Next.js 开发习惯保持一致；如果环境变量已由 shell、CI 或部署平台注入，则优先使用已存在的进程环境变量。
 
-生产前可加 strict 模式，让缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 或 `PROACTIVE_CRON_SECRET` 时直接失败：
+生产前可加 strict 模式，让缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 或主动回响 cron secret 时直接失败：
 
 ```bash
 npm run env:readiness -- --strict
@@ -141,7 +143,7 @@ npm run db:smoke
 npm run verify:deploy
 ```
 
-该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 来源或 `PROACTIVE_CRON_SECRET` 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
+该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 来源或主动回响 cron secret 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
 
 生产环境不要依赖内存 fallback。部署环境必须配置可访问的 `DATABASE_URL`，让 Prisma 错误在上线时直接暴露。Preview/production 目标库迁移使用后文 Vercel Deployment 里的 `npm run prisma:migrate:deploy`，不要使用交互式 `prisma migrate dev`。
 
@@ -202,6 +204,7 @@ VOICE_CREDENTIAL_SOURCE
 USER_KEY_VAULT_SECRET
 SESSION_COOKIE_SECRET
 PROACTIVE_CRON_SECRET
+CRON_SECRET
 ```
 
 3. Build command 使用：
@@ -245,15 +248,60 @@ npm run smoke
 
 ```text
 POST /api/proactive/run
+GET /api/proactive/run
 ```
 
-第一版应用进程内不常驻调度器，也不依赖后台 worker。Vercel Cron、GitHub Actions scheduled workflow 或外部 cron 可以按固定频率调用这个受保护的 POST 入口。
+第一版应用进程内不常驻调度器，也不依赖后台 worker。Vercel Cron、GitHub Actions scheduled workflow 或外部 cron 可以按固定频率调用这个受保护入口。
 
-默认 `scope` 是 `current-user`，适合登录用户手动触发或 smoke 验证。生产定时调用若要扫描全部用户，必须使用 `scope: all`，设置 `PROACTIVE_CRON_SECRET`，并在请求头携带：
+Vercel Cron 使用 GET 请求。若决定让部署后自动演示主动回响，可以在仓库根目录创建 `vercel.json`：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/proactive/run?limit=20&maxDrafts=50",
+      "schedule": "* * * * *"
+    }
+  ]
+}
+```
+
+GET 入口只支持 all-user 调度，必须携带 Bearer cron secret；成功鉴权后默认 `dryRun:false`，由调度器自身的频率、去重和 `maxDrafts` 护栏控制实际草稿生成量。Vercel Cron 需要在部署平台配置 `CRON_SECRET`，它会作为 Bearer token 发送到 cron 路径。若当前 Vercel 套餐不允许每分钟 cron，可先把 `schedule` 改成平台允许的最低频率；主动回响对象自身仍可配置 1 分钟候选频率。
+
+POST 入口仍保留给 GitHub Actions、外部 cron、手动验证和 smoke。默认 `scope` 是 `current-user`，适合登录用户手动触发或 smoke 验证。生产定时调用若要扫描全部用户，必须使用 `scope: all`，设置 `PROACTIVE_CRON_SECRET` 或 `CRON_SECRET`，并在请求头携带：
 
 ```text
-Authorization: Bearer <PROACTIVE_CRON_SECRET>
+Authorization: Bearer <PROACTIVE_CRON_SECRET_OR_CRON_SECRET>
 ```
+
+GitHub Actions scheduled workflow 示例：
+
+```yaml
+name: proactive-cron
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger proactive scheduler
+        run: |
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "Authorization: Bearer $PROACTIVE_CRON_SECRET" \
+            --data '{"scope":"all","dryRun":false,"limit":20,"maxDrafts":50}' \
+            "$APP_URL/api/proactive/run"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          PROACTIVE_CRON_SECRET: ${{ secrets.PROACTIVE_CRON_SECRET }}
+```
+
+如果只想先做生产演练，把 Vercel 路径改成 `/api/proactive/run?dryRun=true&limit=5&maxDrafts=5`，或把 Actions JSON 里的 `dryRun` 改成 `true`。演练通过的判断是接口返回 200、`scope:"all"`、`authMode:"cron-secret"`，并且 `savedCount` 为 0。
 
 建议上线初期先用 `dryRun:true` 观察 `generatedCount` 和 `savedCount`，确认频率设置合理后再切到 `dryRun:false`。接口只返回调度摘要、草稿数量和候选时间，不返回 cron secret、API key、数据库连接串或 prompt。
 
@@ -267,7 +315,7 @@ Authorization: Bearer <PROACTIVE_CRON_SECRET>
 - [ ] `DATABASE_URL_UNPOOLED` 可选配置为 Neon direct 连接串，用于 Prisma 迁移；仓库中只保留空占位。
 - [ ] `USER_KEY_VAULT_SECRET` 已配置为生产专用强随机值，长度至少 32 bytes，且没有复用开发值。
 - [ ] `SESSION_COOKIE_SECRET` 可选独立配置为生产专用强随机值，长度至少 32 bytes；未配置时确认 `USER_KEY_VAULT_SECRET` 足够强并可作为 session 签名来源。
-- [ ] `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，不能与 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET`、数据库密码或供应商 API key 相同。
+- [ ] `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，不能与 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET`、数据库密码或供应商 API key 相同；使用 Vercel Cron 时也配置 `CRON_SECRET` 或用 `CRON_SECRET` alias。
 - [ ] `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1` 已确认；`LLM_API_KEY` 只在服务端环境变量或用户 vault 中保存。
 - [ ] `VOICE_PROVIDER=shared-llm` 已确认；语音复用 LLM 中转站凭据，只通过 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 指定语音模型。
 - [ ] `.env.local`、`.env.*.local`、`.npm-cache/` 不会被 Git 跟踪。
@@ -302,10 +350,10 @@ npm run env:secrets
 
 ### 4. Proactive Cron Gate
 
-- [ ] 第一版没有应用进程内常驻调度器；生产 all-user 调度由 Vercel Cron、GitHub Actions 或外部 cron 调用 `POST /api/proactive/run`。
-- [ ] `scope: all` 只允许携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET>` 或 `x-proactive-cron-secret` 的请求访问。
+- [ ] 第一版没有应用进程内常驻调度器；生产 all-user 调度由 Vercel Cron 调用 `GET /api/proactive/run`，或由 GitHub Actions/外部 cron 调用 `POST /api/proactive/run`。
+- [ ] all-user 调度只允许携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET_OR_CRON_SECRET>` 或 `x-proactive-cron-secret` 的请求访问。
 - [ ] Cron 平台中只配置 secret 值，不把 secret 写进 URL query、日志命令或仓库脚本。
-- [ ] 首次上线先用 `dryRun:true` 验证扫描数量和候选时间，再切换为 `dryRun:false`。
+- [ ] 首次上线先用 POST `dryRun:true` 验证扫描数量和候选时间，再启用 Vercel Cron 或切换外部 cron 为 `dryRun:false`。
 - [ ] 调度响应不包含 cron secret、API key、数据库连接串、prompt 或消息正文。
 
 ### 5. Local and CI Verification Gate
@@ -357,6 +405,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `USER_KEY_VAULT_SECRET` 已配置为强随机值，且不在仓库中。
 - session 签名 secret 来源已确认：独立 `SESSION_COOKIE_SECRET`，或足够强的 `USER_KEY_VAULT_SECRET` fallback，且不在仓库中。
 - `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，且不在仓库中。
+- Vercel Cron 部署已配置 `CRON_SECRET`，或确认当前部署不使用 Vercel Cron。
 - 设置页“配置状态”已人工检查并重新检查过，确认不暴露 `DATABASE_URL`、API key、Base URL、vault secret、session secret 或 cron secret 原文。
 - `npm run secrets:check` 通过。
 - `npm run prisma:validate` 通过。

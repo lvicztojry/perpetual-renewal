@@ -13,6 +13,30 @@ type ProactiveRunRequest = {
 
 export const dynamic = "force-dynamic";
 
+export async function GET(request: Request) {
+  if (!isCronAuthorized(request)) {
+    return privateJson(
+      { error: "Cron authorization is required for proactive runs." },
+      { status: 401 }
+    );
+  }
+
+  const url = new URL(request.url);
+  const now = readNow(url.searchParams.get("now") ?? undefined);
+  const result = await runProactiveScheduler({
+    dryRun: readBooleanQuery(url.searchParams.get("dryRun")) ?? false,
+    limit: readNumberQuery(url.searchParams.get("limit")),
+    maxDrafts: readNumberQuery(url.searchParams.get("maxDrafts")),
+    now
+  });
+
+  return privateJson({
+    ...result,
+    authMode: "cron-secret",
+    now: now.toISOString()
+  });
+}
+
 export async function POST(request: Request) {
   let body: ProactiveRunRequest;
 
@@ -63,10 +87,34 @@ function readNow(value: string | undefined) {
 }
 
 function isCronAuthorized(request: Request) {
-  const expected = process.env.PROACTIVE_CRON_SECRET?.trim();
-  if (!expected) return false;
+  const expectedSecrets = readCronSecrets();
+  if (!expectedSecrets.length) return false;
 
   const auth = request.headers.get("authorization") ?? "";
   const headerSecret = request.headers.get("x-proactive-cron-secret") ?? "";
-  return auth === `Bearer ${expected}` || headerSecret === expected;
+  return expectedSecrets.some(
+    (expected) => auth === `Bearer ${expected}` || headerSecret === expected
+  );
+}
+
+function readCronSecrets() {
+  return [
+    process.env.PROACTIVE_CRON_SECRET?.trim(),
+    process.env.CRON_SECRET?.trim()
+  ].filter((value, index, values): value is string =>
+    Boolean(value && values.indexOf(value) === index)
+  );
+}
+
+function readBooleanQuery(value: string | null) {
+  if (value === null || value === "") return undefined;
+  if (value === "true" || value === "1") return true;
+  if (value === "false" || value === "0") return false;
+  return undefined;
+}
+
+function readNumberQuery(value: string | null) {
+  if (value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

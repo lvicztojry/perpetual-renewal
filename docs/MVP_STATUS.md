@@ -63,7 +63,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：89 checks passed。
+- `smoke`：90 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：12 tests passed。
@@ -176,7 +176,7 @@ npm run env:secrets
 - M93 语音转写元数据边界：STT 输入拒绝异常文件名、语言标签和过长 mock 文本，错误响应不回显 Bearer、prompt、raw payload 或用户配置。
 - M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步 89 smoke checks / 12 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
 - M95 工作台错误展示脱敏：聊天、记忆、主动回响、导入、语音和用量看板错误展示统一走前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时不显示原文。
-- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 89 checks。
+- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 90 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
@@ -197,6 +197,7 @@ npm run env:secrets
 - M114 Prisma 本地 env 加载一致性：新增 `scripts/prisma-command.mjs`，让 `prisma:generate`、`prisma:migrate`、`prisma:migrate:deploy` 和 `prisma:seed` 先读取 `.env.local`/`.env` 再调用 Prisma CLI；真实 Neon 数据库已完成 6 个迁移、`db:smoke` 和 `verify:deploy`。
 - M115 Neon direct migration URL：新增可选 `DATABASE_URL_UNPOOLED` 空占位和 readiness 提示；Prisma 迁移命令在该变量存在时优先使用 direct/unpooled URL，应用查询仍使用 `DATABASE_URL`。
 - M116 DB smoke transient retry：`db:smoke` 对 Neon/serverless pooler 的短暂连接关闭或不可达错误增加清理/清理校验重试，不吞掉真实断言失败；真实数据库 `db:smoke` 与 `verify:deploy` 已重新通过。
+- M117 Vercel Cron 主动回响入口：`GET /api/proactive/run` 支持 Vercel Cron 的 Bearer secret 调用，`CRON_SECRET` 可作为 `PROACTIVE_CRON_SECRET` alias；部署文档提供 Vercel Cron 与 GitHub Actions scheduled workflow 示例，readiness、设置页配置状态和 smoke 均覆盖该 alias。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

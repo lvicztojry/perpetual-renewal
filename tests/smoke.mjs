@@ -67,6 +67,7 @@ function runEnvReadinessSmoke() {
       SESSION_COOKIE_SECRET: "",
       USER_KEY_VAULT_SECRET: "",
       PROACTIVE_CRON_SECRET: "",
+      CRON_SECRET: "",
       LLM_API_KEY: "",
       LLM_MODEL: ""
     }
@@ -96,7 +97,8 @@ function runEnvReadinessSmoke() {
         DATABASE_URL: "",
         SESSION_COOKIE_SECRET: "",
         USER_KEY_VAULT_SECRET: "",
-        PROACTIVE_CRON_SECRET: ""
+        PROACTIVE_CRON_SECRET: "",
+        CRON_SECRET: ""
       },
       stdio: "pipe"
     });
@@ -126,6 +128,7 @@ async function runSecretScanSmoke() {
         'USER_KEY_VAULT_SECRET="placeholder"',
         'SESSION_COOKIE_SECRET=""',
         'PROACTIVE_CRON_SECRET="changeme"',
+        'CRON_SECRET="changeme"',
         'Authorization: Bearer <PROACTIVE_CRON_SECRET>'
       ].join("\n"),
       "utf8"
@@ -301,6 +304,7 @@ function startDevServer(port) {
       VOICE_STT_MODEL: "",
       VOICE_TTS_MODEL: "",
       PROACTIVE_CRON_SECRET: SMOKE_CRON_SECRET,
+      CRON_SECRET: SMOKE_CRON_SECRET,
       SESSION_COOKIE_SECRET: SMOKE_SESSION_COOKIE_SECRET,
       NEXT_TELEMETRY_DISABLED: "1"
     },
@@ -1530,6 +1534,39 @@ async function runSmoke() {
     "all-user proactive scheduler Bearer response should not echo cron secret"
   );
   pass("POST /api/proactive/run all scope accepts Bearer secret");
+
+  const proactiveGetWithoutSecret = await request(
+    `/api/proactive/run?dryRun=true&limit=1&maxDrafts=1&now=${encodeURIComponent(schedulerNow)}`,
+    {},
+    { allowError: true }
+  );
+  assert(
+    proactiveGetWithoutSecret.response.status === 401,
+    "GET proactive scheduler should require cron authorization"
+  );
+
+  const proactiveGetWithBearerSecret = await request(
+    `/api/proactive/run?dryRun=true&limit=1&maxDrafts=1&now=${encodeURIComponent(schedulerNow)}`,
+    {
+      headers: {
+        authorization: `Bearer ${SMOKE_CRON_SECRET}`
+      }
+    }
+  );
+  assert(
+    proactiveGetWithBearerSecret.body.scope === "all" &&
+      proactiveGetWithBearerSecret.body.authMode === "cron-secret" &&
+      proactiveGetWithBearerSecret.body.dryRun === true &&
+      proactiveGetWithBearerSecret.body.scannedCount <= 1 &&
+      proactiveGetWithBearerSecret.body.generatedCount <= 1 &&
+      proactiveGetWithBearerSecret.body.savedCount === 0,
+    "GET proactive scheduler should support Vercel Cron style Bearer authorization"
+  );
+  assert(
+    !JSON.stringify(proactiveGetWithBearerSecret.body).includes(SMOKE_CRON_SECRET),
+    "GET proactive scheduler response should not echo cron secret"
+  );
+  pass("GET /api/proactive/run accepts cron Bearer secret");
 
   const proactiveAllWithHeaderSecret = await request("/api/proactive/run", {
     method: "POST",
@@ -2835,7 +2872,7 @@ function createRequestClient() {
 async function request(pathname, options = {}, behavior = {}) {
   const client = behavior.client ?? defaultClient;
   const cookieHeader = formatCookieHeader(client);
-  const response = await fetch(new URL(pathname, rootUrl), {
+  const response = await fetchWithRequestRetry(pathname, {
     ...options,
     headers: {
       "content-type": "application/json",
@@ -2854,6 +2891,44 @@ async function request(pathname, options = {}, behavior = {}) {
   }
 
   return { response, body };
+}
+
+async function fetchWithRequestRetry(pathname, options) {
+  const method = (options.method ?? "GET").toUpperCase();
+  const canRetry = method === "GET" || method === "HEAD";
+  const delays = canRetry ? [250, 750, 1500] : [];
+  let lastError;
+
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await fetch(new URL(pathname, rootUrl), options);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= delays.length || !isRetryableFetchError(error)) {
+        throw new Error(
+          `${method} ${pathname} failed before receiving a response: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+
+      console.warn(`Retrying ${method} ${pathname} after transient fetch failure.`);
+      await delay(delays[attempt]);
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableFetchError(error) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("econnreset") ||
+    message.includes("econnrefused") ||
+    message.includes("socket") ||
+    message.includes("terminated")
+  );
 }
 
 function assertPrivateNoStoreResponse(response, pathname) {
