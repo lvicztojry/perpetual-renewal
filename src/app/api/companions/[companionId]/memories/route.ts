@@ -11,15 +11,10 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   const { companionId } = await context.params;
-  const { searchParams } = new URL(request.url);
-  const includeDeleted = searchParams.get("includeDeleted") === "true";
   const session = await getCurrentSession();
-  const memories = await getRenewalService(session.userId).listMemories(
-    companionId,
-    includeDeleted
-  );
+  const memories = await getRenewalService(session.userId).listMemories(companionId);
 
   return privateJson({ memories });
 }

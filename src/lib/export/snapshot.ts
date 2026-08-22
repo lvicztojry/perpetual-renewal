@@ -96,7 +96,7 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
     const [conversation, messages, memories, proactiveMessages] = await Promise.all([
       repository.getConversation(userId, companion.conversationId),
       repository.listMessages(userId, companion.conversationId),
-      repository.listMemories(userId, companion.id, true),
+      repository.listMemories(userId, companion.id),
       repository.listProactiveMessages(userId, companion.id)
     ]);
 

@@ -911,6 +911,24 @@ async function runSmoke() {
     ),
     "manual memory should be visible in the companion memory list"
   );
+  const deletedManualMemoryId = manualMemories.body.memories[0].id;
+  const deletedManualMemoryContent = manualMemoryContent;
+  const deletedManualMemory = await request(
+    `/api/memories/${encodeURIComponent(deletedManualMemoryId)}`,
+    { method: "DELETE" }
+  );
+  assert(deletedManualMemory.body.memory?.status === "deleted", "memory delete should mark memory deleted");
+  const memoriesAfterManualDelete = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories?includeDeleted=true`
+  );
+  assert(
+    !memoriesAfterManualDelete.body.memories?.some(
+      (memory) =>
+        memory.id === deletedManualMemoryId ||
+        memory.content === deletedManualMemoryContent
+    ),
+    "deleted memories should stay hidden from companion memory API even when includeDeleted is requested"
+  );
   const unsupportedManualMemory = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/memories`,
     {
@@ -1739,13 +1757,15 @@ async function runSmoke() {
       !exportedText.includes(accidentalRawPayload) &&
       !exportedText.includes(accidentalStackValue) &&
       !exportedText.includes(accidentalStackFrame) &&
+      !exportedText.includes(deletedManualMemoryId) &&
+      !exportedText.includes(deletedManualMemoryContent) &&
       !exportedText.includes("rawPayload") &&
       !exportedText.includes("src/lib/provider.ts") &&
       !exportedText.includes("baseUrl") &&
       !exportedText.includes("encryptedApiKey") &&
       !exportedText.includes("keyIv") &&
       !exportedText.includes("keyAuthTag"),
-    "user export should not expose provider secrets, endpoint URL, accidental debug strings or vault ciphertext"
+    "user export should not expose provider secrets, endpoint URL, accidental debug strings, deleted memories or vault ciphertext"
   );
   assert(
     exportedText.includes("[REDACTED_SECRET]") &&
