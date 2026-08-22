@@ -39,6 +39,14 @@ npm run secrets:check
 
 如果扫描失败，先移除或轮换泄露的 key，再提交。`.env.local`、`.env.*.local` 已被 `.gitignore` 排除；仓库只保留变量名、空值和示例占位。
 
+生成本地或部署用强随机 secret：
+
+```bash
+npm run env:secrets
+```
+
+该命令只打印 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，不写入文件；输出值只应放入 `.env.local` 或部署平台 secret。
+
 ## Environment Variables
 
 本地真实测试建议创建 `.env.local`：

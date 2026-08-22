@@ -12,6 +12,7 @@ npm run dev
 默认开发地址：`http://localhost:3000`。没有真实数据库或模型配置时，项目会使用本地 fallback/mock 路线，方便先跑通体验。
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
+可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
 
 ## 当前发布候选
 
@@ -43,6 +44,7 @@ VOICE_PROVIDER="shared-llm"
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
 - 命令行检查：`npm run env:readiness` 会读取项目根目录的 `.env.local`/`.env`，只输出就绪状态和下一步，不打印真实值。
+- Secret 生成：`npm run env:secrets` 会生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的强随机值，输出结果只应放入 `.env.local` 或部署平台 secret。
 
 ## 网站内配置
 

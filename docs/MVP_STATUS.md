@@ -192,6 +192,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 - M110 1 分钟主动回响体验：关系对象默认主动回响节奏改为 1 分钟；浏览器工作台打开时每分钟检查当前关系对象并展示新草稿；单关系草稿接口用历史主动草稿作为节奏锚点，避免自动检查立即重复生成。
 - M111 聊天回复格式清洗：助手回复入库和返回前统一去除 Markdown 加粗/斜体、代码块、链接、星号动作和残留 `*`/`＊`，避免聊天对象回复里出现破坏沉浸感的格式符号。
 - M112 删除记忆可见性边界：用户侧记忆列表忽略 `includeDeleted=true`，导出快照只包含未删除记忆；smoke 覆盖删除后 API 与导出均不可见。
+- M113 本地 secret 生成助手：新增 `npm run env:secrets`，一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的强随机候选值；命令只打印、不写文件，README 与部署文档同步提示真实值只能放入 `.env.local` 或部署平台 secret。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

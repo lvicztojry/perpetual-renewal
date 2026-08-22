@@ -855,6 +855,7 @@
 | M110 1 分钟主动回响体验 | integrated | 主动回响体验模块 + 主控 | `src/lib/relationship/proactive-frequency.ts`、`src/components/renewal-workspace.tsx`、`src/app/api/companions/[companionId]/proactive-drafts/route.ts`、`prisma/*`、`tests/*`、`docs/*` | 关系对象默认主动回响节奏改为 1 分钟，浏览器工作台打开时每分钟检查当前关系对象并展示新草稿；单关系草稿接口用历史主动草稿作为节奏锚点，避免自动检查立即重复生成 |
 | M111 聊天回复格式清洗 | integrated | 主控 | `src/lib/chat/reply-format.ts`、`src/lib/chat/generate-reply.ts`、`src/lib/prompt-builder/*`、`tests/smoke.mjs` | 助手回复入库和返回前统一去除 Markdown 加粗/斜体、代码块、链接、星号动作和残留 `*`/`＊`，避免真实聊天体验出现格式符号 |
 | M112 删除记忆可见性边界 | integrated | 数据生命周期模块 + 主控 | `src/app/api/companions/[companionId]/memories/route.ts`、`src/lib/export/snapshot.ts`、`tests/smoke.mjs` | 用户侧记忆列表不再接受 `includeDeleted=true` 暴露 deleted 记忆；导出快照只包含未删除记忆；smoke 覆盖删除后 API 和导出均不可见 |
+| M113 本地 secret 生成助手 | integrated | 发布配置模块 + 主控 | `scripts/generate-env-secrets.mjs`、`package.json`、`README.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | 新增 `npm run env:secrets` 生成 vault、session 和 proactive cron 三类强随机 secret 候选值；命令只打印、不写文件；文档提示真实值只能放入 `.env.local` 或部署平台 secret |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
@@ -1054,6 +1055,7 @@ M34 当前落点：
 | 成本膨胀 | 长上下文和频繁主动消息增加调用成本 | 已接入模型调用日志与成本看板；后续继续做摘要、检索、频率限制 |
 | 安全漏判 | 危机或越界内容未正确处理 | 建立安全评估集和输出过滤 |
 | 密钥泄露 | 用户自带 API 模式下容易误把 key 写入仓库 | `.gitignore` 排除本地 env，新增 `npm run secrets:check` 推送前扫描 |
+| 配置摩擦 | 生产必需 secret 容易手工生成不规范或复用 | 新增 `npm run env:secrets` 生成三类强随机 secret 候选值，命令只打印、不写文件 |
 
 ## 已决策基线与外部配置
 
