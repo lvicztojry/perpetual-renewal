@@ -60,10 +60,10 @@ npm run dev
 生产建议配置详见 [DEPLOYMENT.md](DEPLOYMENT.md)。生成强随机 secret 可用：
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+npm run env:secrets
 ```
 
-至少运行两次，分别作为 `USER_KEY_VAULT_SECRET` 和 `PROACTIVE_CRON_SECRET`，不要复用；如果希望 session 签名与 vault 加密职责分离，再运行一次作为 `SESSION_COOKIE_SECRET`。
+命令会一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，只打印、不写文件；输出值只放入 `.env.local` 或部署平台 secret。
 
 ## 常用命令
 

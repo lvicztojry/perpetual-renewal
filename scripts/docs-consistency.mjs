@@ -132,6 +132,10 @@ function checkDocsText(targetFiles) {
           `${location} uses bare npm audit; use npm --cache .\\.npm-cache audit --audit-level=high.`
         );
       }
+
+      if (line.includes("randomBytes(48)")) {
+        findings.push(`${location} uses manual secret generation; use npm run env:secrets.`);
+      }
     });
   }
 }

@@ -270,10 +270,10 @@ Authorization: Bearer <PROACTIVE_CRON_SECRET>
 生成强随机 secret 时只把结果粘贴到本机或部署平台，不要写入仓库文件：
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+npm run env:secrets
 ```
 
-建议至少运行两次，分别用于 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`；如果要拆分 session 签名职责，再运行一次用于 `SESSION_COOKIE_SECRET`。如果 `USER_KEY_VAULT_SECRET` 泄露，第一版按密钥轮换事故处理：轮换 secret，并要求受影响用户重新保存自己的供应商 API key。
+命令会一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，只打印、不写文件。如果 `USER_KEY_VAULT_SECRET` 泄露，第一版按密钥轮换事故处理：轮换 secret，并要求受影响用户重新保存自己的供应商 API key。
 
 ### 2. Database Gate
 

@@ -121,10 +121,10 @@ npm --cache .\.npm-cache audit --audit-level=high
 生成 secret 的建议命令：
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+npm run env:secrets
 ```
 
-至少运行两次，填入 `USER_KEY_VAULT_SECRET` 与 `PROACTIVE_CRON_SECRET`；如果要拆分 session 签名职责，再运行一次填入 `SESSION_COOKIE_SECRET`。
+命令会一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，只打印、不写文件。
 
 ## 5. 人工验收
 
