@@ -16,7 +16,7 @@ const allowedPlaceholderValues = new Set([
   "postgresql://user:password@host:port/database?schema=public"
 ]);
 const envKeyPattern =
-  /^\s*([A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)|DATABASE_URL|CLIENT_SECRET|PRIVATE_KEY|PROACTIVE_CRON_SECRET|USER_KEY_VAULT_SECRET)\s*=\s*(.*)$/i;
+  /^\s*([A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD)|DATABASE_URL(?:_UNPOOLED)?|CLIENT_SECRET|PRIVATE_KEY|PROACTIVE_CRON_SECRET|USER_KEY_VAULT_SECRET)\s*=\s*(.*)$/i;
 const secretLikePatterns = [
   /\bsk-[A-Za-z0-9_-]{20,}\b/,
   /\bsk-ant-[A-Za-z0-9_-]{20,}\b/,

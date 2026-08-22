@@ -12,6 +12,10 @@ if (args.length === 0) {
 
 loadLocalEnv();
 
+if (usesMigrationCommand(args) && process.env.DATABASE_URL_UNPOOLED?.trim()) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED.trim();
+}
+
 const prismaCli = join(process.cwd(), "node_modules", "prisma", "build", "index.js");
 
 const result = spawnSync(process.execPath, [prismaCli, ...args], {
@@ -21,3 +25,7 @@ const result = spawnSync(process.execPath, [prismaCli, ...args], {
 });
 
 process.exit(result.status ?? 1);
+
+function usesMigrationCommand(commandArgs) {
+  return commandArgs[0] === "migrate" && (commandArgs[1] === "dev" || commandArgs[1] === "deploy");
+}

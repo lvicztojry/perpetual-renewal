@@ -433,6 +433,7 @@ function checkEnvExample() {
 
   const requiredEmptyEnv = [
     "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
     "USER_KEY_VAULT_SECRET",
     "SESSION_COOKIE_SECRET",
     "PROACTIVE_CRON_SECRET"

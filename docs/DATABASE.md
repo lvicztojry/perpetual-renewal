@@ -35,7 +35,7 @@ It creates:
 ## Local Setup
 
 1. Copy `.env.example` to `.env`.
-2. Set `DATABASE_URL` to a PostgreSQL database.
+2. Set `DATABASE_URL` to a PostgreSQL database. For Neon, `DATABASE_URL` can be the pooled application URL; optionally set `DATABASE_URL_UNPOOLED` to the direct URL for Prisma migrations.
 3. Run:
 
 ```bash
@@ -91,6 +91,8 @@ For a preview or production Neon/PostgreSQL database, apply committed migrations
 npm run prisma:migrate:deploy
 npm run db:smoke
 ```
+
+When `DATABASE_URL_UNPOOLED` is configured, `npm run prisma:migrate` and `npm run prisma:migrate:deploy` temporarily use it for the Prisma CLI. App runtime queries and `db:smoke` continue to use `DATABASE_URL`.
 
 ## Fallback Behavior
 

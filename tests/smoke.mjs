@@ -58,7 +58,7 @@ try {
 process.exit(process.exitCode ?? 0);
 
 function runEnvReadinessSmoke() {
-  const output = execFileSync(process.execPath, ["scripts/env-readiness.mjs"], {
+  const output = execFileSync(process.execPath, ["scripts/env-readiness.mjs", "--no-local-env"], {
     cwd: ROOT_DIR,
     encoding: "utf8",
     env: {
@@ -88,7 +88,7 @@ function runEnvReadinessSmoke() {
 
   let strictFailed = false;
   try {
-    execFileSync(process.execPath, ["scripts/env-readiness.mjs", "--strict"], {
+    execFileSync(process.execPath, ["scripts/env-readiness.mjs", "--strict", "--no-local-env"], {
       cwd: ROOT_DIR,
       encoding: "utf8",
       env: {

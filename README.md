@@ -28,6 +28,7 @@ npm run dev
 
 ```bash
 DATABASE_URL="Neon or PostgreSQL connection string"
+DATABASE_URL_UNPOOLED=""
 LLM_PROVIDER="compatible"
 LLM_BASE_URL="https://api.tryanotherone.com/v1"
 LLM_MODEL="selected-model-name"
@@ -37,7 +38,7 @@ PROACTIVE_CRON_SECRET="random-cron-secret"
 VOICE_PROVIDER="shared-llm"
 ```
 
-- 数据库：第一版推荐 Neon PostgreSQL；配置后运行 `npm run db:smoke` 做连通性检查。
+- 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查。
 - LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。

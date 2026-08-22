@@ -53,6 +53,7 @@ npm run env:secrets
 
 ```text
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
+DATABASE_URL_UNPOOLED=""
 
 LLM_PROVIDER="compatible"
 LLM_API_KEY=""
@@ -74,6 +75,8 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 
 说明：
 
+- `DATABASE_URL` 是应用查询使用的 PostgreSQL 连接串；Neon/Vercel 部署可优先使用 pooled 连接。
+- `DATABASE_URL_UNPOOLED` 是可选的 direct/unpooled 连接串，Prisma 迁移脚本会在 `npm run prisma:migrate` 和 `npm run prisma:migrate:deploy` 时优先使用它；Neon 的迁移、dump、replication 等管理任务更推荐 direct 连接。
 - `LLM_PROVIDER=compatible` 是默认真实接入路线，不绑定 OpenAI。
 - `USER_KEY_VAULT_SECRET` 用于用户级 API key vault 加密。生产必须配置强随机值，泄露后应轮换用户密钥。
 - `SESSION_COOKIE_SECRET` 可单独用于 HMAC 签名 session cookie。为空时会复用强 `USER_KEY_VAULT_SECRET`，但生产更推荐单独配置以拆分职责。
@@ -99,12 +102,12 @@ npm run env:readiness -- --strict
 
 该脚本只输出状态、说明和下一步，不打印真实连接串、API key、Base URL 或 secret。默认不强制要求服务端 LLM key，因为第一版支持用户在设置页保存自己的 API key；如部署策略要求服务端兜底 key，可运行 `npm run env:readiness -- --strict --server-llm-required`。
 
-Prisma 相关 npm 脚本也会先读取项目根目录的 `.env.local`/`.env`，再调用本地 Prisma CLI；因此 `npm run prisma:migrate`、`npm run prisma:migrate:deploy`、`npm run prisma:generate` 和 `npm run prisma:seed` 与 `env:readiness` 使用同一套本地配置来源。
+Prisma 相关 npm 脚本也会先读取项目根目录的 `.env.local`/`.env`，再调用本地 Prisma CLI；因此 `npm run prisma:migrate`、`npm run prisma:migrate:deploy`、`npm run prisma:generate` 和 `npm run prisma:seed` 与 `env:readiness` 使用同一套本地配置来源。若配置了 `DATABASE_URL_UNPOOLED`，迁移命令会临时用它替代 `DATABASE_URL`，应用运行时仍保留 `DATABASE_URL`。
 
 ## Local PostgreSQL Setup
 
 1. 在 Neon 创建 PostgreSQL 项目。
-2. 复制连接串到本地 `.env.local` 的 `DATABASE_URL`。
+2. 复制应用连接串到本地 `.env.local` 的 `DATABASE_URL`；如果使用 Neon pooled 连接，再把 direct/unpooled 连接串填入 `DATABASE_URL_UNPOOLED`。
 3. 本地生成并校验 Prisma client：
 
 ```bash
@@ -184,6 +187,7 @@ TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先�
 
 ```text
 DATABASE_URL
+DATABASE_URL_UNPOOLED
 LLM_PROVIDER
 LLM_API_KEY
 LLM_BASE_URL
@@ -260,6 +264,7 @@ Authorization: Bearer <PROACTIVE_CRON_SECRET>
 ### 1. Secret and Environment Inventory
 
 - [ ] `DATABASE_URL` 已配置在 Vercel/CI/本机 `.env.local`，仓库中只保留 `.env.example` 占位。
+- [ ] `DATABASE_URL_UNPOOLED` 可选配置为 Neon direct 连接串，用于 Prisma 迁移；仓库中只保留空占位。
 - [ ] `USER_KEY_VAULT_SECRET` 已配置为生产专用强随机值，长度至少 32 bytes，且没有复用开发值。
 - [ ] `SESSION_COOKIE_SECRET` 可选独立配置为生产专用强随机值，长度至少 32 bytes；未配置时确认 `USER_KEY_VAULT_SECRET` 足够强并可作为 session 签名来源。
 - [ ] `PROACTIVE_CRON_SECRET` 已配置为另一段强随机值，不能与 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET`、数据库密码或供应商 API key 相同。
@@ -347,6 +352,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 ## Release Checklist
 
 - `DATABASE_URL` 只存在于 `.env.local` 或平台 secret。
+- `DATABASE_URL_UNPOOLED` 如已配置，也只存在于 `.env.local` 或平台 secret。
 - `LLM_API_KEY` 只存在于 `.env.local`、平台 secret 或用户级加密 vault。
 - `USER_KEY_VAULT_SECRET` 已配置为强随机值，且不在仓库中。
 - session 签名 secret 来源已确认：独立 `SESSION_COOKIE_SECRET`，或足够强的 `USER_KEY_VAULT_SECRET` fallback，且不在仓库中。

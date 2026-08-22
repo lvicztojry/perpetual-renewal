@@ -84,6 +84,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 | 项 | 建议 |
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL，连接串只放 `.env.local` 或部署平台 secret |
+| `DATABASE_URL_UNPOOLED` | 可选 Neon direct 连接串，供 Prisma 迁移使用；只放 `.env.local` 或部署平台 secret |
 | `USER_KEY_VAULT_SECRET` | 生产专用强随机值，至少 32 bytes，不复用开发值 |
 | `SESSION_COOKIE_SECRET` | 可选独立 session 签名 secret，至少 32 bytes；为空时复用强 vault secret |
 | `PROACTIVE_CRON_SECRET` | 另一段强随机值，不能和 vault secret 或数据库密码相同 |
@@ -194,6 +195,8 @@ npm run env:secrets
 - M112 删除记忆可见性边界：用户侧记忆列表忽略 `includeDeleted=true`，导出快照只包含未删除记忆；smoke 覆盖删除后 API 与导出均不可见。
 - M113 本地 secret 生成助手：新增 `npm run env:secrets`，一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的强随机候选值；命令只打印、不写文件，README 与部署文档同步提示真实值只能放入 `.env.local` 或部署平台 secret。
 - M114 Prisma 本地 env 加载一致性：新增 `scripts/prisma-command.mjs`，让 `prisma:generate`、`prisma:migrate`、`prisma:migrate:deploy` 和 `prisma:seed` 先读取 `.env.local`/`.env` 再调用 Prisma CLI；真实 Neon 数据库已完成 6 个迁移、`db:smoke` 和 `verify:deploy`。
+- M115 Neon direct migration URL：新增可选 `DATABASE_URL_UNPOOLED` 空占位和 readiness 提示；Prisma 迁移命令在该变量存在时优先使用 direct/unpooled URL，应用查询仍使用 `DATABASE_URL`。
+- M116 DB smoke transient retry：`db:smoke` 对 Neon/serverless pooler 的短暂连接关闭或不可达错误增加清理/清理校验重试，不吞掉真实断言失败；真实数据库 `db:smoke` 与 `verify:deploy` 已重新通过。
 
 当前已获允许、但本机缺少认证工具的外部动作：
 

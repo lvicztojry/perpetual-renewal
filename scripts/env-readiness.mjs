@@ -4,12 +4,16 @@ import { loadLocalEnv } from "./load-local-env.mjs";
 const args = new Set(process.argv.slice(2));
 const strict = args.has("--strict");
 const requireServerLlm = args.has("--server-llm-required");
+const noLocalEnv = args.has("--no-local-env");
 const minimumSecretBytes = 32;
 
-loadLocalEnv();
+if (!noLocalEnv) {
+  loadLocalEnv();
+}
 
 const checks = [
   databaseCheck(),
+  databaseUnpooledCheck(),
   secretCheck("USER_KEY_VAULT_SECRET", "用户 API key vault 加密主密钥"),
   sessionCookieSecretCheck(),
   secretCheck("PROACTIVE_CRON_SECRET", "主动回响 all-user cron 密钥"),
@@ -59,6 +63,48 @@ function databaseCheck() {
     next: configured
       ? "Run npm run db:smoke against the target database before release."
       : "Set a Neon/PostgreSQL DATABASE_URL in .env.local or deployment secrets."
+  };
+}
+
+function databaseUnpooledCheck() {
+  const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+  const unpooled = process.env.DATABASE_URL_UNPOOLED?.trim();
+  const databaseConfigured = Boolean(databaseUrl);
+  const appearsPooled = /-pooler[.\-]/i.test(databaseUrl);
+
+  if (!databaseConfigured) {
+    return {
+      label: "DATABASE_URL_UNPOOLED",
+      status: "warning",
+      required: false,
+      strictWarning: false,
+      detail: "Direct migration URL is not checked until DATABASE_URL is configured.",
+      next: "For Neon, keep DATABASE_URL pooled for app traffic and set DATABASE_URL_UNPOOLED for migrations."
+    };
+  }
+
+  if (unpooled) {
+    return {
+      label: "DATABASE_URL_UNPOOLED",
+      status: "ready",
+      required: false,
+      strictWarning: false,
+      detail: "A direct database URL is configured for Prisma migrations.",
+      next: "Keep the value out of source control and deployment logs."
+    };
+  }
+
+  return {
+    label: "DATABASE_URL_UNPOOLED",
+    status: appearsPooled ? "warning" : "ready",
+    required: false,
+    strictWarning: false,
+    detail: appearsPooled
+      ? "DATABASE_URL appears to use Neon pooling; migrations are more reliable with a direct URL."
+      : "DATABASE_URL does not look pooled; migrations can use it directly.",
+    next: appearsPooled
+      ? "Set DATABASE_URL_UNPOOLED to the Neon direct connection string when available."
+      : "No action needed unless your database provider gives a separate migration URL."
   };
 }
 

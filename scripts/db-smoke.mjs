@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import process from "node:process";
+import { setTimeout as delay } from "node:timers/promises";
 import { loadLocalEnv } from "./load-local-env.mjs";
 
 const TEST_PREFIX = "db-smoke";
@@ -251,7 +252,10 @@ try {
 }
 
 async function cleanup() {
-  await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
+  await withDatabaseRetry(
+    () => prisma.user.delete({ where: { id: userId } }).catch(() => undefined),
+    "cleanup"
+  );
 }
 
 async function assertCleanup() {
@@ -266,18 +270,22 @@ async function assertCleanup() {
     safetyEvents,
     modelUsageLogs,
     providerCredentials
-  ] = await Promise.all([
-    prisma.user.count({ where: { id: userId } }),
-    prisma.companion.count({ where: { id: companionId } }),
-    prisma.conversation.count({ where: { id: conversationId } }),
-    prisma.message.count({ where: { conversationId } }),
-    prisma.memory.count({ where: { userId } }),
-    prisma.relationshipState.count({ where: { userId } }),
-    prisma.proactiveMessage.count({ where: { userId } }),
-    prisma.safetyEvent.count({ where: { userId } }),
-    prisma.modelUsageLog.count({ where: { userId } }),
-    prisma.providerCredential.count({ where: { userId } })
-  ]);
+  ] = await withDatabaseRetry(
+    () =>
+      Promise.all([
+        prisma.user.count({ where: { id: userId } }),
+        prisma.companion.count({ where: { id: companionId } }),
+        prisma.conversation.count({ where: { id: conversationId } }),
+        prisma.message.count({ where: { conversationId } }),
+        prisma.memory.count({ where: { userId } }),
+        prisma.relationshipState.count({ where: { userId } }),
+        prisma.proactiveMessage.count({ where: { userId } }),
+        prisma.safetyEvent.count({ where: { userId } }),
+        prisma.modelUsageLog.count({ where: { userId } }),
+        prisma.providerCredential.count({ where: { userId } })
+      ]),
+    "cleanup verification"
+  );
 
   assert(users === 0, "test user should be cleaned up");
   assert(companions === 0, "test companion should be cleaned up");
@@ -334,6 +342,43 @@ function isUniqueConstraintError(error) {
       typeof error === "object" &&
       (error.code === "P2002" ||
         String(error.message ?? "").toLowerCase().includes("unique constraint"))
+  );
+}
+
+async function withDatabaseRetry(action, label) {
+  const delays = [750, 1500, 3000];
+  let lastError;
+
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableDatabaseConnectionError(error) || attempt >= delays.length) {
+        throw error;
+      }
+
+      console.warn(`DB smoke retrying ${label} after transient database connection error.`);
+      await delay(delays[attempt]);
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableDatabaseConnectionError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const code = String(error.code ?? "");
+  const message = String(error.message ?? "").toLowerCase();
+  return (
+    code === "P1001" ||
+    code === "P1017" ||
+    message.includes("can't reach database server") ||
+    message.includes("server has closed the connection") ||
+    (message.includes("connection") && message.includes("closed"))
   );
 }
 
