@@ -268,6 +268,14 @@ async function runApiBoundaryStaticSmoke() {
     normalizeAssistantReplyContent("*嗯*，我在。") === "嗯，我在。",
     "assistant reply normalizer should remove single-character star emphasis"
   );
+  assert(
+    normalizeAssistantReplyContent("我在*轻轻抱住你*，一直都在。") === "我在轻轻抱住你，一直都在。",
+    "assistant reply normalizer should remove inline star actions without requiring spacing"
+  );
+  assert(
+    normalizeAssistantReplyContent("我＊真的＊很想见你。") === "我真的很想见你。",
+    "assistant reply normalizer should remove full-width star emphasis"
+  );
   pass("API route response boundaries stay private and sanitized");
 }
 

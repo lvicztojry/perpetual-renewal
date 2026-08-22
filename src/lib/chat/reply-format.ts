@@ -22,6 +22,7 @@ function stripMarkdownConversationArtifacts(content: string) {
 
   return text
     .replace(/\\([*_`])/g, "$1")
+    .replace(/[＊*]+/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n");
 }
