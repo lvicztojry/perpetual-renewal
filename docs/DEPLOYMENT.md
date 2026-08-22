@@ -74,6 +74,8 @@ VOICE_DEFAULT_VOICE="warm"
 VOICE_CREDENTIAL_SOURCE="server-env"
 ```
 
+最小真实试用不要把所有变量都混在一起理解：数据库连接串和三类 secret 放 `.env.local`；当前用户自己的 LLM key、模型名和连接测试优先在网站设置页完成。`LLM_API_KEY`/`LLM_MODEL` 只有在你需要部署方提供服务端 fallback 时才必须写入服务端环境变量；纯 BYOK 试用可以保持为空。
+
 说明：
 
 - `DATABASE_URL` 是应用查询使用的 PostgreSQL 连接串；Neon/Vercel 部署可优先使用 pooled 连接。
@@ -85,7 +87,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `CRON_SECRET` 是 Vercel Cron 的同用途 alias；Vercel 会把它作为 Bearer token 发给 cron 路径。使用 Vercel Cron 时，可把它设置为与 `PROACTIVE_CRON_SECRET` 相同的强随机值，或只设置 `CRON_SECRET`。
 - `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
-- 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。
+- 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。换句话说，设置页保存的是当前登录用户的 BYOK 凭据，`.env.local` 里的 `LLM_API_KEY` 是可选的服务端兜底。
 - 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、session secret、cron secret 或 Base URL 原文。
 
 本地或 CI 也可以运行命令行就绪检查：
@@ -158,6 +160,8 @@ LLM_BASE_URL="https://api.tryanotherone.com/v1"
 LLM_MODEL="provider-model-name"
 ```
 
+如果走用户自带 API key 的真实试用，`LLM_API_KEY` 可以不写进 `.env.local`：先启动网站，登录后到设置页保存 key、Base URL 和模型。服务端 fallback 适合演示账号共用同一部署方 key；个人试用优先用用户 vault，泄露面更小。
+
 配置完成后运行：
 
 ```bash
@@ -179,6 +183,8 @@ npm run smoke
 如果缺少 key/baseUrl/model，开发环境会 fallback 到 mock provider，并在响应里返回 `fallbackReason`。这适合无密钥开发，但不应作为生产配置。
 
 TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先保存用户 API key 和 `LLM_BASE_URL=https://api.tryanotherone.com/v1`，然后点击“读取模型列表”，从 `/api/me/llm-models` 返回的可选模型中选择模型名并保存连接配置。已保存 key 后，后续修改 provider/model 或输入新的 Base URL 不需要重新输入 API key；Base URL 输入框留空时沿用已保存端点。服务端只沿用 vault 中的加密 key 和端点配置，前端状态只返回端点是否已配置与端点指纹，不会把 key 原文、Base URL 明文或 provider 原始错误返回到响应或日志。
+
+若“读取模型列表”失败，先确认设置页里 provider 是 `compatible`，Base URL 是 `https://api.tryanotherone.com/v1`，再点“测试连接”。有些中转站账号、套餐或模型端点不会稳定返回 `/models`；这时可以手动填入中转站文档里的模型名并保存，然后通过聊天和模型调用看板验证真实调用是否已经发生。
 
 保存配置后，可以在设置页点击“测试连接”。该按钮调用 `POST /api/me/llm-test`，复用用户 vault 或服务端 env key，低成本读取模型列表确认连接状态。无 key 时应返回明确的 `missing_api_key` 失败；成功或失败响应都不得包含 API key、Base URL 原文、Authorization header、prompt 或供应商 raw payload。测试连接不代表平台扣费、订阅或额度能力，仍然是用户自带 API 或部署方 env key 的连通性检查。
 
@@ -253,7 +259,9 @@ GET /api/proactive/run
 
 第一版应用进程内不常驻调度器，也不依赖后台 worker。Vercel Cron、GitHub Actions scheduled workflow 或外部 cron 可以按固定频率调用这个受保护入口。
 
-Vercel Cron 使用 GET 请求。若决定让部署后自动演示主动回响，可以在仓库根目录创建 `vercel.json`：
+本地体验和生产调度要分开看：浏览器工作台打开时，当前关系对象会每分钟做一次前台检查并展示新草稿；页面关闭后，本地开发服务器不会继续替所有用户定时生成草稿。生产 all-user 调度由下面的 GET/POST 入口承担。
+
+Vercel Cron 使用 GET 请求。仓库根目录的 `vercel.json` 已配置每分钟调用：
 
 ```json
 {

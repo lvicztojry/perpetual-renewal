@@ -105,6 +105,12 @@ type ProactiveDraft = {
   postflightSafety?: DraftSafety;
 };
 
+type ProactiveAutoCheck = {
+  checkedAt: string;
+  nextCheckAt: string;
+  result: string;
+};
+
 type ProactiveDraftStatus = "draft" | "sent" | "dismissed" | "blocked";
 type ProactiveDraftFilter = "all" | ProactiveDraftStatus;
 
@@ -249,6 +255,7 @@ export function RenewalWorkspace() {
   const [usageError, setUsageError] = useState<string | null>(null);
   const [proactivePersistence, setProactivePersistence] = useState<string | null>(null);
   const [proactiveSafety, setProactiveSafety] = useState<DraftSafety | null>(null);
+  const [proactiveAutoCheck, setProactiveAutoCheck] = useState<ProactiveAutoCheck | null>(null);
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -404,7 +411,17 @@ export function RenewalWorkspace() {
           throw new Error(payload.error ?? "主动回响自动检查失败。");
         }
 
-        if (disposed || !payload.data?.length) return;
+        if (disposed) return;
+
+        setProactiveAutoCheck(
+          createProactiveAutoCheckStatus(
+            payload.data?.length
+              ? `自动检查生成 ${payload.data.length} 条草稿`
+              : "自动检查完成，暂未到候选时间"
+          )
+        );
+
+        if (!payload.data?.length) return;
 
         setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
         setProactiveDraftFilter("draft");
@@ -415,8 +432,12 @@ export function RenewalWorkspace() {
           setInspectorMode("proactive");
         }
       } catch (autoError) {
-        if (!disposed && inspectorMode === "proactive") {
-          setProactiveError(toSafeWorkspaceError(autoError, "主动回响自动检查失败。"));
+        if (!disposed) {
+          const message = toSafeWorkspaceError(autoError, "主动回响自动检查失败。");
+          setProactiveAutoCheck(createProactiveAutoCheckStatus(`自动检查失败：${message}`));
+          if (inspectorMode === "proactive") {
+            setProactiveError(message);
+          }
         }
       } finally {
         running = false;
@@ -453,6 +474,7 @@ export function RenewalWorkspace() {
     setImportSummary(null);
     setProactiveError(null);
     setProactiveDraftFilter("draft");
+    setProactiveAutoCheck(null);
     setUsageError(null);
   }
 
@@ -572,6 +594,7 @@ export function RenewalWorkspace() {
       setMessages([]);
       setDraft("");
       setProactiveDrafts([]);
+      setProactiveAutoCheck(null);
       setVoicePreview(null);
       setInspectorMode("profile");
       setStatus("关系对象已删除");
@@ -915,10 +938,16 @@ export function RenewalWorkspace() {
       setProactiveDraftFilter("draft");
       setProactivePersistence(payload.persistence ?? "persisted");
       setProactiveSafety(payload.safety ?? null);
+      setProactiveAutoCheck(
+        createProactiveAutoCheckStatus(
+          payload.data?.length ? `手动生成 ${payload.data.length} 条草稿` : "手动检查完成，暂未生成草稿"
+        )
+      );
       setStatus(payload.data?.length ? "主动回响草稿已生成" : "暂无可发送的主动回响草稿");
     } catch (draftError) {
       const message = toSafeWorkspaceError(draftError, "主动回响生成失败。");
       setProactiveError(message);
+      setProactiveAutoCheck(createProactiveAutoCheckStatus(`手动生成失败：${message}`));
       setStatus("主动回响生成失败，请稍后重试");
     } finally {
       setIsLoadingDrafts(false);
@@ -2020,6 +2049,10 @@ export function RenewalWorkspace() {
                     {proactiveError}
                   </div>
                 ) : null}
+                <div className="status-box" role="status">
+                  <Bell size={14} />
+                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts)}
+                </div>
                 <div className="segmented" aria-label="主动回响状态筛选">
                   {proactiveDraftFilterOptions.map((option) => (
                     <button
@@ -2838,6 +2871,44 @@ function formatDraftFilterLabel(filter: ProactiveDraftFilter) {
   };
 
   return labels[filter];
+}
+
+function createProactiveAutoCheckStatus(result: string): ProactiveAutoCheck {
+  const checkedAt = new Date();
+  const nextCheckAt = new Date(checkedAt.getTime() + proactiveAutoCheckIntervalMs);
+
+  return {
+    checkedAt: checkedAt.toISOString(),
+    nextCheckAt: nextCheckAt.toISOString(),
+    result
+  };
+}
+
+function formatProactiveAutoCheckStatus(
+  companion: CompanionProfile | undefined,
+  check: ProactiveAutoCheck | null,
+  isLoading: boolean
+) {
+  if (!companion) return "选择关系后显示主动回响状态";
+  if (!companion.proactiveMessagesEnabled) return "主动回响已关闭";
+  if (isLoading) return "正在生成主动回响草稿";
+
+  const cadence = formatProactiveCadence(companion.proactiveFrequencyMinutes);
+
+  if (!check) {
+    return `当前节奏 ${cadence} · 自动检查每 1 分钟 · 最近尚未检查`;
+  }
+
+  return `${check.result} · 当前节奏 ${cadence} · 自动检查每 1 分钟 · 下次检查约 ${formatDateTime(
+    check.nextCheckAt
+  )}`;
+}
+
+function formatProactiveCadence(minutes: number) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "未记录";
+  if (minutes % 1440 === 0) return `每 ${minutes / 1440} 天`;
+  if (minutes % 60 === 0) return `每 ${minutes / 60} 小时`;
+  return `每 ${Math.floor(minutes)} 分钟`;
 }
 
 function formatDateTime(value: string | undefined) {

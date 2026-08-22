@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-默认开发地址：`http://localhost:3000`。没有真实数据库或模型配置时，项目会使用本地 fallback/mock 路线，方便先跑通体验。
+默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。没有真实数据库或模型配置时，项目会使用本地 fallback/mock 路线，方便先跑通体验。
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
 可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
@@ -25,6 +25,7 @@ npm run dev
 ## 真实配置
 
 真实值只放在 `.env.local`、部署平台环境变量或网站设置页的用户级 vault，不写入仓库。
+分工可以这样记：`.env.local` 负责数据库、vault/session/cron secret 和可选服务端 fallback；网站设置页负责当前登录用户自己的 LLM API key、模型和连接测试。BYOK 模式下，`LLM_API_KEY` 和 `LLM_MODEL` 不一定要写进 `.env.local`，用户在设置页保存后也能完成真实聊天链路。
 
 ```bash
 DATABASE_URL="Neon or PostgreSQL connection string"
@@ -41,9 +42,11 @@ VOICE_PROVIDER="shared-llm"
 
 - 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查。
 - LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
+- 模型列表：设置页读取模型列表需要已保存或即将保存的 API key；如果供应商不支持 `/models` 或临时失败，可以手动填入模型名后点“测试连接”。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口；Vercel Cron 可用 `CRON_SECRET` 作为同用途 alias。
+- 本地主动回响：打开工作台时，当前关系对象会按 1 分钟节奏做前台检查；关闭页面后本地不会有常驻后台调度器。生产 all-user 自动调度由 Vercel Cron 或外部 cron 调用受保护入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
 - 命令行检查：`npm run env:readiness` 会读取项目根目录的 `.env.local`/`.env`，只输出就绪状态和下一步，不打印真实值。
 - Secret 生成：`npm run env:secrets` 会生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的强随机值，输出结果只应放入 `.env.local` 或部署平台 secret。

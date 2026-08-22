@@ -13,7 +13,7 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { name: "生生不息" })).toBeVisible();
-  await expect(page.getByText("当前为临时存储")).toBeVisible();
+  await expect(page.getByRole("button", { name: "创建关系对象" }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "创建关系对象" }).first().click();
   await expect(page.getByRole("heading", { name: "创建关系对象" })).toBeVisible();
@@ -89,6 +89,8 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: "主动回响" }).click();
   await expect(page.getByRole("heading", { name: "主动回响" })).toBeVisible();
   await expect(page.getByText("站内草稿")).toBeVisible();
+  await expect(page.getByText(/当前节奏 每 1 分钟/)).toBeVisible();
+  await expect(page.getByText(/自动检查每 1 分钟/)).toBeVisible();
   await expect(page.getByRole("button", { name: /^草稿 \d+$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^已发送 \d+$/ })).toBeVisible();
   await expect(page.getByText(/撒娇式/).first()).toBeVisible();
@@ -111,6 +113,34 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await expect(page).toHaveURL("/login");
 });
 
+test("proactive panel surfaces one-minute check status for local trials", async ({ page }) => {
+  const unique = Date.now();
+  const companionName = `一分钟回响${unique}`;
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`proactive-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("主动回响用户");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("heading", { name: "生生不息" })).toBeVisible();
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await expect(page.getByRole("heading", { name: "创建关系对象" })).toBeVisible();
+  await page.getByLabel("名字").fill(companionName);
+  await page.getByLabel("具体关系").fill("主动回响体验关系");
+  await page.getByLabel("性格关键词").fill("亲近、稳定、会主动回应");
+  await page.getByLabel("语气").fill("撒娇式，但不埋怨");
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+
+  await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
+  await page.getByRole("button", { name: "主动回响" }).click();
+  await expect(page.getByRole("heading", { name: "主动回响" })).toBeVisible();
+  await expect(page.getByText("站内草稿")).toBeVisible();
+  await expect(page.getByText(/当前节奏 每 1 分钟/)).toBeVisible();
+  await expect(page.getByText(/自动检查每 1 分钟/)).toBeVisible();
+  await expect(page.getByText(/手动生成 \d+ 条草稿|手动检查完成/)).toBeVisible();
+});
+
 test("mobile workspace keeps panels usable without horizontal overflow", async ({ page }) => {
   const unique = Date.now();
 
@@ -122,7 +152,7 @@ test("mobile workspace keeps panels usable without horizontal overflow", async (
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { name: "生生不息" })).toBeVisible();
-  await expect(page.getByText("当前为临时存储")).toBeVisible();
+  await expect(page.getByRole("button", { name: "创建关系对象" }).first()).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(() => {
     const root = document.documentElement;

@@ -42,7 +42,7 @@ Latest local verification on 2026-08-21:
 - `npm run pwa:check`
 - `npm run prisma:validate`
 - `npm run db:smoke` -> skipped because `DATABASE_URL` is not set
-- `npm run e2e` -> 12 tests
+- `npm run e2e` -> 13 tests
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
 Before creating or updating the PR, use the current wrapper sequence `npm run verify:local -- --skip-e2e`, `npm run e2e`, and `npm run verify:release`, then re-check live branch state with `git status --short --branch` and push with `git push origin codex/mvp-release-candidate` if needed. Do not hard-code ahead/pushed status in the PR body.
