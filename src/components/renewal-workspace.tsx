@@ -5,6 +5,7 @@ import {
   Bell,
   BookHeart,
   Check,
+  Database,
   Edit3,
   Heart,
   MessageCircle,
@@ -153,6 +154,18 @@ type UsageDashboard = {
   }>;
 };
 
+type ConfigReadinessItem = {
+  id: string;
+  label: string;
+  status: "ready" | "warning" | "missing";
+  description: string;
+  nextStep: string;
+};
+
+type ConfigReadinessSnapshot = {
+  items: ConfigReadinessItem[];
+};
+
 const memoryTypeLabels: Record<MemoryRecord["type"], string> = {
   user_fact: "用户事实",
   relationship_event: "关系事件",
@@ -206,6 +219,7 @@ export function RenewalWorkspace() {
   const [proactiveDraftFilter, setProactiveDraftFilter] =
     useState<ProactiveDraftFilter>("draft");
   const [usageDashboard, setUsageDashboard] = useState<UsageDashboard | null>(null);
+  const [persistenceNotice, setPersistenceNotice] = useState<ConfigReadinessItem | null>(null);
   const [importText, setImportText] = useState("");
   const [importMode, setImportMode] = useState<ImportMode>("single");
   const [importSourceKind, setImportSourceKind] = useState<ImportSourceKind>("memory_candidate");
@@ -293,12 +307,20 @@ export function RenewalWorkspace() {
         const response = await fetch("/api/companions", { cache: "no-store" });
         if (!response.ok) throw new Error("关系对象加载失败。");
         const payload = (await response.json()) as { companions: CompanionProfile[] };
+        const databaseStatus = await loadDatabaseConfigStatus();
         if (!mounted) return;
         setCompanions(payload.companions);
+        setPersistenceNotice(databaseStatus?.status === "missing" ? databaseStatus : null);
         const first = payload.companions[0];
         setActiveId(first?.id ?? null);
         setForm(first ? toForm(first) : null);
-        setStatus(first ? "已连接到内存服务层" : "还没有关系对象");
+        setStatus(
+          first
+            ? databaseStatus?.status === "missing"
+              ? "已连接到临时内存服务层"
+              : "已连接到关系服务层"
+            : "还没有关系对象"
+        );
       } catch (loadError) {
         if (!mounted) return;
         setError(toSafeWorkspaceError(loadError, "关系对象加载失败。"));
@@ -1465,6 +1487,20 @@ export function RenewalWorkspace() {
         </header>
 
         <div className="chat-stream">
+          {persistenceNotice ? (
+            <div className="workspace-notice" role="status">
+              <Database aria-hidden="true" size={18} />
+              <div>
+                <strong>当前为临时存储</strong>
+                <span>
+                  {persistenceNotice.description} {persistenceNotice.nextStep}
+                </span>
+              </div>
+              <a className="text-button" href="/settings">
+                配置状态
+              </a>
+            </div>
+          ) : null}
           <div className="day-divider">{isBooting ? "加载中" : "今天"}</div>
           {messages.map((message) => (
             <article className={`message ${message.role}`} key={message.id}>
@@ -2689,6 +2725,17 @@ function formatTime(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+async function loadDatabaseConfigStatus() {
+  try {
+    const response = await fetch("/api/me/config-status", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { configStatus?: ConfigReadinessSnapshot };
+    return payload.configStatus?.items.find((item) => item.id === "database") ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function getMessageStatus(message: MessageRecord) {

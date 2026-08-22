@@ -13,6 +13,7 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { name: "生生不息" })).toBeVisible();
+  await expect(page.getByText("当前为临时存储")).toBeVisible();
 
   await page.getByRole("button", { name: "创建关系对象" }).first().click();
   await expect(page.getByRole("heading", { name: "创建关系对象" })).toBeVisible();
@@ -121,6 +122,7 @@ test("mobile workspace keeps panels usable without horizontal overflow", async (
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { name: "生生不息" })).toBeVisible();
+  await expect(page.getByText("当前为临时存储")).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(() => {
     const root = document.documentElement;

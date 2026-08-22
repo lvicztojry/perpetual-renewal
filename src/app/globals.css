@@ -404,6 +404,36 @@ textarea:disabled {
   font-size: 12px;
 }
 
+.workspace-notice {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #d8b26b;
+  border-radius: 8px;
+  background: var(--soft-amber);
+  color: #70531a;
+  font-size: 13px;
+}
+
+.workspace-notice > div {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.workspace-notice strong,
+.workspace-notice span {
+  overflow-wrap: anywhere;
+}
+
+.workspace-notice .text-button {
+  flex: 0 0 auto;
+  background: rgb(255 253 250 / 64%);
+}
+
 .message {
   display: grid;
   max-width: min(720px, 90%);
