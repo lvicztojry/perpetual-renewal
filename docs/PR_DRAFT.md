@@ -39,6 +39,7 @@ Latest local verification on 2026-08-23:
 - `npm run qa:vault`
 - `npm run qa:logging`
 - `npm run qa:response`
+- `npm run qa:real-provider:fake`
 - `npm run env:readiness -- --strict` -> missing=0, warning=3
 - `npm run pwa:check`
 - `npm run prisma:validate`

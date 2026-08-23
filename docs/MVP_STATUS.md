@@ -55,6 +55,7 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:real-provider:fake
 npm run pwa:check
 npm run prisma:validate
 npm run build
@@ -75,6 +76,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:vault`：vault and config readiness security matrix passed。
 - `qa:logging`：runtime log sanitization passed。
 - `qa:response`：API response text sanitization passed。
+- `qa:real-provider:fake`：local fake-compatible BYOK flow self-test passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `env:readiness -- --strict`：missing=0，warning=3；输出保持脱敏。
@@ -212,6 +214,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M120 关系状态与持久化可靠性收束：聊天后关系状态更新和关系状态 API 复用共享 RelationshipState 演进逻辑，保留具体情绪、想念和重要事件信号并过滤误贴密钥/端点/prompt；已配置真实数据库时不再因 Prisma 短暂不可达静默切到 memory，避免本地体验误判为“保存成功但刷新丢失”。
 - M121 持久化故障用户体验边界：新增统一 persistence error response；已配置真实 `DATABASE_URL` 且 Prisma/数据库不可用时，关键 auth、workspace、credential、profile、export、usage、safety、voice 和 proactive API 返回安全的 503、`database_unavailable` 与 `retryable=true`，前端展示可操作中文提示且不暴露连接串、Prisma 原始错误、stack、prompt 或 key。
 - M122 真实 BYOK 供应商目标联调：新增 opt-in `npm run qa:real-provider`，显式 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量后，通过用户 vault 验证 compatible 模型诊断、连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run；脚本脱敏失败摘要和服务日志，不进入默认 CI、`verify:pr` 或发布门禁。
+- M123 真实供应商联调脚本 fake-compatible 自测：新增 `npm run qa:real-provider:fake`，用本地假 OpenAI-compatible provider 驱动 M122 脚本的 BYOK/vault/聊天/用量/主动 dry-run 逻辑；该命令进入默认本地/CI 门禁，不需要真实 key，不代表真实供应商联调通过。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

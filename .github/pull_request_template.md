@@ -21,6 +21,7 @@
 - [ ] `npm run qa:imports`
 - [ ] `npm run qa:vault`
 - [ ] `npm run qa:response`
+- [ ] `npm run qa:real-provider:fake`
 - [ ] `npm run verify:local`
 - [ ] `npm run verify:release`
 - [ ] `npm run verify:deploy` in the target deployment environment before production release

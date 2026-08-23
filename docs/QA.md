@@ -53,6 +53,7 @@ E2E 模式边界：
 | mock/local 浏览器门禁 | `npm run e2e` | 自动启动隔离 dev server，清空 LLM key/baseUrl/model，使用 memory repository 和 mock fallback，验证 UI 主链路稳定性 | 是 |
 | 已有服务复用 | `E2E_BASE_URL=http://localhost:3000 npm run e2e -- --project=chromium` | 指向已经启动的本地服务；如果该服务接了真实数据库或用户 vault key，只作为人工体验排查 | 否 |
 | 真实供应商探索 | `E2E_REAL_PROVIDER=1 npm run e2e -- --project=chromium` | 显式保留 LLM env，并放宽 Playwright 超时；用于定位真实 provider 响应、额度、网络或模型兼容问题 | 否 |
+| fake-compatible 脚本自测 | `npm run qa:real-provider:fake` | 启动本地假 OpenAI-compatible provider，驱动 `qa:real-provider` 的 BYOK/vault/聊天/用量流程；不需要真实 key | 是 |
 | 真实 BYOK 目标联调 | `REAL_PROVIDER_QA=1 REAL_LLM_API_KEY=... REAL_LLM_BASE_URL=... REAL_LLM_MODEL=... npm run qa:real-provider` | 通过用户 vault 保存真实 key，验证 compatible `/models` 诊断、连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run | 否 |
 
 真实 API/真实 LLM 体验验证建议只跑目标用例，不直接跑全量 E2E。全量里包含 memory fallback 隔离测试，会刻意断言本地内存仓库行为；真实 PostgreSQL/真实 LLM 服务上跑全量容易把环境差异误判为发布门禁失败。
@@ -75,6 +76,8 @@ npm run qa:real-provider
 ```
 
 脚本会优先复用已经启动的本地 `http://127.0.0.1:3000` 或 `http://localhost:3000`；没有本地服务时才自启临时 Next dev server。也可用 `REAL_QA_BASE_URL=http://127.0.0.1:3000` 指定已有服务，或设置 `REAL_PROVIDER_FORCE_NEW_SERVER=1` 强制自启。它会创建唯一 QA 用户，把真实 key 保存进该用户 vault，再调用 `/api/me/llm-models`、`/api/me/llm-test`、`/api/conversations/:id/messages`、`/api/usage/model-calls` 和 `/api/proactive/run`。结束时默认删除 QA 用户；如需保留排查，可设置 `REAL_PROVIDER_KEEP_QA_ACCOUNT=1`。脚本不打印请求体、响应体、header、key、Base URL、prompt 或供应商 raw payload；失败时只打印脱敏后的 route/status/errorType/retryable 摘要和脱敏服务日志。
+
+`npm run qa:real-provider:fake` 是默认门禁用的 hermetic 自测：它启动本地 fake compatible `/v1/models` 与 `/v1/chat/completions`，用占位 key 驱动 `tests/qa-real-provider.mjs`，确认脚本逻辑、vault 写入读取、聊天持久化、用量记录和输出脱敏仍然可用。它不访问真实供应商、不消耗额度，也不能记录为真实 BYOK 联调通过。
 
 完整本地验收建议：
 
@@ -439,6 +442,8 @@ npm run e2e
 
 `npm run qa:real-provider` 的记录口径：脚本通过可以作为真实 compatible BYOK 链路证据；脚本因 provider 401/403/429、余额、模型不可用、网络超时或 `/models` 不兼容失败时，先归入供应商/配置联调风险；脚本泄露 key/Base URL/prompt/raw payload、无法从 user-vault 读凭据、真实聊天走到 `mock-local`、成功聊天没有用量记录，才归入应用缺陷。
 
+`npm run qa:real-provider:fake` 的记录口径：通过只说明本地 fake-compatible 自测通过；如果失败，按应用/测试脚本缺陷处理，不归因给真实供应商。
+
 ## 验收记录模板
 
 | 日期 | 执行人 | 命令 | 结果 | 风险/备注 |
@@ -448,4 +453,5 @@ npm run e2e
 |  |  | `npm run lint` |  |  |
 |  |  | `npm run build` |  |  |
 |  |  | `npm run e2e` |  |  |
+|  |  | `npm run qa:real-provider:fake` |  | 默认门禁；不需要真实 key |
 |  |  | `npm run qa:real-provider` |  | 可选；仅在显式真实 BYOK 联调时填写 |
