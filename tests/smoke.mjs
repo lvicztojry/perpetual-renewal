@@ -367,6 +367,37 @@ async function startSensitiveModelProviderServer(readBody) {
   };
 }
 
+async function startModelListProviderServer(readBody, options = {}) {
+  const server = createHttpServer((request, response) => {
+    if (request.url !== "/models") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "not found" }));
+      return;
+    }
+
+    response.writeHead(options.status ?? 200, {
+      "content-type": options.contentType ?? "application/json"
+    });
+    response.end(readBody(request));
+  });
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+
+  const address = server.address();
+  assert(address && typeof address === "object", "model list provider should bind to a local port");
+
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    stop: () =>
+      new Promise((resolveClose) => {
+        server.close(() => resolveClose());
+      })
+  };
+}
+
 async function waitForServer(url) {
   const startedAt = Date.now();
   let lastError;
@@ -1862,6 +1893,136 @@ async function runSmoke() {
     "voice synthesis with user credential should not expose key or endpoint"
   );
   pass("POST /api/voice/synthesize uses sanitized user vault fallback");
+
+  const modelListProvider = await startModelListProviderServer(() =>
+    JSON.stringify({
+      models: [
+        "smoke-string-model",
+        { model: "smoke-object-model", owner: "smoke-owner" },
+        { name: "smoke-named-model", ownedBy: "smoke-owned-by" },
+        { value: "smoke-value-model", provider: "smoke-provider" },
+        { id: "smoke-object-model", owned_by: "duplicate-owner" },
+        { id: "" }
+      ]
+    })
+  );
+  try {
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: modelListProvider.url,
+        model: "smoke-object-model"
+      })
+    });
+
+    const compatibleModelList = await request("/api/me/llm-models");
+    const compatibleModelIds = compatibleModelList.body.models?.map((item) => item.id) ?? [];
+    assert(
+      compatibleModelIds.includes("smoke-string-model") &&
+        compatibleModelIds.includes("smoke-object-model") &&
+        compatibleModelIds.includes("smoke-named-model") &&
+        compatibleModelIds.includes("smoke-value-model"),
+      "compatible model list should accept common non-standard model id fields"
+    );
+    assert(
+      compatibleModelIds.filter((id) => id === "smoke-object-model").length === 1,
+      "compatible model list should dedupe repeated model ids"
+    );
+    assert(
+      compatibleModelList.body.models?.some(
+        (item) => item.id === "smoke-object-model" && item.ownedBy === "smoke-owner"
+      ),
+      "compatible model list should preserve safe owner metadata"
+    );
+
+    const compatibleConnectionTest = await request("/api/me/llm-test", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: modelListProvider.url,
+        model: "smoke-object-model"
+      })
+    });
+    assert(
+      compatibleConnectionTest.body.ok === true &&
+        compatibleConnectionTest.body.provider === "compatible",
+      "LLM connection test should accept a valid compatible model list response"
+    );
+    assertNoSensitiveProviderDetails(
+      compatibleModelList.body,
+      "compatible model list success",
+      [fakeKey, modelListProvider.url, savedEndpoint]
+    );
+  } finally {
+    await modelListProvider.stop();
+  }
+  pass("GET /api/me/llm-models accepts common compatible model list shapes");
+
+  const invalidShapeProvider = await startModelListProviderServer(() =>
+    JSON.stringify({ object: "list", choices: [{ text: "not a model list" }] })
+  );
+  try {
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: invalidShapeProvider.url,
+        model: "smoke-invalid-shape-model"
+      })
+    });
+
+    const invalidShapeModelList = await request("/api/me/llm-models", {}, { allowError: true });
+    assert(
+      invalidShapeModelList.response.status === 400 &&
+        invalidShapeModelList.body.errorType === "invalid_provider_response" &&
+        typeof invalidShapeModelList.body.diagnostic === "string" &&
+        invalidShapeModelList.body.diagnostic.includes("data, models, value, or result array"),
+      "model list invalid 200 responses should include a safe diagnostic"
+    );
+    assertNoSensitiveProviderDetails(invalidShapeModelList.body, "model list invalid response", [
+      fakeKey,
+      invalidShapeProvider.url,
+      savedEndpoint,
+      "not a model list"
+    ]);
+
+    const invalidShapeConnectionTest = await request(
+      "/api/me/llm-test",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          provider: "compatible",
+          baseUrl: invalidShapeProvider.url,
+          model: "smoke-invalid-shape-model"
+        })
+      },
+      { allowError: true }
+    );
+    assert(
+      invalidShapeConnectionTest.body.ok === false &&
+        invalidShapeConnectionTest.body.errorType === "provider_response" &&
+        typeof invalidShapeConnectionTest.body.diagnostic === "string" &&
+        invalidShapeConnectionTest.body.diagnostic.includes("data, models, value, or result array"),
+      "LLM connection test should diagnose invalid compatible model list responses"
+    );
+    assertNoSensitiveProviderDetails(
+      invalidShapeConnectionTest.body,
+      "LLM connection test invalid response",
+      [fakeKey, invalidShapeProvider.url, savedEndpoint, "not a model list"]
+    );
+  } finally {
+    await invalidShapeProvider.stop();
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: savedEndpoint,
+        model: "smoke-model-updated"
+      })
+    });
+  }
+  pass("GET /api/me/llm-models and POST /api/me/llm-test diagnose invalid compatible responses");
 
   const nonCompatibleCredential = await request("/api/me/llm-credential", {
     method: "PUT",

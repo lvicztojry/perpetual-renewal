@@ -70,6 +70,7 @@ type LlmModelListResponse = {
   errorType?: string;
   httpStatus?: number;
   retryable?: boolean;
+  diagnostic?: string;
 };
 
 type LlmConnectionTestResponse = {
@@ -81,6 +82,8 @@ type LlmConnectionTestResponse = {
   errorType?: string;
   error?: string;
   retryable?: boolean;
+  httpStatus?: number;
+  diagnostic?: string;
 };
 
 type ModelListFailure = {
@@ -1095,7 +1098,9 @@ function readModelListErrorDetail(payload: LlmModelListResponse) {
   }
 
   if (payload.errorType === "invalid_provider_response") {
-    return "返回格式不是 OpenAI-compatible 模型列表；可以手动填写模型名";
+    return payload.diagnostic
+      ? `返回格式不是 OpenAI-compatible 模型列表；${payload.diagnostic}`
+      : "返回格式不是 OpenAI-compatible 模型列表；可以手动填写模型名";
   }
 
   return "";

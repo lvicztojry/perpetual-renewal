@@ -770,7 +770,7 @@
 | M21 上线前隐私/安全核对清单 | integrated | M21 | `docs/DEPLOYMENT.md`、`docs/PRIVACY.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 上线前 checklist 覆盖 DATABASE_URL、USER_KEY_VAULT_SECRET、session 签名来源、LLM/VOICE 共用中转站、secrets:check、npm audit、db:smoke、Cron secret、用户自带 API key 不入仓库 |
 | M22 文本文件导入入口 | integrated | M22-TEXT-FILE-IMPORT | `src/components/renewal-workspace.tsx`、`src/app/globals.css`、`tests/e2e/relationship-flow.spec.ts`、`docs/TASKBOOK.md` | 素材导入面板支持选择 .txt、.jsonl、.json 本地文本文件；前端读取和校验，512KB 上限，复用现有单段/JSONL 导入 API，不新增服务端文件上传 |
 | M23 模型连接测试 | integrated | M23-LLM-CONNECTION-TEST | `src/lib/llm/connection-test.ts`、`src/app/api/me/llm-test/*`、`src/components/user-settings.tsx`、`tests/smoke.mjs`、`docs/LLM.md` | 设置页可安全测试当前模型连接；服务端复用用户 vault/env key，返回成功/失败、provider/model、延迟和友好错误，不返回 key/baseUrl/prompt/raw payload |
-| M24 发布候选状态面板 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 独立记录当前 MVP 能力、主控验收命令、上线前真实阻塞项和继续施工队列 |
+| M24 发布候选状态面板 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/README.md`、`README.md`、`docs/TASKBOOK.md` | 独立记录当前 MVP 能力、主控验收命令、真实配置状态和继续施工队列 |
 | M25 导入体验 QA 补强 | integrated | M25-IMPORT-QA | `docs/QA.md`、`docs/TASKBOOK.md` | 已补充单段文本、批量文本数组、JSON Lines、本地 .txt/.jsonl/.json 文件入口、512KB 上限、非法扩展名拒绝、前端只读文本复用现有 API、不新增服务端上传、密钥形态脱敏和 pending 默认状态的验收说明 |
 | M26 模型连接测试文档收束 | integrated | M26 | `docs/LLM.md`、`docs/DEPLOYMENT.md`、`docs/QA.md`、`docs/TASKBOOK.md` | 已补齐 `POST /api/me/llm-test` 与设置页“测试连接”的文档边界：复用 vault/env key、低成本读取模型列表、无 key 可预测失败、不返回 key/baseUrl/prompt/raw payload、不做订阅扣费 |
 | M27 第一版发布候选清理 | integrated | 主控 | `docs/PHASE-1.5.md`、`docs/TASKBOOK.md` | 已同步当时主控验收基线并统一 audit 使用项目内 `.npm-cache`；后续 smoke 覆盖在多个模块中继续提升 |
@@ -793,7 +793,7 @@
 | M44 发布口径自动检查 | integrated | 主控 + Averroes review | `scripts/docs-consistency.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`README.md`、`docs/README.md`、`docs/DEPLOYMENT.md`、`docs/PRE_COMMIT_CHECKLIST.md`、`docs/CONTRIBUTING.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 新增 `npm run docs:check`，自动拦截旧安装命令、裸 audit 命令、旧 smoke 数字、生产迁移口径混淆、`latest` 依赖、危险 `.env.example` 和 CI 缺失 docs check；已接入 GitHub Actions 与 `verify:local`/`verify:release` |
 | M45 Git 文件边界自动检查 | integrated | 主控 | `scripts/git-boundary-check.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`README.md`、`docs/README.md`、`docs/DEPLOYMENT.md`、`docs/PRE_COMMIT_CHECKLIST.md`、`docs/CONTRIBUTING.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 新增 `npm run git:boundary`，自动检查项目不在 C 盘、`.env.local`/构建目录/npm cache/node_modules/test-results/log/tsbuildinfo/dev.db 等不在 Git scope，并确认首提交关键文件都位于可提交范围；已接入 CI 与 `verify:local`/`verify:release` |
 | M46 Post-baseline 状态回写 | integrated | 主控 | `docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/COMMIT_PLAN.md` | 首次 baseline commit 后，更新 M36 状态、分支名、提交 hash、剩余外部动作与后续阻塞口径，避免状态面板继续显示过期决策项 |
-| M47 PR/发布候选交接材料 | integrated | 主控 | `.github/pull_request_template.md`、`docs/RELEASE_HANDOFF.md`、`scripts/docs-consistency.mjs`、`README.md`、`docs/README.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 新增 PR 模板与发布候选交接文档，记录当前分支、baseline/status 提交、push 前验证、CI 预期、生产配置缺口和不得写入 PR 的 secret 范围；`docs:check` 会确认交接文件存在 |
+| M47 PR/发布候选交接材料 | integrated | 主控 | `.github/pull_request_template.md`、`docs/RELEASE_HANDOFF.md`、`scripts/docs-consistency.mjs`、`README.md`、`docs/README.md`、`docs/TASKBOOK.md`、`docs/MVP_STATUS.md` | 新增 PR 模板与发布候选交接文档，记录当前分支、baseline/status 提交、push 前验证、CI 预期、目标环境配置复核和不得写入 PR 的 secret 范围；`docs:check` 会确认交接文件存在 |
 | M48 Pre-push 发布验证 | integrated | 主控 | `docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | push 前重新跑关键外部门禁：`npm run e2e` 通过 2 tests，`npm --cache .\.npm-cache audit --audit-level=high` 通过 0 vulnerabilities；结果已写入发布交接文档 |
 | M49 Next typed routes 稳定化 | integrated | 主控 | `scripts/next-typegen.mjs`、`package.json`、`tests/e2e/run-e2e.mjs`、`scripts/docs-consistency.mjs`、`scripts/git-boundary-check.mjs`、`README.md`、`docs/RELEASE_HANDOFF.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | 新增 `npm run next:typegen` 并让 `npm run typecheck` 前置生成 Next route types；E2E 结束后重新 typegen，避免 `next-env.d.ts` 被 dev server 留在 `.next/dev/types` 状态 |
 | M50 发布门禁增强 | integrated | 主控 | `scripts/git-boundary-check.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | `npm run git:boundary` 新增 `next-env.d.ts` 内容检查，阻止 `.next/dev/types` 引用进入提交；若触发则提示先运行 `npm run next:typegen` |
@@ -811,7 +811,7 @@
 | M62 密钥与发布门禁加固 | integrated | 主控 + 安全/QA 模块审计 | `src/lib/credentials/vault.ts`、`src/lib/export/snapshot.ts`、`scripts/check-env-leaks.mjs`、`scripts/pwa-check.mjs`、`scripts/db-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`docs/*` | vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；导出 scrub 更保守；secret scan 覆盖通用敏感 env/vault 密文字段；DB smoke 覆盖 ProviderCredential；新增 `pwa:check`、`verify:pr`、`verify:deploy` |
 | M63 文档命令/链接门禁 | integrated | 主控 + 文档门禁模块审计 | `scripts/docs-consistency.mjs`、`.github/pull_request_template.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md` | `docs:check` 纳入 PR 模板、本地 Markdown 链接存在性和文档 `npm run` 脚本存在性检查；PR/交接清单同步 `qa:imports`、`qa:vault` 与 `pwa:check` |
 | M64 结构化导入与 vault QA | integrated | 主控 + 导入/语音/安全模块审计 | `tests/structured-import-smoke.mjs`、`tests/config-vault-security.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`src/lib/import/structured-client-import.ts` | 新增 `qa:imports` 覆盖 HEIC/M4A 空 MIME、CSV/JSON/vCard 通讯录归一化和脱敏；新增 `qa:vault` 覆盖生产 vault secret 强度、HMAC fingerprint 和 config readiness provider/baseUrl 矩阵 |
-| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 90 checks、E2E 基线 13 tests |
+| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 92 checks、E2E 基线 13 tests |
 | M66 本地 session 隔离、cron 边界和文档指标派生门禁 | integrated | 主控 + session/cron/文档模块审计 | `src/lib/auth/session.ts`、`src/lib/users/profile.ts`、`src/lib/users/delete-account.ts`、`src/lib/renewal/in-memory-repository.ts`、`tests/smoke.mjs`、`tests/e2e/memory-isolation.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 无数据库 memory fallback 登录按邮箱派生本地 userId，并同步 fallback profile/删除清理，避免并行 E2E 共享 demo user；memory repository 关系详情按 userId 过滤 conversation/memory；主动回响 all-user cron 覆盖无密钥、错密钥、Bearer/header secret、limit/maxDrafts clamp 和 dry-run 不保存；docs check 自动派生当前 smoke checks、E2E tests、QA 数字和最新 M milestone |
 | M67 主动回响调度文档与交接门禁 | integrated | 主控 + 架构/交接文档模块审计 | `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md`、`docs/PR_DRAFT.md`、`scripts/docs-consistency.mjs` | 架构与部署文档移除“应用内定时任务起步/后续迁移队列”旧说法，明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截主动回响调度边界回流；交接材料同步 M66 后候选状态、PR 草稿路径、生产 `verify:deploy` 前置配置口径 |
 | M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
@@ -840,9 +840,9 @@
 | M91 导出常见外部 token 脱敏 | integrated | 主控 | `src/lib/export/snapshot.ts`、`tests/smoke.mjs`、`docs/*` | 导出快照补充 GitHub PAT/`ghp_` 等常见外部 token 字符串脱敏；用户误写入记忆后导出只包含 `[REDACTED_KEY]` 占位，不带出 token 原文 |
 | M92 设置页保存错误脱敏 E2E | integrated | 设置体验模块 + 主控 | `src/components/user-settings.tsx`、`tests/e2e/settings-privacy.spec.ts`、`docs/*` | 模型供应商设置页对模型列表、连接测试和保存失败错误文案执行前端兜底脱敏；即使服务端错误夹带当前 API key 或 Base URL，也只显示 `[已隐藏 API Key]` / `[已隐藏 Base URL]`，并保留草稿与可重试状态 |
 | M93 语音转写元数据边界 | integrated | 语音边界模块 + 主控 | `src/app/api/voice/transcribe/route.ts`、`tests/smoke.mjs`、`docs/*` | STT 输入补充 `fileName`、`language`、`mockTranscript` 长度和格式校验；拒绝路径/控制字符/异常语言标签/过长 mock 文本，并保证错误响应不回显 Bearer、prompt、raw payload 或用户配置 |
-| M94 发布候选文档口径同步 | integrated | 文档模块 + 主控 | `README.md`、`docs/README.md`、`docs/DEPLOYMENT.md`、`docs/PRE_COMMIT_CHECKLIST.md`、`docs/QA.md`、`docs/PHASE-1.5.md`、`docs/MVP_STATUS.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md`、`docs/TASKBOOK.md` | 文档基线同步到 90 smoke checks / 13 E2E tests；发布验证补入 `qa:logging`；部署口径固定为 Neon-first PostgreSQL、TryAnotherOne compatible gateway、BYOK 和 `VOICE_PROVIDER=shared-llm` |
+| M94 发布候选文档口径同步 | integrated | 文档模块 + 主控 | `README.md`、`docs/README.md`、`docs/DEPLOYMENT.md`、`docs/PRE_COMMIT_CHECKLIST.md`、`docs/QA.md`、`docs/PHASE-1.5.md`、`docs/MVP_STATUS.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md`、`docs/TASKBOOK.md` | 文档基线同步到当前 smoke checks / 13 E2E tests；发布验证补入 `qa:logging`；部署口径固定为 Neon-first PostgreSQL、TryAnotherOne compatible gateway、BYOK 和 `VOICE_PROVIDER=shared-llm` |
 | M95 工作台错误展示脱敏 | integrated | 主控 | `src/components/renewal-workspace.tsx`、`tests/e2e/relationship-flow.spec.ts`、`docs/*` | 工作台对聊天、记忆、主动回响、导入、语音、用量看板等来自后端或异常对象的错误展示统一执行前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时只显示安全占位 |
-| M96 模型连接失败隐私覆盖 | integrated | 模型连接边界模块 + 主控 | `src/lib/llm/connection-test.ts`、`tests/smoke.mjs`、`docs/LLM.md`、`docs/QA.md`、`docs/*` | `/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败和 fetch 网络失败；响应不回显 API key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文，当前 smoke 基线 90 checks |
+| M96 模型连接失败隐私覆盖 | integrated | 模型连接边界模块 + 主控 | `src/lib/llm/connection-test.ts`、`tests/smoke.mjs`、`docs/LLM.md`、`docs/QA.md`、`docs/*` | `/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败、fetch 网络失败和 compatible 模型列表异常响应诊断；响应不回显 API key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文，当前 smoke 基线 92 checks |
 | M97 API 私有缓存边界 | integrated | API 隐私缓存模块 + 主控 | `src/lib/http/private-response.ts`、`src/app/api/*`、`tests/smoke.mjs`、`docs/*` | 用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一走 `privateJson()`，返回 `Cache-Control: private, no-store`、`Pragma: no-cache`、`Surrogate-Control: no-store` 和 `Vary: Cookie, Authorization`；smoke 覆盖代表性接口响应头 |
 | M98 签名 session cookie | integrated | 认证/session 模块 + 主控 | `src/lib/auth/session.ts`、`src/app/api/auth/*`、`src/app/api/me/account/*`、`tests/smoke.mjs`、`docs/*` | session cookie 不再保存裸 `userId`，改为 HMAC 签名 `v1.<payload>.<signature>`；生产环境必须有 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；登出和账号删除用同属性过期 cookie；smoke 覆盖伪造裸 userId cookie 不能越权 |
 | M99 Session 签名 secret 门禁 | integrated | 配置安全模块 + 主控 | `src/lib/auth/session-secret.ts`、`src/lib/auth/session.ts`、`src/lib/config/status.ts`、`scripts/env-readiness.mjs`、`tests/config-vault-security.mjs`、`tests/smoke.mjs`、`docs/*` | session 签名 secret 强度检查从运行时、设置页配置状态和命令行 readiness 三处统一；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 dedicated secret 会阻止生产签名并显示 warning |
@@ -865,7 +865,7 @@
 | M116 DB smoke transient retry | integrated | 数据库/发布门禁模块 + 主控 | `scripts/db-smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | `db:smoke` 对清理和清理校验阶段的短暂数据库连接错误做有限重试，减少 Neon/serverless pooler 瞬断导致的误失败；普通断言失败仍直接失败；真实 `db:smoke` 和 `verify:deploy` 已通过 |
 | M117 Vercel Cron 主动回响入口 | integrated | 主动回响调度模块 + 主控 | `src/app/api/proactive/run/route.ts`、`src/lib/config/status.ts`、`scripts/env-readiness.mjs`、`.env.example`、`tests/smoke.mjs`、`README.md`、`docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | 新增 Vercel Cron 兼容的 `GET /api/proactive/run` all-user 入口，支持 `CRON_SECRET` alias 和 Bearer 鉴权；部署文档提供可复制的 Vercel Cron 与 GitHub Actions scheduled workflow 示例；readiness 与设置页配置状态识别 `PROACTIVE_CRON_SECRET` 或 `CRON_SECRET`；smoke 覆盖 GET 未授权拒绝、Bearer 授权通过且不回显 secret |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
-| M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 未配置 `DATABASE_URL` 时安全跳过；配置时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据 |
+| M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 支持无数据库本地/CI 占位检查；配置真实 `DATABASE_URL` 时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据；当前本机真实 Neon/PostgreSQL 已通过 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
 
 暂不进入第一版：付费订阅/额度系统、内容审核后台、用户反馈问卷、内测邀请机制。移动端 PWA、账号删除和媒体/通讯录结构化导入已按用户最新授权进入第一版。
@@ -920,7 +920,7 @@ M12 当前落点：
 M-DB-READINESS 当前落点：
 
 - 已将 `npm run db:smoke` 收敛到 `scripts/db-smoke.mjs`。
-- 未配置 `DATABASE_URL` 时以 0 状态跳过，适合无数据库本地开发和 CI 占位检查。
+- 无 `DATABASE_URL` 的本地开发和 CI 占位环境可以 0 状态跳过；当前本机 `.env.local` 已配置真实 Neon/PostgreSQL，并已通过 `db:smoke`。
 - 配置真实 Neon/PostgreSQL 后，脚本会先运行 Prisma generate/validate，再创建并读取用户、关系对象、会话、消息、记忆、关系状态、主动草稿、脱敏安全事件和模型调用日志。
 - 脚本结束时删除固定测试用户，并断言级联/空置清理后不残留测试数据；输出会脱敏，不打印真实连接串或 key。
 
@@ -1071,7 +1071,7 @@ M34 当前落点：
 
 - 技术栈采用 Next.js 全栈、Prisma、PostgreSQL 路线。
 - 模型接入走供应商中立 adapter，默认 compatible 中转站 `https://api.tryanotherone.com/v1`，用户自带 API key；个人真实试用优先在设置页保存当前用户 key/model，服务端 `LLM_API_KEY`/`LLM_MODEL` 只作为 fallback。
-- 数据库优先 Neon/PostgreSQL；未配置时本地 fallback，生产不能依赖 memory。
+- 数据库优先 Neon/PostgreSQL；当前本机真实配置已通过，未配置的开发环境仍可用本地 fallback，生产不能依赖 memory。
 - 部署路线优先 Vercel + Neon/PostgreSQL + 部署平台 secret。
 - 主动回响本地前台检查当前关系对象，生产 all-user 调度使用受保护 cron 入口；Vercel Cron 可用 `CRON_SECRET` alias。
 - 现实替代第一版支持手动设定、少量语气样例、文本/JSONL/JSON 文件导入，以及媒体/照片/通讯录的浏览器本地整理与脱敏摘要导入。
@@ -1080,7 +1080,7 @@ M34 当前落点：
 
 仍需外部配置：
 
-- 生产 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 或 Vercel `CRON_SECRET` alias。
+- 将本机已验证的 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 或 Vercel `CRON_SECRET` alias 同步到目标部署环境，并在那里复跑 `npm run verify:deploy`。
 - 真实模型 key/model：优先由用户在设置页 vault 保存，或由部署平台 secret 提供服务端 fallback。
 
 已决策暂缓项：

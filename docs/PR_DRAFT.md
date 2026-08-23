@@ -24,7 +24,7 @@ Included capabilities:
 
 ## Verification
 
-Latest local verification on 2026-08-21:
+Latest local verification on 2026-08-23:
 
 - `npm run typecheck`
 - `npm run lint`
@@ -32,22 +32,23 @@ Latest local verification on 2026-08-21:
 - `npm run secrets:check`
 - `npm run git:boundary`
 - `npm run build`
-- `npm run smoke` -> 90 checks
+- `npm run smoke` -> 92 checks
 - `npm run qa:samples`
 - `npm run qa:prompt`
 - `npm run qa:imports`
 - `npm run qa:vault`
 - `npm run qa:logging`
 - `npm run qa:response`
+- `npm run env:readiness -- --strict` -> missing=0, warning=3
 - `npm run pwa:check`
 - `npm run prisma:validate`
-- `npm run db:smoke` -> skipped because `DATABASE_URL` is not set
+- `npm run db:smoke` -> passed against real Neon/PostgreSQL
 - `npm run e2e` -> 13 tests
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
 Before creating or updating the PR, use the current wrapper sequence `npm run verify:local -- --skip-e2e`, `npm run e2e`, and `npm run verify:release`, then re-check live branch state with `git status --short --branch` and push with `git push origin codex/mvp-release-candidate` if needed. Do not hard-code ahead/pushed status in the PR body.
 
-## Production Config Still Required
+## Production Config To Mirror
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
@@ -56,6 +57,6 @@ Before creating or updating the PR, use the current wrapper sequence `npm run ve
 - LLM: `LLM_PROVIDER=compatible`, `LLM_BASE_URL=https://api.tryanotherone.com/v1`, model selected in settings or deployment secret fallback; API key should be saved in the user vault or deployment secret, never in Git.
 - Voice: `VOICE_PROVIDER=shared-llm`; set `VOICE_STT_MODEL` and `VOICE_TTS_MODEL` only when the shared gateway requires audio-specific models.
 
-After production secrets and database are configured, run `npm run verify:deploy` in the target environment before treating deployment readiness as passed.
+Local real configuration has passed strict readiness, real DB smoke, and deploy verification. Mirror these secret/env values into the target deployment environment and run `npm run verify:deploy` there before treating deployment readiness as passed.
 
 Do not paste real API keys, database URLs, vault secrets, session secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data into the PR.

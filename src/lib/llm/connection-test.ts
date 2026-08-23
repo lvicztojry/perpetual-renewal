@@ -1,6 +1,7 @@
 import { readDecryptedLlmCredential } from "@/lib/credentials";
 import type { LlmProviderAlias, LlmProviderName, LlmProviderErrorKind } from "./types";
 import { classifyProviderStatus } from "./types";
+import { parseOpenAiCompatibleModelList } from "./model-list";
 
 export type LlmConnectionTestInput = {
   provider?: unknown;
@@ -17,6 +18,8 @@ export type LlmConnectionTestResult = {
   errorType?: LlmConnectionTestErrorType;
   error?: string;
   retryable?: boolean;
+  httpStatus?: number;
+  diagnostic?: string;
 };
 
 type LlmConnectionTestErrorType =
@@ -67,9 +70,36 @@ export async function testLlmConnection(
         credentialSource: config.credentialSource,
         latencyMs: Date.now() - startedAt,
         errorType: classification.kind,
-        error: toFriendlyConnectionError(classification.kind),
+        error: toFriendlyConnectionError(classification.kind, response.status),
+        httpStatus: response.status,
+        diagnostic: `Provider /models endpoint returned HTTP ${response.status}.`,
         retryable: classification.retryable
       };
+    }
+
+    if (config.provider === "compatible") {
+      const payload = await response.json().catch(() => undefined);
+      const parsed =
+        payload === undefined
+          ? {
+              ok: false as const,
+              diagnostic: "Provider /models response was not valid JSON."
+            }
+          : parseOpenAiCompatibleModelList(payload);
+
+      if (!parsed.ok) {
+        return {
+          ok: false,
+          provider: config.provider,
+          model: config.model,
+          credentialSource: config.credentialSource,
+          latencyMs: Date.now() - startedAt,
+          errorType: "provider_response",
+          error: "连接测试收到响应，但模型列表格式不是常见 OpenAI-compatible 结构。",
+          diagnostic: parsed.diagnostic,
+          retryable: false
+        };
+      }
     }
 
     return {
@@ -270,11 +300,12 @@ function toConnectionFailure(error: unknown) {
   };
 }
 
-function toFriendlyConnectionError(kind: LlmProviderErrorKind) {
+function toFriendlyConnectionError(kind: LlmProviderErrorKind, status?: number) {
+  const statusPrefix = typeof status === "number" ? `供应商返回 HTTP ${status}。` : "";
   if (kind === "authentication") return "API Key 无效、权限不足，或供应商拒绝了这次请求。";
   if (kind === "rate_limit") return "供应商限流了这次测试，请稍后再试。";
   if (kind === "timeout") return "连接测试超时，请稍后再试。";
-  return "供应商返回了异常状态，请检查供应商配置或稍后再试。";
+  return `${statusPrefix}请检查供应商配置或稍后再试。`;
 }
 
 class LlmConnectionTestConfigurationError extends Error {

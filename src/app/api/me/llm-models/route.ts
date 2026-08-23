@@ -88,6 +88,7 @@ function toModelListErrorMetadata(error: unknown) {
   return {
     errorType: error.code,
     httpStatus: error.options.httpStatus,
-    retryable: error.options.retryable
+    retryable: error.options.retryable,
+    diagnostic: error.options.diagnostic
   };
 }

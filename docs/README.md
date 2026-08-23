@@ -14,12 +14,12 @@
 2. [TASKBOOK.md](TASKBOOK.md)：总任务拆解、依赖关系、验收标准与阶段规划。
 3. [ARCHITECTURE.md](ARCHITECTURE.md)：第一版技术施工路线、系统模块、数据层和模型调用策略。
 4. [CONTRIBUTING.md](CONTRIBUTING.md)：新协作者开发说明，覆盖模块边界、本地 fallback、密钥规则、常用命令和状态更新方式。
-5. [MVP_STATUS.md](MVP_STATUS.md)：当前 MVP 能力、最新验收、上线前真实阻塞项与继续施工队列。
+5. [MVP_STATUS.md](MVP_STATUS.md)：当前 MVP 能力、最新验收、真实配置状态与继续施工队列。
 6. [DEPLOYMENT.md](DEPLOYMENT.md)：Vercel + Neon/PostgreSQL 上线流程、本地 `migrate dev` 与生产 `migrate deploy`、LLM/VOICE 共用 TryAnotherOne compatible 中转站 env、session/cron secret 与上线前隐私/安全 checklist。
 7. [PRIVACY.md](PRIVACY.md)：用户数据导出、用户自带 API key 不入仓库、不入导出快照的隐私规则。
 8. [ERROR_COPY.md](ERROR_COPY.md)：聊天、导入、语音、模型连接、导出、数据库、session 和 cron secret 等错误状态的中文文案规范。
 9. [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md)：发布候选 20 分钟人工演示/验收脚本，覆盖全关系、聊天、记忆、导入、主动回响、模型、语音、用量、导出和移动端快检。
-10. [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)：发布候选 push/PR 交接说明、CI 预期、生产配置缺口和后续动作。
+10. [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)：发布候选 push/PR 交接说明、CI 预期、目标环境配置复核和后续动作。
 11. [PRE_COMMIT_CHECKLIST.md](PRE_COMMIT_CHECKLIST.md)：第一次 commit/push 前的文件边界、密钥、验收命令和真实配置检查。
 12. [COMMIT_PLAN.md](COMMIT_PLAN.md)：首次提交的推荐分组、提交信息和应纳入/排除文件范围。
 

@@ -11,6 +11,16 @@ export type LlmModelListResult = {
   models: LlmModelListItem[];
 };
 
+export type LlmModelListParseResult =
+  | {
+      ok: true;
+      models: LlmModelListItem[];
+    }
+  | {
+      ok: false;
+      diagnostic: string;
+    };
+
 export class LlmModelListError extends Error {
   constructor(
     message: string,
@@ -24,6 +34,7 @@ export class LlmModelListError extends Error {
     readonly options: {
       httpStatus?: number;
       retryable: boolean;
+      diagnostic?: string;
     }
   ) {
     super(message);
@@ -89,34 +100,136 @@ export async function listAvailableLlmModels(userId: string): Promise<LlmModelLi
     );
   }
 
-  const payload = (await response.json().catch(() => null)) as {
-    data?: Array<{
-      id?: unknown;
-      owned_by?: unknown;
-      ownedBy?: unknown;
-    }>;
-  } | null;
-  if (!payload || !Array.isArray(payload.data)) {
+  const payload = await response.json().catch(() => undefined);
+  if (payload === undefined) {
+    throw new LlmModelListError(
+      "Model listing returned non-JSON content.",
+      "invalid_provider_response",
+      {
+        retryable: false,
+        diagnostic: "Provider /models response was not valid JSON."
+      }
+    );
+  }
+
+  const parsed = parseOpenAiCompatibleModelList(payload);
+  if (!parsed.ok) {
     throw new LlmModelListError(
       "Model listing returned an unsupported response shape.",
       "invalid_provider_response",
-      { retryable: false }
+      { retryable: false, diagnostic: parsed.diagnostic }
     );
   }
 
   return {
     provider: "compatible",
     credentialSource: credential ? "user-vault" : "server-env",
-    models: (payload.data ?? [])
-      .map((item) => ({
-        id: typeof item.id === "string" ? item.id : "",
-        ownedBy:
-          typeof item.owned_by === "string"
-            ? item.owned_by
-            : typeof item.ownedBy === "string"
-              ? item.ownedBy
-              : undefined
-      }))
-      .filter((item) => item.id)
+    models: parsed.models
   };
+}
+
+export function parseOpenAiCompatibleModelList(payload: unknown): LlmModelListParseResult {
+  const candidates = readModelArrayCandidates(payload);
+  let sawEmptyArray = false;
+  let sawNonEmptyArray = false;
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate.value)) continue;
+
+    if (candidate.value.length === 0) {
+      sawEmptyArray = true;
+      continue;
+    }
+
+    sawNonEmptyArray = true;
+    const models = dedupeModels(candidate.value.map(toModelListItem).filter(isUsableModel));
+    if (models.length > 0) return { ok: true, models };
+  }
+
+  if (sawEmptyArray && !sawNonEmptyArray) {
+    return { ok: true, models: [] };
+  }
+
+  if (!sawEmptyArray && !sawNonEmptyArray) {
+    return {
+      ok: false,
+      diagnostic:
+        "Provider /models JSON did not include a top-level data, models, value, or result array."
+    };
+  }
+
+  return {
+    ok: false,
+    diagnostic:
+      "Provider /models array did not include usable string ids or id/model/name/value fields."
+  };
+}
+
+function readModelArrayCandidates(payload: unknown) {
+  const root = asRecord(payload);
+  const data = root ? asRecord(root.data) : null;
+  const result = root ? asRecord(root.result) : null;
+
+  return [
+    { value: payload },
+    { value: root?.data },
+    { value: root?.models },
+    { value: root?.value },
+    { value: root?.result },
+    { value: data?.models },
+    { value: data?.data },
+    { value: result?.models },
+    { value: result?.data }
+  ];
+}
+
+function toModelListItem(item: unknown): LlmModelListItem {
+  if (typeof item === "string") {
+    return { id: item.trim() };
+  }
+
+  const record = asRecord(item);
+  if (!record) return { id: "" };
+
+  return {
+    id:
+      readTrimmedString(record.id) ??
+      readTrimmedString(record.model) ??
+      readTrimmedString(record.name) ??
+      readTrimmedString(record.value) ??
+      "",
+    ownedBy:
+      readTrimmedString(record.owned_by) ??
+      readTrimmedString(record.ownedBy) ??
+      readTrimmedString(record.owner) ??
+      readTrimmedString(record.provider)
+  };
+}
+
+function isUsableModel(item: LlmModelListItem) {
+  return Boolean(item.id);
+}
+
+function dedupeModels(models: LlmModelListItem[]) {
+  const seen = new Set<string>();
+  const deduped: LlmModelListItem[] = [];
+
+  for (const model of models) {
+    if (seen.has(model.id)) continue;
+    seen.add(model.id);
+    deduped.push(model);
+  }
+
+  return deduped;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function readTrimmedString(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }

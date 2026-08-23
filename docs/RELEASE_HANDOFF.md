@@ -57,7 +57,7 @@
 - M91 scope: export snapshot string scrub now redacts common external token shapes such as GitHub PAT/`ghp_` values accidentally stored in user content.
 - M92 scope: settings credential errors are redacted in the browser before display, covering model list, connection test, and save failures while preserving retryable drafts.
 - M93 scope: voice transcription validates metadata fields for unsafe filenames, invalid language tags, and overlong mock transcripts without leaking Bearer, prompt, raw payload, or user config values.
-- M94 scope: release docs now sync the 90 smoke checks / 13 E2E tests baseline, `qa:logging`, Neon-first PostgreSQL deployment guidance, compatible TryAnotherOne gateway wording, BYOK, and `VOICE_PROVIDER=shared-llm`.
+- M94 scope: release docs now sync the current smoke checks / 13 E2E tests baseline, `qa:logging`, Neon-first PostgreSQL deployment guidance, compatible TryAnotherOne gateway wording, BYOK, and `VOICE_PROVIDER=shared-llm`.
 - M95 scope: workspace error display now redacts Bearer, API key-shaped strings, Base URLs, prompt/raw payload/debug fields, and stack-like frames before rendering backend or exception messages.
 - M96 scope: LLM connection test and model-list failure paths now cover URL construction, provider HTTP, and fetch failures without returning API keys, Bearer headers, endpoint/Base URL values, prompt, raw payload, stack, or low-level transport text.
 - M97 scope: API JSON responses now use a shared private no-store helper so user data, settings, model, usage, voice, memory, chat, export, proactive, and safety endpoints carry cache-busting private response headers.
@@ -87,23 +87,24 @@
 
 ## Latest Pre-push Verification
 
-Last updated: 2026-08-21
+Last updated: 2026-08-23
 
 - `npm run docs:check`: passed.
 - `npm run git:boundary`: passed.
 - `npm run secrets:check`: passed.
 - `npm run typecheck`: passed with `next:typegen`.
 - `npm run lint`: passed.
-- `npm run smoke`: passed, 90 checks.
+- `npm run smoke`: passed, 92 checks.
 - `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
 - `npm run qa:prompt`: passed, 10 relationship kinds.
 - `npm run qa:imports`: passed.
 - `npm run qa:vault`: passed.
 - `npm run qa:logging`: passed.
 - `npm run qa:response`: passed.
+- `npm run env:readiness -- --strict`: passed, missing=0 and warning=3.
 - `npm run pwa:check`: passed.
 - `npm run prisma:validate`: passed.
-- `npm run db:smoke`: safely skipped because `DATABASE_URL` is not set.
+- `npm run db:smoke`: passed against the real Neon/PostgreSQL configuration.
 - `npm run build`: passed.
 - `npm run e2e`: passed, 13 tests.
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
@@ -125,7 +126,7 @@ git status --short --ignored
 
 Expected local status after commit should only show ignored generated folders such as `.next/`, `.npm-cache/`, `node_modules/`, `test-results/`, and `tsconfig.tsbuildinfo`.
 
-Run `npm run verify:deploy` only in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, a session signing secret source, and `PROACTIVE_CRON_SECRET` are configured. A local machine without those production secrets should not mark deploy readiness as passed.
+Run `npm run verify:deploy` in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, a session signing secret source, and `PROACTIVE_CRON_SECRET` are present there. The current local environment has passed this gate with real Neon/PostgreSQL; each deployment target still needs its own secret-store verification.
 
 ## Push And PR
 
@@ -177,9 +178,9 @@ npm run build
 
 CI intentionally does not require real `DATABASE_URL`, real LLM key, E2E browser availability, or network audit.
 
-Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, Prisma validation, and DB smoke, so it must not be treated as passed when `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, session signing secret source, or `PROACTIVE_CRON_SECRET` are missing.
+Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, Prisma validation, and DB smoke, so local success does not replace target-environment verification.
 
-## Production Configuration Still Required
+## Production Configuration To Mirror
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
@@ -200,9 +201,9 @@ Use the generated `USER_KEY_VAULT_SECRET`, `SESSION_COOKIE_SECRET`, and `PROACTI
 ## Known Non-blocking Local Warnings
 
 - Git may warn that it cannot read `C:\Users\lvicztojry/.config/git/ignore`; this is an environment-level global ignore permission warning.
-- `db:smoke` skips when `DATABASE_URL` is not set; this is acceptable locally but not sufficient for production database acceptance.
+- `env:readiness -- --strict` currently reports warning=3 with missing=0; review warnings before final production rollout, but they are not database blockers.
 
 ## Deferred Product Decisions
 
 - Deferred by product decision for first release: paid subscription/quota system, moderation admin, feedback survey, and beta invite mechanism.
-- Remaining external setup: configure production PostgreSQL and secrets.
+- Remaining external setup: mirror the locally verified PostgreSQL and secret configuration into the target deployment environment, then rerun deploy verification there.
