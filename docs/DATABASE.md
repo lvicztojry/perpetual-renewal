@@ -5,7 +5,9 @@
 The renewal domain now has two repository implementations:
 
 - `PrismaRenewalRepository`: primary path when `DATABASE_URL` is present.
-- `InMemoryRenewalRepository`: local development fallback when no database is configured or Prisma cannot reach the database in non-production.
+- `InMemoryRenewalRepository`: demo path only when no database is configured, or when `RENEWAL_REPOSITORY=memory` is set deliberately.
+
+M120 persistence rule: once `DATABASE_URL` is configured, Prisma is the active repository and connection/write errors must surface instead of silently falling back to memory. This keeps local real trials and deployment candidates from looking saved when PostgreSQL is unavailable.
 
 Covered Prisma-backed records:
 
@@ -34,7 +36,7 @@ It creates:
 
 ## Local Setup
 
-1. Copy `.env.example` to `.env`.
+1. Copy `.env.example` to `.env.local` for local real trials.
 2. Set `DATABASE_URL` to a PostgreSQL database. For Neon, `DATABASE_URL` can be the pooled application URL; optionally set `DATABASE_URL_UNPOOLED` to the direct URL for Prisma migrations.
 3. Run:
 
@@ -92,13 +94,15 @@ npm run prisma:migrate:deploy
 npm run db:smoke
 ```
 
+For deployment readiness, mirror the local env/secrets into the target environment and run `npm run verify:deploy` against that target. A local `db:smoke` pass proves the local configuration only; a skip result is acceptable for unconfigured local/CI baselines but is not a production database gate.
+
 When `DATABASE_URL_UNPOOLED` is configured, `npm run prisma:migrate` and `npm run prisma:migrate:deploy` temporarily use it for the Prisma CLI. App runtime queries and `db:smoke` continue to use `DATABASE_URL`.
 
 ## Fallback Behavior
 
 If `DATABASE_URL` is missing, the renewal service uses the in-memory demo repository directly.
 
-If `DATABASE_URL` is present but the database is unavailable in local development, repository calls fall back to the in-memory demo store and log one warning. Production does not fall back; Prisma errors are thrown so deployment problems are visible.
+If `DATABASE_URL` is present but the database is unavailable, repository calls fail with the Prisma error path. They do not fall back to the in-memory demo store in local development, preview, or production.
 
 Set this to force the demo store even when a database URL exists:
 
@@ -110,4 +114,4 @@ RENEWAL_REPOSITORY="memory"
 
 - DB smoke validates direct Prisma persistence, not the full HTTP app running against PostgreSQL.
 - Renewal API routes use `getCurrentSession()` and are scoped by the current session userId. Local development supports email sessions plus a fallback demo user when no explicit login exists.
-- The relationship-state API is repository-backed: reads and writes use the same Prisma or memory fallback persistence as the main renewal workspace.
+- The relationship-state API is repository-backed: reads and writes use the same configured repository as the main renewal workspace, with Prisma active whenever `DATABASE_URL` is configured.

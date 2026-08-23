@@ -13,6 +13,7 @@ import {
 } from "@/lib/import/types";
 import { getCurrentSession } from "@/lib/auth/session";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 
 type RouteContext = {
@@ -44,101 +45,108 @@ export async function POST(request: NextRequest, context: RouteContext) {
     throw error;
   }
 
-  const session = await getCurrentSession();
-  const repo = createRenewalRepository();
-  const companion = await repo.getCompanion(session.userId, companionId);
+  try {
+    const session = await getCurrentSession();
+    const repo = createRenewalRepository();
+    const companion = await repo.getCompanion(session.userId, companionId);
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found" }, { status: 404 });
-  }
-
-  const plan =
-    importRequest.mode === "single"
-      ? createTextImportPlan({
-          text: importRequest.text,
-          sourceKind: importRequest.sourceKind
-        })
-      : createBatchTextImportPlan({
-          items: importRequest.items,
-          defaultSourceKind: importRequest.sourceKind
-        });
-
-  const parseSkippedCount = importRequest.mode === "single" ? 0 : importRequest.skippedCount;
-
-  if (!plan.candidates.length) {
-    return privateJson(
-      {
-        error: "没有找到可导入候选。",
-        redactionCount: plan.redactionCount,
-        skippedCount: plan.skippedCount + parseSkippedCount,
-        importSummary: buildImportSummary(importRequest.mode, plan, 0, parseSkippedCount)
-      },
-      { status: 400 }
-    );
-  }
-
-  const existingMemoryKeys = new Set(
-    companion.memories
-      .filter((memory) => memory.status !== "deleted")
-      .map((memory) => normalizeImportedMemoryContent(memory.content))
-  );
-  let existingDuplicateCount = 0;
-  const importableCandidates = plan.candidates.filter((candidate) => {
-    const key = normalizeImportedMemoryContent(candidate.content);
-    if (existingMemoryKeys.has(key)) {
-      existingDuplicateCount += 1;
-      return false;
+    if (!companion) {
+      return privateJson({ error: "Companion not found" }, { status: 404 });
     }
 
-    existingMemoryKeys.add(key);
-    return true;
-  });
+    const plan =
+      importRequest.mode === "single"
+        ? createTextImportPlan({
+            text: importRequest.text,
+            sourceKind: importRequest.sourceKind
+          })
+        : createBatchTextImportPlan({
+            items: importRequest.items,
+            defaultSourceKind: importRequest.sourceKind
+          });
 
-  if (!importableCandidates.length) {
+    const parseSkippedCount = importRequest.mode === "single" ? 0 : importRequest.skippedCount;
+
+    if (!plan.candidates.length) {
+      return privateJson(
+        {
+          error: "没有找到可导入候选。",
+          redactionCount: plan.redactionCount,
+          skippedCount: plan.skippedCount + parseSkippedCount,
+          importSummary: buildImportSummary(importRequest.mode, plan, 0, parseSkippedCount)
+        },
+        { status: 400 }
+      );
+    }
+
+    const existingMemoryKeys = new Set(
+      companion.memories
+        .filter((memory) => memory.status !== "deleted")
+        .map((memory) => normalizeImportedMemoryContent(memory.content))
+    );
+    let existingDuplicateCount = 0;
+    const importableCandidates = plan.candidates.filter((candidate) => {
+      const key = normalizeImportedMemoryContent(candidate.content);
+      if (existingMemoryKeys.has(key)) {
+        existingDuplicateCount += 1;
+        return false;
+      }
+
+      existingMemoryKeys.add(key);
+      return true;
+    });
+
+    if (!importableCandidates.length) {
+      return privateJson(
+        {
+          error: "这些内容已存在，没有新增候选。",
+          redactionCount: plan.redactionCount,
+          skippedCount: plan.skippedCount + parseSkippedCount + existingDuplicateCount,
+          importSummary: buildImportSummary(
+            importRequest.mode,
+            plan,
+            0,
+            parseSkippedCount,
+            existingDuplicateCount
+          )
+        },
+        { status: 400 }
+      );
+    }
+
+    const memories = [];
+    for (const candidate of importableCandidates) {
+      memories.push(
+        await repo.createMemory(session.userId, companionId, {
+          sourceMessageId: null,
+          type: candidate.type,
+          status: "pending",
+          content: candidate.content,
+          confidence: candidate.confidence
+        })
+      );
+    }
+
     return privateJson(
       {
-        error: "这些内容已存在，没有新增候选。",
-        redactionCount: plan.redactionCount,
-        skippedCount: plan.skippedCount + parseSkippedCount + existingDuplicateCount,
+        memories,
         importSummary: buildImportSummary(
           importRequest.mode,
           plan,
-          0,
+          memories.length,
           parseSkippedCount,
           existingDuplicateCount
-        )
+        ),
+        persistence: repo.persistence
       },
-      { status: 400 }
+      { status: 201 }
     );
-  }
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
 
-  const memories = [];
-  for (const candidate of importableCandidates) {
-    memories.push(
-      await repo.createMemory(session.userId, companionId, {
-        sourceMessageId: null,
-        type: candidate.type,
-        status: "pending",
-        content: candidate.content,
-        confidence: candidate.confidence
-      })
-    );
+    throw error;
   }
-
-  return privateJson(
-    {
-      memories,
-      importSummary: buildImportSummary(
-        importRequest.mode,
-        plan,
-        memories.length,
-        parseSkippedCount,
-        existingDuplicateCount
-      ),
-      persistence: repo.persistence
-    },
-    { status: 201 }
-  );
 }
 
 function readImportRequest(body: unknown):

@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。没有真实数据库或模型配置时，项目会使用本地 fallback/mock 路线，方便先跑通体验。
+默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。没有真实数据库或模型配置时，项目会使用本地 memory/mock 路线，方便先跑通体验；一旦配置了 `DATABASE_URL`，数据库连接或写入失败会直接暴露，不会静默保存到 memory。
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
 可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
@@ -19,7 +19,7 @@ npm run dev
 - 分支：`codex/mvp-release-candidate`
 - 当前同步点：运行 `git status --short --branch` 和 `git log -1 --oneline` 查看。
 - 初始 baseline：`ef4939e feat: build relationship ai mvp baseline`
-- 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；真实部署前在目标环境运行 `npm run verify:deploy`。
+- 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；本机已验证不等于目标部署已验证，真实部署前要把 env/secrets mirror 到目标环境并在那里运行 `npm run verify:deploy`。
 - `npm run e2e` 默认启动 managed mock/memory 服务，作为稳定 UI 门禁；如要复用当前真实配置服务，先启动 `npm run dev`，再设置 `E2E_BASE_URL=http://127.0.0.1:3000` 只跑目标 spec/用例。
 - 类型检查：`npm run typecheck` 会先运行 `npm run next:typegen`，确保 Next route types 已生成且 `next-env.d.ts` 保持稳定。
 
@@ -41,7 +41,7 @@ CRON_SECRET=""
 VOICE_PROVIDER="shared-llm"
 ```
 
-- 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查。
+- 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查，部署目标还必须在 mirror env/secrets 后运行 `npm run verify:deploy`。
 - LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
 - 模型列表：设置页读取模型列表需要已保存或即将保存的 API key；如果供应商不支持 `/models` 或临时失败，可以手动填入模型名后点“测试连接”。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。

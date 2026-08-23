@@ -147,7 +147,7 @@ npm run verify:deploy
 
 该命令会先执行 strict readiness，缺少 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret 来源或主动回响 cron secret 时直接失败，然后再跑 Prisma validation 和 DB smoke。不要把未配置数据库时的本地 `db:smoke` 跳过结果当作生产通过。
 
-生产环境不要依赖内存 fallback。部署环境必须配置可访问的 `DATABASE_URL`，让 Prisma 错误在上线时直接暴露。Preview/production 目标库迁移使用后文 Vercel Deployment 里的 `npm run prisma:migrate:deploy`，不要使用交互式 `prisma migrate dev`。
+已配置真实 `DATABASE_URL` 的环境不要依赖内存 fallback。无论本地真实试用、preview 还是 production，只要 PostgreSQL 不可访问，Prisma 错误都应直接暴露；只有未配置数据库或显式设置 `RENEWAL_REPOSITORY=memory` 时才走 demo memory。Preview/production 目标库迁移使用后文 Vercel Deployment 里的 `npm run prisma:migrate:deploy`，不要使用交互式 `prisma migrate dev`。
 
 ## LLM Gateway Setup
 
@@ -418,7 +418,8 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `npm run secrets:check` 通过。
 - `npm run prisma:validate` 通过。
 - `npm run prisma:migrate:deploy` 已对目标数据库执行。
-- `npm run db:smoke` 通过或明确因无目标数据库跳过。
+- `npm run verify:deploy` 已在目标部署环境通过，证明 env/secrets 已 mirror 且目标 `DATABASE_URL` 可用。
+- `npm run db:smoke` 已在目标 `DATABASE_URL` 下通过；跳过结果只可用于未配置数据库的本地/CI baseline，不能作为生产验收。
 - `npm run typecheck` 通过。
 - `npm run lint` 通过。
 - `npm run build` 通过。

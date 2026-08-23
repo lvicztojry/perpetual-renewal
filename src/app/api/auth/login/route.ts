@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { createEmailSession, normalizeEmail } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getUserProfile } from "@/lib/users/profile";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
 
     return privateJson({ session, user });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "auth");
+    if (persistenceError) return persistenceError;
+
     return privateJson({ error: safeLoginErrorMessage(error) }, { status: 400 });
   }
 }

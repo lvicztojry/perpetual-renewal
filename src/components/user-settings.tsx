@@ -192,15 +192,18 @@ export function UserSettings() {
           fetch("/api/me/config-status", { cache: "no-store" })
         ]);
 
-        if (!response.ok || !credentialResponse.ok || !configResponse.ok) {
-          throw new Error("读取用户资料失败");
-        }
-
-        const payload: { user: UserProfile } = await response.json();
-        const credentialPayload: { credential: LlmCredentialStatus } =
-          await credentialResponse.json();
-        const configPayload: { configStatus: ConfigReadinessSnapshot } =
-          await configResponse.json();
+        const payload = await readApiResponse<{ user: UserProfile }>(
+          response,
+          "读取用户资料失败"
+        );
+        const credentialPayload = await readApiResponse<{ credential: LlmCredentialStatus }>(
+          credentialResponse,
+          "读取模型连接配置失败"
+        );
+        const configPayload = await readApiResponse<{ configStatus: ConfigReadinessSnapshot }>(
+          configResponse,
+          "读取配置状态失败"
+        );
 
         if (ignore) return;
 
@@ -223,7 +226,9 @@ export function UserSettings() {
       } catch (loadError) {
         if (ignore) return;
 
-        setError(loadError instanceof Error ? loadError.message : "读取用户资料失败");
+        setError(
+          loadError instanceof Error ? redactSettingsError(loadError.message) : "读取用户资料失败"
+        );
         setStatus("error");
         setCredentialStatus("error");
       }
@@ -284,17 +289,16 @@ export function UserSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
       });
-      const payload: { user?: UserProfile; error?: string } = await response.json();
+      const payload = await readApiResponse<{ user?: UserProfile }>(response, "保存用户资料失败");
 
-      if (!response.ok || !payload.user) {
-        throw new Error(payload.error ?? "保存用户资料失败");
-      }
-
+      if (!payload.user) throw new Error("保存用户资料失败");
       setProfile(payload.user);
       setForm(toFormState(payload.user));
       setStatus("saved");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存用户资料失败");
+      setError(
+        saveError instanceof Error ? redactSettingsError(saveError.message) : "保存用户资料失败"
+      );
       setStatus("error");
     }
   }
@@ -448,11 +452,7 @@ export function UserSettings() {
 
     try {
       const response = await fetch("/api/me/export", { cache: "no-store" });
-      const snapshot = await response.json();
-
-      if (!response.ok) {
-        throw new Error(snapshot?.error ?? "导出数据失败");
-      }
+      const snapshot = await readApiResponse<Record<string, unknown>>(response, "导出数据失败");
 
       const json = JSON.stringify(snapshot, null, 2);
       const blob = new Blob([json], { type: "application/json" });
@@ -531,12 +531,12 @@ export function UserSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody)
       });
-      const payload: { credential?: LlmCredentialStatus; error?: string } = await response.json();
+      const payload = await readApiResponse<{ credential?: LlmCredentialStatus }>(
+        response,
+        "保存模型连接配置失败"
+      );
 
-      if (!response.ok || !payload.credential) {
-        throw new Error(payload.error ?? "保存模型连接配置失败");
-      }
-
+      if (!payload.credential) throw new Error("保存模型连接配置失败");
       setCredential(payload.credential);
       setCredentialForm((current) => ({
         ...current,
@@ -1059,13 +1059,72 @@ function readDefaultBaseUrl(provider: string) {
 }
 
 function redactCredentialSecrets(message: string, credentialForm: CredentialFormState) {
-  return [
+  return redactSettingsError([
     { value: credentialForm.apiKey.trim(), replacement: "[已隐藏 API Key]" },
     { value: credentialForm.baseUrl.trim(), replacement: "[已隐藏 Base URL]" }
   ].reduce((current, secret) => {
     if (!secret.value) return current;
     return current.split(secret.value).join(secret.replacement);
-  }, message);
+  }, message));
+}
+
+async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
+  let payload: unknown = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    if (!response.ok) throw new Error(fallback);
+    throw new Error("接口返回了无法识别的数据，请稍后重试。");
+  }
+
+  if (!response.ok) {
+    throw new Error(readApiError(payload, fallback));
+  }
+
+  return payload as T;
+}
+
+function readApiError(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    typeof (payload as { error?: unknown }).error === "string" &&
+    (payload as { error: string }).error.trim()
+  ) {
+    return redactSettingsError((payload as { error: string }).error);
+  }
+
+  return fallback;
+}
+
+function redactSettingsError(message: string) {
+  return [
+    {
+      pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+      replacement: "Bearer [已隐藏]"
+    },
+    {
+      pattern: /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
+      pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
+      replacement: "[已隐藏敏感字段]"
+    },
+    {
+      pattern: /postgres(?:ql)?:\/\/[^\s"',;<>]+/gi,
+      replacement: "[已隐藏数据库连接串]"
+    },
+    {
+      pattern: /https?:\/\/[^\s"',;<>]+/gi,
+      replacement: "[已隐藏 Base URL]"
+    },
+    {
+      pattern: /\b(?:prompt|rawPayload|raw_payload|stack)\b/gi,
+      replacement: "[已隐藏调试字段]"
+    }
+  ].reduce((current, item) => current.replace(item.pattern, item.replacement), message.trim());
 }
 
 function formatModelListError(payload: LlmModelListResponse) {
@@ -1202,6 +1261,10 @@ function toFriendlyExportError(error: unknown) {
 
   if (error instanceof Error && error.message.includes("401")) {
     return "登录状态可能已过期，请重新登录后再导出。";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return redactSettingsError(error.message);
   }
 
   return "这次导出没有成功，请稍后重试；如果仍失败，请重新登录后再试。";

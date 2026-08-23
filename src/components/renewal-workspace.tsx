@@ -312,7 +312,9 @@ export function RenewalWorkspace() {
     async function loadCompanions() {
       try {
         const response = await fetch("/api/companions", { cache: "no-store" });
-        if (!response.ok) throw new Error("关系对象加载失败。");
+        if (!response.ok) {
+          throw new Error(await readResponseError(response, "关系对象加载失败。"));
+        }
         const payload = (await response.json()) as { companions: CompanionProfile[] };
         const databaseStatus = await loadDatabaseConfigStatus();
         if (!mounted) return;
@@ -351,7 +353,9 @@ export function RenewalWorkspace() {
         const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
           cache: "no-store"
         });
-        if (!response.ok) throw new Error("消息加载失败。");
+        if (!response.ok) {
+          throw new Error(await readResponseError(response, "消息加载失败。"));
+        }
         const payload = (await response.json()) as { messages: MessageRecord[] };
         if (mounted) setMessages(payload.messages);
       } catch (loadError) {
@@ -620,7 +624,9 @@ export function RenewalWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content })
       });
-      if (!response.ok) throw new Error("消息发送失败。");
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "消息发送失败。"));
+      }
       const payload = (await response.json()) as {
         userMessage: MessageRecord;
         assistantMessage: MessageRecord | null;

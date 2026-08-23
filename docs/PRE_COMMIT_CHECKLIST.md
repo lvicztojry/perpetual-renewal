@@ -53,7 +53,7 @@ npm run smoke
 npm run build
 ```
 
-CI 不要求 `DATABASE_URL`、`LLM_API_KEY`、`USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 或 `PROACTIVE_CRON_SECRET`，默认使用 mock/fallback 路线。
+CI 不要求 `DATABASE_URL`、`LLM_API_KEY`、`USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 或 `PROACTIVE_CRON_SECRET`，默认使用 mock/memory 路线。只要某个环境配置了真实 `DATABASE_URL`，数据库连接或写入失败就应暴露为失败，不能静默回退到 memory。
 
 推荐直接运行顺序门禁：
 
@@ -100,7 +100,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 说明：
 
 - `db:smoke` 在未配置 `DATABASE_URL` 时会安全跳过；上线前不能把跳过当作生产数据库验收。
-- `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret、session 签名来源或 cron secret 的部署候选误判通过。
+- `npm run verify:deploy` 会用 strict readiness 阻止缺少生产数据库、vault secret、session 签名来源或 cron secret 的部署候选误判通过；本机通过后仍要把 env/secrets mirror 到目标部署环境，并在目标环境重新运行。
 - `npm run e2e` 仍保留为本地发布前检查；当前 Playwright 使用系统 Edge，默认不放入 GitHub Actions。
 - `npm audit` 需要网络，使用项目内 `.npm-cache`，避免把 npm 缓存写到系统盘。
 - `npm run verify:local` 和 `npm run verify:release` 会顺序运行 `smoke` 与 `e2e`，避免它们抢同一个 Next dev server 项目锁，并会在 `git:boundary` 前自动运行 `next:typegen`。
@@ -142,6 +142,7 @@ npm run env:secrets
 
 - 未配置 `DATABASE_URL`，因此 `db:smoke` 显示安全跳过。
 - 未配置真实 LLM key，聊天走 mock fallback。
+- 已配置 `DATABASE_URL` 时，不允许因 PostgreSQL 不可达而静默改用 memory；应先修复数据库连接或明确设置 `RENEWAL_REPOSITORY=memory` 做纯 demo。
 - Baseline commit 后，正常情况下不应出现大量 untracked 源码文件；如果出现，先确认是否只是缓存、构建产物或测试结果。
 
 当前上线前不应接受：

@@ -1,13 +1,13 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { testLlmConnection, type LlmConnectionTestInput } from "@/lib/llm/connection-test";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
   let body: LlmConnectionTestInput;
 
   try {
@@ -19,6 +19,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await testLlmConnection(session.userId, body);
-  return privateJson(result);
+  try {
+    const session = await getCurrentSession();
+    const result = await testLlmConnection(session.userId, body);
+    return privateJson(result);
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }

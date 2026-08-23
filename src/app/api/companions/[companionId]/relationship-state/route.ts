@@ -6,6 +6,7 @@ import {
 } from "@/lib/relationship";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type { RelationshipStateRecord } from "@/lib/renewal/types";
 
@@ -18,19 +19,26 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ companionId: string }> }
 ) {
-  const { companionId } = await context.params;
-  const session = await getCurrentSession();
-  const repository = createRenewalRepository();
-  const companion = await repository.getCompanion(session.userId, companionId);
+  try {
+    const { companionId } = await context.params;
+    const session = await getCurrentSession();
+    const repository = createRenewalRepository();
+    const companion = await repository.getCompanion(session.userId, companionId);
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
+    if (!companion) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    return privateJson({
+      data: toRelationshipSnapshot(companion.relationshipState),
+      persistence: repository.persistence
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  return privateJson({
-    data: toRelationshipSnapshot(companion.relationshipState),
-    persistence: repository.persistence
-  });
 }
 
 export async function POST(
@@ -49,34 +57,41 @@ export async function POST(
     );
   }
 
-  const session = await getCurrentSession();
-  const repository = createRenewalRepository();
-  const companion = await repository.getCompanion(session.userId, companionId);
+  try {
+    const session = await getCurrentSession();
+    const repository = createRenewalRepository();
+    const companion = await repository.getCompanion(session.userId, companionId);
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
+    if (!companion) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    const current = toRelationshipSnapshot(companion.relationshipState);
+    const signal = normalizeSignal(body.signal);
+    const update = updateRelationshipState(current, signal);
+    const persisted = await repository.updateRelationshipState(
+      session.userId,
+      companionId,
+      toRelationshipStateInput(update.state)
+    );
+
+    if (!persisted) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    return privateJson({
+      data: {
+        ...update,
+        state: toRelationshipSnapshot(persisted)
+      },
+      persistence: repository.persistence
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  const current = toRelationshipSnapshot(companion.relationshipState);
-  const signal = normalizeSignal(body.signal);
-  const update = updateRelationshipState(current, signal);
-  const persisted = await repository.updateRelationshipState(
-    session.userId,
-    companionId,
-    toRelationshipStateInput(update.state)
-  );
-
-  if (!persisted) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
-  }
-
-  return privateJson({
-    data: {
-      ...update,
-      state: toRelationshipSnapshot(persisted)
-    },
-    persistence: repository.persistence
-  });
 }
 
 async function readRequest(request: Request): Promise<RelationshipStateRequest> {

@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getRenewalService, MessageValidationError } from "@/lib/renewal/service";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +11,17 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const { conversationId } = await context.params;
-  const session = await getCurrentSession();
-  const messages = await getRenewalService(session.userId).listMessages(conversationId);
-  return privateJson({ messages });
+  try {
+    const { conversationId } = await context.params;
+    const session = await getCurrentSession();
+    const messages = await getRenewalService(session.userId).listMessages(conversationId);
+    return privateJson({ messages });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -32,6 +40,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     return privateJson(result, { status: 201 });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof MessageValidationError) {
       return privateJson({ error: messageValidationErrorMessage(error) }, { status: 400 });
     }
@@ -85,6 +96,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: 400 }
     );
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof MessageValidationError) {
       return privateJson({ error: messageValidationErrorMessage(error) }, { status: 400 });
     }
@@ -97,22 +111,29 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const { conversationId } = await context.params;
-  const session = await getCurrentSession();
-  const { searchParams } = new URL(request.url);
-  const messageId = searchParams.get("messageId");
+  try {
+    const { conversationId } = await context.params;
+    const session = await getCurrentSession();
+    const { searchParams } = new URL(request.url);
+    const messageId = searchParams.get("messageId");
 
-  if (!messageId) {
-    return privateJson({ error: "DELETE requires messageId." }, { status: 400 });
+    if (!messageId) {
+      return privateJson({ error: "DELETE requires messageId." }, { status: 400 });
+    }
+
+    const deleted = await getRenewalService(session.userId).deleteMessage(conversationId, messageId);
+
+    if (!deleted) {
+      return privateJson({ error: "Message or conversation not found." }, { status: 404 });
+    }
+
+    return privateJson({ deleted: true, messageId });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  const deleted = await getRenewalService(session.userId).deleteMessage(conversationId, messageId);
-
-  if (!deleted) {
-    return privateJson({ error: "Message or conversation not found." }, { status: 404 });
-  }
-
-  return privateJson({ deleted: true, messageId });
 }
 
 function readMessageCreate(body: Record<string, unknown>) {

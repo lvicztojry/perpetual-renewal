@@ -1,14 +1,14 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { LlmModelListError, listAvailableLlmModels } from "@/lib/llm/model-list";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getCurrentSession();
-
   try {
+    const session = await getCurrentSession();
     const result = await listAvailableLlmModels(session.userId);
     return privateJson({
       provider: result.provider,
@@ -16,6 +16,9 @@ export async function GET() {
       models: result.models
     });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
     return privateJson(
       {
         error: toModelListError(error),

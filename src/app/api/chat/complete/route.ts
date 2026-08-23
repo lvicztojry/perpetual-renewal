@@ -5,6 +5,7 @@ import {
 } from "@/lib/chat/generate-reply";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { LlmProviderError } from "@/lib/llm/types";
 import { createUserLlmProvider } from "@/lib/llm/user-provider";
 import { recordModelUsage } from "@/lib/usage";
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     });
     return privateJson(safeResult);
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
     const session = await getCurrentSession().catch(() => null);
     if (error instanceof LlmProviderError) {
       if (session) {

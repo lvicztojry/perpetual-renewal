@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getRenewalService, MemoryCandidateValidationError } from "@/lib/renewal/service";
 import type { MemoryType } from "@/lib/renewal/types";
 
@@ -12,11 +13,18 @@ type RouteContext = {
 };
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const { companionId } = await context.params;
-  const session = await getCurrentSession();
-  const memories = await getRenewalService(session.userId).listMemories(companionId);
+  try {
+    const { companionId } = await context.params;
+    const session = await getCurrentSession();
+    const memories = await getRenewalService(session.userId).listMemories(companionId);
 
-  return privateJson({ memories });
+    return privateJson({ memories });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -44,9 +52,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return privateJson({ error: "Unsupported memory type" }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
   let memories;
   try {
+    const session = await getCurrentSession();
     memories = await getRenewalService(session.userId).createMemoryCandidates(
       companionId,
       {
@@ -59,6 +67,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (error instanceof MemoryCandidateValidationError) {
       return privateJson({ error: memoryCandidateErrorMessage(error) }, { status: 400 });
     }
+
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     throw error;
   }
 

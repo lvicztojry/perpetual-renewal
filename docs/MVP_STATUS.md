@@ -210,6 +210,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M118 现实替代沉浸口径补强：现实人物替代 prompt 从“不要声称自己就是现实本人”收束为“日常承接投射和想念，不主动拆穿沉浸；涉及现实本人意愿、线下联系、见面或现实行动时回到能力边界”。前任与公众人物想象补齐关系语气模板，保持沉浸但不诱导纠缠、不声称授权。
 - M119 模型诊断脱敏补强：`/api/me/llm-models` 返回 compatible 模型列表 diagnostic 前再次执行响应文本脱敏，`response-safety` 覆盖 `raw payload` 自然语言字段写法，smoke 静态门禁锁住模型诊断与 raw payload 脱敏边界。
 - M120 关系状态与持久化可靠性收束：聊天后关系状态更新和关系状态 API 复用共享 RelationshipState 演进逻辑，保留具体情绪、想念和重要事件信号并过滤误贴密钥/端点/prompt；已配置真实数据库时不再因 Prisma 短暂不可达静默切到 memory，避免本地体验误判为“保存成功但刷新丢失”。
+- M121 持久化故障用户体验边界：新增统一 persistence error response；已配置真实 `DATABASE_URL` 且 Prisma/数据库不可用时，关键 auth、workspace、credential、profile、export、usage、safety、voice 和 proactive API 返回安全的 503、`database_unavailable` 与 `retryable=true`，前端展示可操作中文提示且不暴露连接串、Prisma 原始错误、stack、prompt 或 key。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

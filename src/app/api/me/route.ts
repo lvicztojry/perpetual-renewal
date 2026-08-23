@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   getUserProfile,
   ProfileValidationError,
@@ -10,16 +11,23 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  const user = await getUserProfile(session.userId);
+  try {
+    const session = await getCurrentSession();
+    const user = await getUserProfile(session.userId);
 
-  return privateJson({
-    session: {
-      provider: session.provider,
-      replaceWith: "Auth.js or another production session provider"
-    },
-    user
-  });
+    return privateJson({
+      session: {
+        provider: session.provider,
+        replaceWith: "Auth.js or another production session provider"
+      },
+      user
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "profile");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function PATCH(request: Request) {
@@ -30,6 +38,9 @@ export async function PATCH(request: Request) {
 
     return privateJson({ user });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "profile");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof JsonRequestError) {
       return privateJson(
         { error: jsonErrorMessage(error, "Failed to update profile.") },

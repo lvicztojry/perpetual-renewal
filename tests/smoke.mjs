@@ -226,6 +226,52 @@ async function runApiBoundaryStaticSmoke() {
     "HTTP response text sanitizer should cover log secrets, raw payload labels, and provider endpoints"
   );
 
+  const persistenceErrorsSource = await readFile(
+    resolve(ROOT_DIR, "src/lib/http/persistence-errors.ts"),
+    "utf8"
+  );
+  assert(
+    persistenceErrorsSource.includes("isConfiguredDatabaseUnavailable") &&
+      persistenceErrorsSource.includes("hasConfiguredPersistentDatabase") &&
+      persistenceErrorsSource.includes('errorType: "database_unavailable"') &&
+      persistenceErrorsSource.includes("retryable: true") &&
+      persistenceErrorsSource.includes("{ status: 503 }") &&
+      !persistenceErrorsSource.includes("error: error.message") &&
+      !persistenceErrorsSource.includes("error: message"),
+    "configured database outages should map to a safe retryable 503 without returning raw errors"
+  );
+
+  for (const routePath of [
+    "src/app/api/auth/login/route.ts",
+    "src/app/api/chat/complete/route.ts",
+    "src/app/api/companions/route.ts",
+    "src/app/api/companions/[companionId]/route.ts",
+    "src/app/api/companions/[companionId]/imports/route.ts",
+    "src/app/api/companions/[companionId]/memories/route.ts",
+    "src/app/api/companions/[companionId]/proactive-drafts/route.ts",
+    "src/app/api/companions/[companionId]/relationship-state/route.ts",
+    "src/app/api/conversations/[conversationId]/messages/route.ts",
+    "src/app/api/me/route.ts",
+    "src/app/api/me/account/route.ts",
+    "src/app/api/me/export/route.ts",
+    "src/app/api/me/llm-credential/route.ts",
+    "src/app/api/me/llm-models/route.ts",
+    "src/app/api/me/llm-test/route.ts",
+    "src/app/api/memories/[memoryId]/route.ts",
+    "src/app/api/proactive/run/route.ts",
+    "src/app/api/proactive-messages/[proactiveMessageId]/route.ts",
+    "src/app/api/safety/check/route.ts",
+    "src/app/api/voice/synthesize/route.ts",
+    "src/app/api/voice/transcribe/route.ts",
+    "src/app/api/usage/model-calls/route.ts"
+  ]) {
+    const routeSource = await readFile(resolve(ROOT_DIR, routePath), "utf8");
+    assert(
+      routeSource.includes("persistenceUnavailableResponse("),
+      `${routePath} should translate configured database outages into a user-facing persistence error`
+    );
+  }
+
   const modelListRouteSource = await readFile(
     resolve(ROOT_DIR, "src/app/api/me/llm-models/route.ts"),
     "utf8"

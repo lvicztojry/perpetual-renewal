@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { clearCurrentSession, getCurrentSession } from "@/lib/auth/session";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   ACCOUNT_DELETE_CONFIRMATION,
   DeleteAccountValidationError,
@@ -28,6 +29,9 @@ export async function DELETE(request: Request) {
       confirmationRequired: ACCOUNT_DELETE_CONFIRMATION
     });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "profile");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof DeleteAccountValidationError) {
       return privateJson(
         {

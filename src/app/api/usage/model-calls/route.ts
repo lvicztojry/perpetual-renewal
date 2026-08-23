@@ -1,20 +1,28 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getUsageDashboard } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  const { searchParams } = new URL(request.url);
-  const rangeDays = readRangeDays(searchParams.get("rangeDays"));
-  if (!rangeDays) {
-    return privateJson({ error: "Invalid usage range." }, { status: 400 });
+  try {
+    const session = await getCurrentSession();
+    const { searchParams } = new URL(request.url);
+    const rangeDays = readRangeDays(searchParams.get("rangeDays"));
+    if (!rangeDays) {
+      return privateJson({ error: "Invalid usage range." }, { status: 400 });
+    }
+
+    const dashboard = await getUsageDashboard(session.userId, rangeDays);
+
+    return privateJson({ dashboard });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "usage");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  const dashboard = await getUsageDashboard(session.userId, rangeDays);
-
-  return privateJson({ dashboard });
 }
 
 function readRangeDays(value: string | null) {

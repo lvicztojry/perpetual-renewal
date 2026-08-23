@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getRenewalService, MemoryUpdateValidationError } from "@/lib/renewal/service";
 import type { MemoryStatus, MemoryType } from "@/lib/renewal/types";
 
@@ -41,6 +42,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return privateJson({ memory });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof MemoryUpdateValidationError) {
       return privateJson({ error: memoryUpdateErrorMessage(error) }, { status: 400 });
     }
@@ -53,15 +57,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {
-  const { memoryId } = await context.params;
-  const session = await getCurrentSession();
-  const memory = await getRenewalService(session.userId).deleteMemory(memoryId);
+  try {
+    const { memoryId } = await context.params;
+    const session = await getCurrentSession();
+    const memory = await getRenewalService(session.userId).deleteMemory(memoryId);
 
-  if (!memory) {
-    return privateJson({ error: "Memory not found" }, { status: 404 });
+    if (!memory) {
+      return privateJson({ error: "Memory not found" }, { status: 404 });
+    }
+
+    return privateJson({ memory });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  return privateJson({ memory });
 }
 
 function readString(value: unknown) {

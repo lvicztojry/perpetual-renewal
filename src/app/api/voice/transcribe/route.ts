@@ -1,4 +1,5 @@
 import { privateJson } from "@/lib/http/private-response";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
     const result = await provider.transcribe(body);
     return privateJson(toSafeTranscriptionResponse(result));
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof VoiceProviderError) {
       return privateJson(
         {

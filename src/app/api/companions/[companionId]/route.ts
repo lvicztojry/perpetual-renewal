@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   companionValidationErrorMessage,
   CompanionValidationError,
@@ -15,17 +16,24 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const { companionId } = await context.params;
-  const session = await getCurrentSession();
-  const companion = await getRenewalService(session.userId).listCompanions().then((companions) =>
-    companions.find((item) => item.id === companionId)
-  );
+  try {
+    const { companionId } = await context.params;
+    const session = await getCurrentSession();
+    const companion = await getRenewalService(session.userId).listCompanions().then((companions) =>
+      companions.find((item) => item.id === companionId)
+    );
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
+    if (!companion) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    return privateJson({ companion });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  return privateJson({ companion });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -43,6 +51,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return privateJson({ companion });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof CompanionValidationError) {
       return privateJson({ error: companionValidationErrorMessage(error) }, { status: 400 });
     }
@@ -55,13 +66,20 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const { companionId } = await context.params;
-  const session = await getCurrentSession();
-  const deleted = await getRenewalService(session.userId).deleteCompanion(companionId);
+  try {
+    const { companionId } = await context.params;
+    const session = await getCurrentSession();
+    const deleted = await getRenewalService(session.userId).deleteCompanion(companionId);
 
-  if (!deleted) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
+    if (!deleted) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    return privateJson({ deleted: true, companionId });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  return privateJson({ deleted: true, companionId });
 }

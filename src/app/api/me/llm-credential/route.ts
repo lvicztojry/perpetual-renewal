@@ -6,6 +6,7 @@ import {
   saveLlmCredential
 } from "@/lib/credentials";
 import { JsonRequestError, jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import type { LlmProviderAlias } from "@/lib/llm/types";
 
 type CredentialRequest = {
@@ -26,9 +27,16 @@ const allowedProviders = new Set<LlmProviderAlias>([
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  const credential = await getLlmCredentialStatus(session.userId);
-  return privateJson({ credential });
+  try {
+    const session = await getCurrentSession();
+    const credential = await getLlmCredentialStatus(session.userId);
+    return privateJson({ credential });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function PUT(request: Request) {
@@ -39,6 +47,9 @@ export async function PUT(request: Request) {
     const credential = await saveLlmCredential(session.userId, parseCredentialRequest(body));
     return privateJson({ credential });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof JsonRequestError) {
       return privateJson(
         { error: jsonErrorMessage(error, "Failed to save credential.") },
@@ -51,9 +62,16 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE() {
-  const session = await getCurrentSession();
-  const credential = await deleteLlmCredential(session.userId);
-  return privateJson({ credential });
+  try {
+    const session = await getCurrentSession();
+    const credential = await deleteLlmCredential(session.userId);
+    return privateJson({ credential });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "credentials");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 function parseCredentialRequest(body: CredentialRequest) {

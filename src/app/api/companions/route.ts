@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   companionValidationErrorMessage,
   CompanionValidationError,
@@ -11,9 +12,16 @@ import type { CreateCompanionInput } from "@/lib/renewal/types";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  const companions = await getRenewalService(session.userId).listCompanions();
-  return privateJson({ companions });
+  try {
+    const session = await getCurrentSession();
+    const companions = await getRenewalService(session.userId).listCompanions();
+    return privateJson({ companions });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -24,6 +32,9 @@ export async function POST(request: Request) {
     );
     return privateJson({ companion }, { status: 201 });
   } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
     if (error instanceof CompanionValidationError) {
       return privateJson({ error: companionValidationErrorMessage(error) }, { status: 400 });
     }

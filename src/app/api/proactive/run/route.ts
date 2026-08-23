@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readOptionalJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { runProactiveScheduler } from "@/lib/relationship/proactive-scheduler";
 
 type ProactiveRunRequest = {
@@ -23,18 +24,25 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const now = readNow(url.searchParams.get("now") ?? undefined);
-  const result = await runProactiveScheduler({
-    dryRun: readBooleanQuery(url.searchParams.get("dryRun")) ?? false,
-    limit: readNumberQuery(url.searchParams.get("limit")),
-    maxDrafts: readNumberQuery(url.searchParams.get("maxDrafts")),
-    now
-  });
+  try {
+    const result = await runProactiveScheduler({
+      dryRun: readBooleanQuery(url.searchParams.get("dryRun")) ?? false,
+      limit: readNumberQuery(url.searchParams.get("limit")),
+      maxDrafts: readNumberQuery(url.searchParams.get("maxDrafts")),
+      now
+    });
 
-  return privateJson({
-    ...result,
-    authMode: "cron-secret",
-    now: now.toISOString()
-  });
+    return privateJson({
+      ...result,
+      authMode: "cron-secret",
+      now: now.toISOString()
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -59,21 +67,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const session = scope === "current-user" ? await getCurrentSession() : null;
-  const now = readNow(body.now);
-  const result = await runProactiveScheduler({
-    userId: session?.userId,
-    dryRun: body.dryRun ?? true,
-    limit: body.limit,
-    maxDrafts: body.maxDrafts,
-    now
-  });
+  try {
+    const session = scope === "current-user" ? await getCurrentSession() : null;
+    const now = readNow(body.now);
+    const result = await runProactiveScheduler({
+      userId: session?.userId,
+      dryRun: body.dryRun ?? true,
+      limit: body.limit,
+      maxDrafts: body.maxDrafts,
+      now
+    });
 
-  return privateJson({
-    ...result,
-    authMode: scope === "all" ? "cron-secret" : session?.provider ?? "session",
-    now: now.toISOString()
-  });
+    return privateJson({
+      ...result,
+      authMode: scope === "all" ? "cron-secret" : session?.provider ?? "session",
+      now: now.toISOString()
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 async function readRequestBody(request: Request): Promise<ProactiveRunRequest> {

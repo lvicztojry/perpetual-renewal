@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   buildSafetyBoundaryReply,
   checkProactiveContextSafety,
@@ -19,43 +20,50 @@ type SafetyCheckRequest = {
 };
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
   let body: SafetyCheckRequest;
   try {
     body = readSafetyCheckRequest(await readJsonObject(request));
   } catch {
     return privateJson({ error: "Invalid JSON body." }, { status: 400 });
   }
-  const text = body.text ?? "";
-  const result =
-    body.stage === "proactive_context"
-      ? checkProactiveContextSafety({
-          lastUserMessage: text,
-          companionInstruction: body.companionInstruction
-        })
-      : checkRelationshipSafety(text, { stage: body.stage });
-  const safetyEvent = await recordSafetyEvent({
-    userId: session.userId,
-    companionId: body.companionId,
-    messageId: body.messageId,
-    type: result.type,
-    action: result.action,
-    stage: result.stage ?? body.stage ?? "user_input",
-    severity: result.severity,
-    content: text
-  });
+  try {
+    const session = await getCurrentSession();
+    const text = body.text ?? "";
+    const result =
+      body.stage === "proactive_context"
+        ? checkProactiveContextSafety({
+            lastUserMessage: text,
+            companionInstruction: body.companionInstruction
+          })
+        : checkRelationshipSafety(text, { stage: body.stage });
+    const safetyEvent = await recordSafetyEvent({
+      userId: session.userId,
+      companionId: body.companionId,
+      messageId: body.messageId,
+      type: result.type,
+      action: result.action,
+      stage: result.stage ?? body.stage ?? "user_input",
+      severity: result.severity,
+      content: text
+    });
 
-  return privateJson({
-    data: {
-      ...result,
-      boundaryReply:
-        result.action === "boundary_response"
-          ? buildSafetyBoundaryReply(text, body.companionName)
-          : undefined
-    },
-    safetyEvent,
-    persistence: safetyEvent.persistence
-  });
+    return privateJson({
+      data: {
+        ...result,
+        boundaryReply:
+          result.action === "boundary_response"
+            ? buildSafetyBoundaryReply(text, body.companionName)
+            : undefined
+      },
+      safetyEvent,
+      persistence: safetyEvent.persistence
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "safety");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 function readSafetyCheckRequest(body: Record<string, unknown>): SafetyCheckRequest {

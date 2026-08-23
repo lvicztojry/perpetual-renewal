@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
   createProactiveDrafts,
   checkProactiveContextSafety,
@@ -33,21 +34,28 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ companionId: string }> }
 ) {
-  const { companionId } = await context.params;
-  const session = await getCurrentSession();
-  const repository = createRenewalRepository();
-  const companion = await repository.getCompanion(session.userId, companionId);
+  try {
+    const { companionId } = await context.params;
+    const session = await getCurrentSession();
+    const repository = createRenewalRepository();
+    const companion = await repository.getCompanion(session.userId, companionId);
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
+    if (!companion) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
+
+    const records = await repository.listProactiveMessages(session.userId, companion.id);
+
+    return privateJson({
+      data: records.map(toProactiveDraftResponse),
+      persistence: repository.persistence
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "workspace");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  const records = await repository.listProactiveMessages(session.userId, companion.id);
-
-  return privateJson({
-    data: records.map(toProactiveDraftResponse),
-    persistence: repository.persistence
-  });
 }
 
 export async function POST(
@@ -66,43 +74,44 @@ export async function POST(
     );
   }
 
-  const forceGenerate = body.force || body.frequencyHours === 0 || body.frequencyMinutes === 0;
-  const requestedFrequencyMinutes = readFrequencyMinutes(body);
-  const session = await getCurrentSession();
-  const repository = createRenewalRepository();
-  const [companion, profile, proactiveMessages] = await Promise.all([
-    repository.getCompanion(session.userId, companionId),
-    getUserProfile(session.userId),
-    repository.listProactiveMessages(session.userId, companionId)
-  ]);
+  try {
+    const forceGenerate = body.force || body.frequencyHours === 0 || body.frequencyMinutes === 0;
+    const requestedFrequencyMinutes = readFrequencyMinutes(body);
+    const session = await getCurrentSession();
+    const repository = createRenewalRepository();
+    const [companion, profile, proactiveMessages] = await Promise.all([
+      repository.getCompanion(session.userId, companionId),
+      getUserProfile(session.userId),
+      repository.listProactiveMessages(session.userId, companionId)
+    ]);
 
-  if (!companion) {
-    return privateJson({ error: "Companion not found." }, { status: 404 });
-  }
+    if (!companion) {
+      return privateJson({ error: "Companion not found." }, { status: 404 });
+    }
 
-  const proactiveCompanion = toProactiveCompanion(companion);
-  const state = forceGenerate
-    ? toRelationshipSnapshot(companion.relationshipState)
-    : withProactiveDraftAnchor(toRelationshipSnapshot(companion.relationshipState), proactiveMessages);
-  const safety = checkProactiveContextSafety({
-    lastUserMessage: body.lastUserMessage,
-    companionInstruction: [
-      proactiveCompanion.personality.join("，"),
-      proactiveCompanion.speakingStyle,
-      proactiveCompanion.background,
-      proactiveCompanion.boundaries
-    ]
-      .filter(Boolean)
-      .join("\n")
-  });
-  const frequencyPreset =
-    body.frequencyPreset ?? (requestedFrequencyMinutes ? "custom" : companion.proactiveFrequencyPreset);
-  const frequencyMinutes =
-    requestedFrequencyMinutes ??
-    companion.proactiveFrequencyMinutes ??
-    profile.proactiveFrequencyHours * 60;
+    const proactiveCompanion = toProactiveCompanion(companion);
+    const state = forceGenerate
+      ? toRelationshipSnapshot(companion.relationshipState)
+      : withProactiveDraftAnchor(toRelationshipSnapshot(companion.relationshipState), proactiveMessages);
+    const safety = checkProactiveContextSafety({
+      lastUserMessage: body.lastUserMessage,
+      companionInstruction: [
+        proactiveCompanion.personality.join("，"),
+        proactiveCompanion.speakingStyle,
+        proactiveCompanion.background,
+        proactiveCompanion.boundaries
+      ]
+        .filter(Boolean)
+        .join("\n")
+    });
+    const frequencyPreset =
+      body.frequencyPreset ?? (requestedFrequencyMinutes ? "custom" : companion.proactiveFrequencyPreset);
+    const frequencyMinutes =
+      requestedFrequencyMinutes ??
+      companion.proactiveFrequencyMinutes ??
+      profile.proactiveFrequencyHours * 60;
 
-  const drafts = createProactiveDrafts({
+    const drafts = createProactiveDrafts({
       companion: proactiveCompanion,
       state,
       lastUserMessage: body.lastUserMessage,
@@ -113,46 +122,52 @@ export async function POST(
       frequencyMinutes,
       force: forceGenerate,
       now: new Date()
-  });
-  const frequency = normalizeProactiveFrequency(
-    {
-      preset: frequencyPreset,
-      everyMinutes: frequencyMinutes,
-      customValue: body.customValue,
-      customUnit: body.customUnit
-    },
-    profile.proactiveFrequencyHours * 60
-  );
-
-  const records: ProactiveMessageRecord[] = [];
-  for (const draft of drafts) {
-    records.push(
-      await repository.createProactiveMessage(session.userId, companion.id, {
-        kind: draft.kind,
-        content: draft.content,
-        reason: draft.reason,
-        safety: {
-          result: draft.safety,
-          ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
-          ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
-          ...(draft.frequency ? { frequency: draft.frequency } : {}),
-          ...(draft.nextCandidateAt ? { nextCandidateAt: draft.nextCandidateAt } : {})
-        },
-        status: "draft",
-        scheduledAt: draft.scheduledAt ?? null
-      })
+    });
+    const frequency = normalizeProactiveFrequency(
+      {
+        preset: frequencyPreset,
+        everyMinutes: frequencyMinutes,
+        customValue: body.customValue,
+        customUnit: body.customUnit
+      },
+      profile.proactiveFrequencyHours * 60
     );
-  }
 
-  return privateJson({
-    data: records.map(toProactiveDraftResponse),
-    safety,
-    persistence: repository.persistence,
-    frequency,
-    status: "draft",
-    generatedCount: drafts.length,
-    savedCount: records.length
-  });
+    const records: ProactiveMessageRecord[] = [];
+    for (const draft of drafts) {
+      records.push(
+        await repository.createProactiveMessage(session.userId, companion.id, {
+          kind: draft.kind,
+          content: draft.content,
+          reason: draft.reason,
+          safety: {
+            result: draft.safety,
+            ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
+            ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
+            ...(draft.frequency ? { frequency: draft.frequency } : {}),
+            ...(draft.nextCandidateAt ? { nextCandidateAt: draft.nextCandidateAt } : {})
+          },
+          status: "draft",
+          scheduledAt: draft.scheduledAt ?? null
+        })
+      );
+    }
+
+    return privateJson({
+      data: records.map(toProactiveDraftResponse),
+      safety,
+      persistence: repository.persistence,
+      frequency,
+      status: "draft",
+      generatedCount: drafts.length,
+      savedCount: records.length
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
+  }
 }
 
 function toProactiveDraftResponse(record: ProactiveMessageRecord) {

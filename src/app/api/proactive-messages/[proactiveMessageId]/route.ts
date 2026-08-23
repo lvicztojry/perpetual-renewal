@@ -1,6 +1,7 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type { ProactiveMessageStatus } from "@/lib/renewal/types";
 
@@ -34,22 +35,29 @@ export async function PATCH(request: Request, context: RouteContext) {
     return privateJson({ error: "Unsupported proactive message status." }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
-  const repository = createRenewalRepository();
-  const proactiveMessage = await repository.updateProactiveMessage(
-    session.userId,
-    proactiveMessageId,
-    { status }
-  );
+  try {
+    const session = await getCurrentSession();
+    const repository = createRenewalRepository();
+    const proactiveMessage = await repository.updateProactiveMessage(
+      session.userId,
+      proactiveMessageId,
+      { status }
+    );
 
-  if (!proactiveMessage) {
-    return privateJson({ error: "Proactive message not found." }, { status: 404 });
+    if (!proactiveMessage) {
+      return privateJson({ error: "Proactive message not found." }, { status: 404 });
+    }
+
+    return privateJson({
+      proactiveMessage,
+      persistence: repository.persistence
+    });
+  } catch (error) {
+    const persistenceError = persistenceUnavailableResponse(error, "renewal");
+    if (persistenceError) return persistenceError;
+
+    throw error;
   }
-
-  return privateJson({
-    proactiveMessage,
-    persistence: repository.persistence
-  });
 }
 
 function readStatus(value: unknown) {
