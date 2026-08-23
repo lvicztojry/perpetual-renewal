@@ -39,7 +39,7 @@ npm run verify:release
 - `npm run lint`：通过。
 - `npm run build`：通过。
 - `npm --cache .\.npm-cache audit --audit-level=high`：0 vulnerabilities。
-- `npm run e2e`：通过 13 tests；默认自动启动 managed mock/memory 环境，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout、主动回响 1 分钟状态提示、设置页密钥保存/删除/测试连接失败态、模型列表读取与选择、导出脱敏、账号删除确认、memory fallback 用户隔离、工作台错误展示脱敏、语音 fallback reason 前端脱敏，以及 320px/390px/768px 响应式可用性。真实供应商慢响应、超时、429 或模型不可用不计入该门禁，需单独按联调风险记录。
+- `npm run e2e`：通过 14 tests；默认自动启动 managed mock/memory 环境，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout、主动回响 1 分钟状态提示、设置页密钥保存/删除/测试连接失败态、模型列表读取与选择、导出脱敏、账号删除确认、memory fallback 用户隔离、工作台错误展示脱敏、设置页删除密钥失败脱敏、语音 fallback reason 前端脱敏，以及 320px/390px/768px 响应式可用性。真实供应商慢响应、超时、429 或模型不可用不计入该门禁，需单独按联调风险记录。
 - `npm run smoke`：当前通过 92 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、Vercel Cron GET 鉴权、用户 vault、模型连接测试、模型列表兼容响应/失败隐私、语音 fallback 与输入护栏、用量看板、数据导出、账号删除、PWA 静态资源、安全样例、导出脱敏、API 响应边界和密钥扫描自测。
 - 首页、`/api/companions`、`/api/me`、`/api/chat/complete`、`/api/me/llm-test`：已 smoke 通过。
 

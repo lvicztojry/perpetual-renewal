@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import {
-  createProactiveDrafts,
+  createProactiveDraftPlan,
   checkProactiveContextSafety,
   normalizeProactiveFrequency,
   type CompanionProfile as ProactiveCompanionProfile,
@@ -26,6 +26,7 @@ type ProactiveDraftRequest = {
   customValue?: number;
   customUnit?: string;
   force?: boolean;
+  maxDrafts?: number;
 };
 
 export const dynamic = "force-dynamic";
@@ -111,7 +112,7 @@ export async function POST(
       companion.proactiveFrequencyMinutes ??
       profile.proactiveFrequencyHours * 60;
 
-    const drafts = createProactiveDrafts({
+    const plan = createProactiveDraftPlan({
       companion: proactiveCompanion,
       state,
       lastUserMessage: body.lastUserMessage,
@@ -123,6 +124,9 @@ export async function POST(
       force: forceGenerate,
       now: new Date()
     });
+    const maxDrafts = normalizeMaxDrafts(body.maxDrafts);
+    const drafts = plan.drafts.slice(0, maxDrafts);
+    const draftLimitReached = plan.drafts.length > drafts.length;
     const frequency = normalizeProactiveFrequency(
       {
         preset: frequencyPreset,
@@ -158,8 +162,12 @@ export async function POST(
       safety,
       persistence: repository.persistence,
       frequency,
+      schedule: plan.schedule,
+      skippedReason: plan.skippedReason ?? null,
+      maxDrafts,
+      draftLimitReached,
       status: "draft",
-      generatedCount: drafts.length,
+      generatedCount: plan.drafts.length,
       savedCount: records.length
     });
   } catch (error) {
@@ -204,6 +212,11 @@ function readFrequencyMinutes(body: ProactiveDraftRequest) {
   if (body.customUnit === "days") return body.customValue * 1440;
   if (body.customUnit === "hours") return body.customValue * 60;
   return body.customValue;
+}
+
+function normalizeMaxDrafts(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 50;
+  return Math.min(50, Math.max(1, Math.floor(value)));
 }
 
 async function readDraftRequest(request: Request): Promise<ProactiveDraftRequest> {

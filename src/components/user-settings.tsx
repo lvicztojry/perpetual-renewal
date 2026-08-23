@@ -312,7 +312,9 @@ export function UserSettings() {
       if (!response.ok) throw new Error("退出失败");
       router.push("/login");
     } catch (logoutError) {
-      setError(logoutError instanceof Error ? logoutError.message : "退出失败");
+      setError(
+        logoutError instanceof Error ? redactSettingsError(logoutError.message) : "退出失败"
+      );
       setStatus("error");
     }
   }
@@ -353,7 +355,9 @@ export function UserSettings() {
       setCredentialStatus("saved");
     } catch (credentialDeleteError) {
       setCredentialError(
-        credentialDeleteError instanceof Error ? credentialDeleteError.message : "删除模型密钥失败"
+        credentialDeleteError instanceof Error
+          ? redactCredentialSecrets(credentialDeleteError.message, credentialForm)
+          : "删除模型密钥失败"
       );
       setCredentialStatus("error");
     }
@@ -1109,6 +1113,10 @@ function redactSettingsError(message: string) {
       replacement: "[已隐藏 API Key]"
     },
     {
+      pattern: /\b(?:github_pat_[A-Za-z0-9_]{16,}|gh[pousr]_[A-Za-z0-9_]{16,})\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
       pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
       replacement: "[已隐藏敏感字段]"
     },
@@ -1121,8 +1129,12 @@ function redactSettingsError(message: string) {
       replacement: "[已隐藏 Base URL]"
     },
     {
-      pattern: /\b(?:prompt|rawPayload|raw_payload|stack)\b/gi,
+      pattern: /\b(?:prompt|rawPayload|raw_payload|raw payload|stack)\b/gi,
       replacement: "[已隐藏调试字段]"
+    },
+    {
+      pattern: /\bat\s+\S+\s+\([^)]*\)/gi,
+      replacement: "[已隐藏堆栈]"
     }
   ].reduce((current, item) => current.replace(item.pattern, item.replacement), message.trim());
 }

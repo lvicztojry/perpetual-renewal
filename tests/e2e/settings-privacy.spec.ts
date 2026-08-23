@@ -123,6 +123,50 @@ test("settings keeps credential draft and redacts provider values after save fai
   expect(saveRequests).toBe(1);
 });
 
+test("settings redacts provider values after credential delete failure", async ({ page }) => {
+  const fakeApiKey = `e2e-delete-failure-key-${Date.now()}-8642`;
+  const fakeBaseUrl = "https://provider.delete-failure.example.com/v1";
+  const fakeBearer = ["provider", "delete", "token", Date.now().toString(36), "1234567890123456"].join("-");
+  let deleteRequests = 0;
+
+  await page.route("**/api/me/llm-credential", async (route) => {
+    if (route.request().method() !== "DELETE") {
+      await route.fallback();
+      return;
+    }
+
+    deleteRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      status: 500,
+      body: JSON.stringify({
+        error: `删除失败 ${fakeBaseUrl} apiKey=${fakeApiKey} Bearer ${fakeBearer} raw payload stack at Provider.delete (provider.ts:1:2)`
+      })
+    });
+  });
+
+  await loginAsFreshUser(page, "settings-delete-failure");
+
+  await page.getByLabel("Base URL").fill(fakeBaseUrl);
+  await page.getByLabel("模型").fill("e2e-delete-failure-model");
+  await page.getByLabel("API Key").fill(fakeApiKey);
+  await page.getByRole("button", { name: "保存连接配置" }).click();
+  await expect(page.getByText("已保存连接配置")).toBeVisible();
+
+  await page.getByRole("button", { name: "删除密钥" }).click();
+  await expect(page.getByText(/删除失败/)).toBeVisible();
+  await expect(page.getByText("[已隐藏 Base URL]")).toBeVisible();
+  await expect(page.getByText("[已隐藏敏感字段]")).toBeVisible();
+  await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
+  await expect(page.getByText("[已隐藏调试字段]")).toBeVisible();
+  await expect(page.getByText("[已隐藏堆栈]")).toBeVisible();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
+  await expect(page.getByText(fakeBearer)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "删除密钥" })).toBeEnabled();
+  expect(deleteRequests).toBe(1);
+});
+
 test("settings reads provider models and keeps API key private", async ({ page }) => {
   const fakeApiKey = `e2e-model-list-key-${Date.now()}-5678`;
   let modelListRequests = 0;

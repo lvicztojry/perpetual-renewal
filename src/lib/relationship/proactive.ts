@@ -1,7 +1,8 @@
 import {
   buildProactiveScheduleCandidate,
   normalizeProactiveFrequency,
-  type ProactiveFrequencyConfig
+  type ProactiveFrequencyConfig,
+  type ProactiveScheduleCandidate
 } from "./proactive-frequency";
 import {
   buildSafetyBoundaryReply,
@@ -29,38 +30,18 @@ export type ProactiveDraftOptions = {
   force?: boolean;
 };
 
+export type ProactiveDraftPlan = {
+  drafts: ProactiveMessageDraft[];
+  frequency: ProactiveFrequencyConfig;
+  schedule: ProactiveScheduleCandidate;
+  skippedReason?: string;
+};
+
 export function createProactiveDrafts(options: ProactiveDraftOptions): ProactiveMessageDraft[] {
-  if (!options.proactiveMessagesEnabled) return [];
+  return createProactiveDraftPlan(options).drafts;
+}
 
-  const preflightSafety = checkProactiveContextSafety({
-    lastUserMessage: options.lastUserMessage,
-    companionInstruction: buildCompanionInstructionText(options.companion)
-  });
-
-  if (isHighRiskSafetyResult(preflightSafety)) {
-    return [
-      finalizeDraft(
-        {
-          id: "draft-safety-boundary",
-          companionId: options.companion.id,
-          kind: "EMOTION_CARE",
-          content:
-            preflightSafety.action === "boundary_response"
-              ? buildSafetyBoundaryReply(
-                  options.lastUserMessage ?? buildCompanionInstructionText(options.companion),
-                  options.companion.name
-                )
-              : `${options.companion.name}可以保持亲近和沉浸，但设定不能越过必要边界。我们先把这条边界放稳，再继续聊想念和关系。`,
-          reason: "主动消息生成前触发安全边界",
-          scheduledAt: (options.now ?? new Date()).toISOString(),
-          safety: preflightSafety,
-          preflightSafety
-        },
-        preflightSafety
-      )
-    ];
-  }
-
+export function createProactiveDraftPlan(options: ProactiveDraftOptions): ProactiveDraftPlan {
   const now = options.now ?? new Date();
   const frequency = resolveFrequency(options);
   const schedule = buildProactiveScheduleCandidate({
@@ -70,7 +51,62 @@ export function createProactiveDrafts(options: ProactiveDraftOptions): Proactive
     force: options.force
   });
 
-  if (!schedule.due) return [];
+  if (!options.proactiveMessagesEnabled) {
+    return {
+      drafts: [],
+      frequency,
+      schedule,
+      skippedReason: "主动回响已关闭。"
+    };
+  }
+
+  const preflightSafety = checkProactiveContextSafety({
+    lastUserMessage: options.lastUserMessage,
+    companionInstruction: buildCompanionInstructionText(options.companion)
+  });
+
+  if (isHighRiskSafetyResult(preflightSafety)) {
+    return {
+      drafts: [
+        finalizeDraft(
+          {
+            id: "draft-safety-boundary",
+            companionId: options.companion.id,
+            kind: "EMOTION_CARE",
+            content:
+              preflightSafety.action === "boundary_response"
+                ? buildSafetyBoundaryReply(
+                    options.lastUserMessage ?? buildCompanionInstructionText(options.companion),
+                    options.companion.name
+                  )
+                : `${options.companion.name}可以保持亲近和沉浸，但设定不能越过必要边界。我们先把这条边界放稳，再继续聊想念和关系。`,
+            reason: "主动消息生成前触发安全边界",
+            scheduledAt: now.toISOString(),
+            nextCandidateAt: schedule.nextCandidateAt,
+            frequency: {
+              preset: frequency.preset,
+              everyMinutes: frequency.everyMinutes,
+              label: frequency.label
+            },
+            safety: preflightSafety,
+            preflightSafety
+          },
+          preflightSafety
+        )
+      ],
+      frequency,
+      schedule
+    };
+  }
+
+  if (!schedule.due) {
+    return {
+      drafts: [],
+      frequency,
+      schedule,
+      skippedReason: schedule.reason
+    };
+  }
 
   const baseDrafts = [
     buildDraft("DAILY_GREETING", options, "日常低频问候", frequency, schedule.nextCandidateAt),
@@ -92,9 +128,13 @@ export function createProactiveDrafts(options: ProactiveDraftOptions): Proactive
     buildDraft("PLAYFUL_MISS_YOU", options, "撒娇式未回复回响", frequency, schedule.nextCandidateAt)
   ].filter(Boolean) as ProactiveMessageDraft[];
 
-  return baseDrafts
-    .map((draft) => finalizeDraft(draft, preflightSafety))
-    .filter((draft) => draft.safety.action !== "block");
+  return {
+    drafts: baseDrafts
+      .map((draft) => finalizeDraft(draft, preflightSafety))
+      .filter((draft) => draft.safety.action !== "block"),
+    frequency,
+    schedule
+  };
 }
 
 function buildDraft(

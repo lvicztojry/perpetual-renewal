@@ -105,10 +105,21 @@ type ProactiveDraft = {
   postflightSafety?: DraftSafety;
 };
 
+type ProactiveSchedule = {
+  due?: boolean;
+  candidateAt?: string;
+  nextCandidateAt?: string;
+  elapsedMinutes?: number | null;
+  reason?: string;
+};
+
 type ProactiveAutoCheck = {
   checkedAt: string;
   nextCheckAt: string;
   result: string;
+  candidateAt?: string | null;
+  nextCandidateAt?: string | null;
+  elapsedMinutes?: number | null;
 };
 
 type ProactiveDraftStatus = "draft" | "sent" | "dismissed" | "blocked";
@@ -401,7 +412,8 @@ export function RenewalWorkspace() {
           body: JSON.stringify({
             lastUserMessage: lastUserMessage?.content,
             proactiveMessagesEnabled: true,
-            force: false
+            force: false,
+            maxDrafts: 1
           })
         });
         const payload = (await response.json()) as {
@@ -409,6 +421,8 @@ export function RenewalWorkspace() {
           error?: string;
           persistence?: string;
           safety?: DraftSafety;
+          schedule?: ProactiveSchedule;
+          draftLimitReached?: boolean;
         };
 
         if (!response.ok) {
@@ -420,8 +434,9 @@ export function RenewalWorkspace() {
         setProactiveAutoCheck(
           createProactiveAutoCheckStatus(
             payload.data?.length
-              ? `自动检查生成 ${payload.data.length} 条草稿`
-              : "自动检查完成，暂未到候选时间"
+              ? `自动检查生成 ${payload.data.length} 条草稿${payload.draftLimitReached ? "，已按上限保留 1 条" : ""}`
+              : `自动检查完成，${payload.schedule?.reason ?? "暂未到候选时间"}`,
+            payload.schedule
           )
         );
 
@@ -934,6 +949,7 @@ export function RenewalWorkspace() {
         error?: string;
         persistence?: string;
         safety?: DraftSafety;
+        schedule?: ProactiveSchedule;
       };
 
       if (!response.ok) {
@@ -946,7 +962,10 @@ export function RenewalWorkspace() {
       setProactiveSafety(payload.safety ?? null);
       setProactiveAutoCheck(
         createProactiveAutoCheckStatus(
-          payload.data?.length ? `手动生成 ${payload.data.length} 条草稿` : "手动检查完成，暂未生成草稿"
+          payload.data?.length
+            ? `手动生成 ${payload.data.length} 条草稿`
+            : `手动检查完成，${payload.schedule?.reason ?? "暂未生成草稿"}`,
+          payload.schedule
         )
       );
       setStatus(payload.data?.length ? "主动回响草稿已生成" : "暂无可发送的主动回响草稿");
@@ -2548,7 +2567,7 @@ function redactWorkspaceError(message: string, fallback = "操作失败，请稍
       replacement: "[已隐藏 Base URL]"
     },
     {
-      pattern: /\b(?:prompt|rawPayload|stack)\b/gi,
+      pattern: /\b(?:prompt|rawPayload|raw_payload|raw payload|stack)\b/gi,
       replacement: "[已隐藏调试字段]"
     },
     {
@@ -2879,14 +2898,20 @@ function formatDraftFilterLabel(filter: ProactiveDraftFilter) {
   return labels[filter];
 }
 
-function createProactiveAutoCheckStatus(result: string): ProactiveAutoCheck {
+function createProactiveAutoCheckStatus(
+  result: string,
+  schedule?: ProactiveSchedule
+): ProactiveAutoCheck {
   const checkedAt = new Date();
   const nextCheckAt = new Date(checkedAt.getTime() + proactiveAutoCheckIntervalMs);
 
   return {
     checkedAt: checkedAt.toISOString(),
     nextCheckAt: nextCheckAt.toISOString(),
-    result
+    result,
+    candidateAt: schedule?.candidateAt ?? null,
+    nextCandidateAt: schedule?.nextCandidateAt ?? null,
+    elapsedMinutes: schedule?.elapsedMinutes ?? null
   };
 }
 
@@ -2905,7 +2930,13 @@ function formatProactiveAutoCheckStatus(
     return `当前节奏 ${cadence} · 自动检查每 1 分钟 · 最近尚未检查`;
   }
 
-  return `${check.result} · 当前节奏 ${cadence} · 自动检查每 1 分钟 · 下次检查约 ${formatDateTime(
+  const scheduleHint = check.nextCandidateAt
+    ? ` · 下次候选 ${formatDateTime(check.nextCandidateAt)}`
+    : "";
+  const elapsedHint =
+    typeof check.elapsedMinutes === "number" ? ` · 锚点后已过 ${check.elapsedMinutes} 分钟` : "";
+
+  return `${check.result}${scheduleHint}${elapsedHint} · 当前节奏 ${cadence} · 自动检查每 1 分钟 · 下次检查约 ${formatDateTime(
     check.nextCheckAt
   )}`;
 }

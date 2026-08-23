@@ -1449,6 +1449,56 @@ async function runSmoke() {
       !JSON.stringify(proactive.body).includes(proactiveRawPayload),
     "proactive drafts should not amplify accidental secrets from lastUserMessage"
   );
+  const limitedProactive = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/proactive-drafts`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        lastUserMessage: "我想被轻轻惦记一下。",
+        proactiveMessagesEnabled: true,
+        force: true,
+        maxDrafts: 1
+      })
+    }
+  );
+  assert(
+    limitedProactive.body.generatedCount > limitedProactive.body.savedCount &&
+      limitedProactive.body.savedCount === 1 &&
+      limitedProactive.body.data?.length === 1 &&
+      limitedProactive.body.maxDrafts === 1 &&
+      limitedProactive.body.draftLimitReached === true,
+    "single-companion proactive drafts should respect maxDrafts and report truncation"
+  );
+  assert(
+    limitedProactive.body.schedule?.due === true &&
+      typeof limitedProactive.body.schedule?.nextCandidateAt === "string",
+    "single-companion proactive draft response should include schedule metadata"
+  );
+  const immediateProactiveCheck = await request(
+    `/api/companions/${encodeURIComponent(created.body.companion.id)}/proactive-drafts`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        lastUserMessage: "我刚刚才看过你。",
+        proactiveMessagesEnabled: true,
+        force: false,
+        maxDrafts: 1
+      })
+    }
+  );
+  assert(
+    immediateProactiveCheck.body.generatedCount === 0 &&
+      immediateProactiveCheck.body.savedCount === 0 &&
+      immediateProactiveCheck.body.data?.length === 0,
+    "single-companion proactive draft check should not duplicate immediately after saved drafts"
+  );
+  assert(
+    immediateProactiveCheck.body.schedule?.due === false &&
+      typeof immediateProactiveCheck.body.schedule?.candidateAt === "string" &&
+      typeof immediateProactiveCheck.body.schedule?.nextCandidateAt === "string" &&
+      immediateProactiveCheck.body.skippedReason === "尚未到达主动回响候选时间。",
+    "single-companion proactive draft check should explain the next candidate schedule"
+  );
   assertInvalidJsonResponse(
     await request(
       `/api/companions/${encodeURIComponent(created.body.companion.id)}/proactive-drafts`,
