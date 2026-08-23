@@ -256,6 +256,8 @@ export function UserSettings() {
   const credentialHasSavedKey = credential?.configured === true;
   const isCompatibleProvider =
     credentialForm.provider === "compatible" || credentialForm.provider === "openai-compatible";
+  const providerChanged =
+    Boolean(credential?.provider) && credential?.provider !== credentialForm.provider;
   const hasCredentialConfigChanges = useMemo(() => {
     if (!credential) return false;
 
@@ -271,7 +273,7 @@ export function UserSettings() {
     (credentialHasSavedKey || Boolean(credentialForm.apiKey.trim())) &&
     (!isCompatibleProvider ||
       Boolean(credentialForm.baseUrl.trim()) ||
-      Boolean(credential?.endpointConfigured));
+      (Boolean(credential?.endpointConfigured) && !providerChanged));
   const voiceSharedLlmHint = isCompatibleProvider
     ? "语音输入和朗读会共用这组兼容中转站配置；未单独设置 VOICE_STT_MODEL/VOICE_TTS_MODEL 时使用当前模型，失败会自动回落到 mock。"
     : "当前文本供应商不是兼容中转站；语音会优先使用服务端 VOICE/LLM 环境变量，缺配置或失败时自动回落到 mock。";
@@ -510,7 +512,9 @@ export function UserSettings() {
     if (!canSaveCredential) {
       const message =
         credentialHasSavedKey
-          ? "请填写 Base URL，或留空沿用已保存端点。"
+          ? providerChanged
+            ? "切换到兼容中转站时，请重新填写 Base URL；旧供应商端点不会被沿用。"
+            : "请填写 Base URL，或留空沿用已保存端点。"
           : "请先输入 API Key 和 Base URL；保存后可读取模型列表。";
       setCredentialError(message);
       setCredentialStatus("error");
@@ -761,7 +765,9 @@ export function UserSettings() {
                 }
                 placeholder={
                   credential?.endpointConfigured
-                    ? "留空则沿用已保存端点"
+                    ? providerChanged
+                      ? "切换供应商后不会沿用旧端点"
+                      : "留空则沿用已保存端点"
                     : "https://provider.example.com/v1"
                 }
                 value={credentialForm.baseUrl}

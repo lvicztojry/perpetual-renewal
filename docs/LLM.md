@@ -41,7 +41,7 @@ LLM_MODEL=""
 - 查询接口：`GET /api/me/llm-credential`，只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。
 - 删除接口：`DELETE /api/me/llm-credential`。
 - 模型列表接口：`GET /api/me/llm-models`，使用用户 vault 或服务端 env key 读取兼容中转站 `/models`，不返回 API key、Bearer、Base URL 明文、provider 原始错误、底层网络错误或堆栈。
-- 连接测试接口：`POST /api/me/llm-test`，使用用户 vault 中已保存的 key 或服务端 env key，并采用当前表单传入的 provider、baseUrl、model 做一次低成本模型列表探测。
+- 连接测试接口：`POST /api/me/llm-test`，使用用户 vault 中已保存的 key 或服务端 env key，并采用当前表单传入的 provider、baseUrl、model 做一次低 token 聊天探针；compatible provider 会尽量读取 `/models` 作辅助诊断，但最终以 `/chat/completions` 探针是否成功为准。
 - 聊天链路优先使用当前用户 vault 中的 LLM 配置；未配置时回落服务端环境变量或 mock provider。
 - 密钥用 AES-256-GCM 加密保存，生产环境必须配置 `USER_KEY_VAULT_SECRET`。
 
@@ -49,7 +49,7 @@ LLM_MODEL=""
 
 ## 模型连接测试
 
-设置页的“测试连接”按钮调用 `POST /api/me/llm-test`。请求体只发送当前表单中的 provider、baseUrl、model，不发送 API key；服务端自行读取当前用户 vault 或服务端环境变量中的 key。测试动作只做一次低成本模型列表读取，用来验证凭据、baseUrl 与 provider 是否可用，不生成聊天回复，不发送 prompt，也不是扣费、订阅或额度系统。失败响应只能返回稳定友好文案，不透出 API key、Bearer、Base URL 原文、prompt、raw payload、底层网络错误或堆栈。
+设置页的“测试连接”按钮调用 `POST /api/me/llm-test`。请求体只发送当前表单中的 provider、baseUrl、model，不发送 API key；服务端自行读取当前用户 vault 或服务端环境变量中的 key。测试动作会发送一次低 token 聊天探针，用来验证凭据、baseUrl、provider 与模型名是否真的能完成 chat completion；compatible provider 的 `/models` 只作为可用时的辅助诊断，模型列表不可用但聊天探针可用时仍可通过。失败响应只能返回稳定友好文案，不透出 API key、Bearer、Base URL 原文、prompt、raw payload、底层网络错误或堆栈。
 
 无 key 时返回可预测失败：
 
@@ -66,9 +66,9 @@ LLM_MODEL=""
 }
 ```
 
-成功响应只包含 `ok`、provider、model、credentialSource 和 latencyMs。失败响应只增加错误类型、友好错误与 retryable。接口不会返回 API key、Base URL 原文、Authorization header、prompt、请求 payload 或供应商 raw payload。
+成功响应只包含 `ok`、provider、model、credentialSource、latencyMs 和 `probe:"chat_completion"`。失败响应只增加错误类型、友好错误、HTTP status、diagnostic 与 retryable。接口不会返回 API key、Base URL 原文、Authorization header、prompt、请求 payload 或供应商 raw payload。
 
-用户自带 API 模式保持不变：测试连接只是帮用户确认自己的 key 或服务端 env key 能否访问供应商模型列表；项目不会因此保存订阅状态、扣费记录或平台额度。
+用户自带 API 模式保持不变：测试连接只是帮用户确认自己的 key 或服务端 env key 能否完成一次低成本模型调用；项目不会因此保存订阅状态、扣费记录或平台额度。
 
 ## 错误分类与 fallback
 

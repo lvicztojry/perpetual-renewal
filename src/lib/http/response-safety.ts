@@ -7,7 +7,7 @@ const responseTextPatterns: Array<[RegExp, string]> = [
   ],
   [
     /\b(base[_-]?url|endpoint(?:[_-]?url)?)(["']?\s*[:=]\s*)["']?https?:\/\/[^\s"',;<>}]+/gi,
-    "$1$2[redacted-url]"
+    "[redacted-url]"
   ],
   [
     /https?:\/\/[^\s"',;<>]*(?:\/v1|\/v1beta|\/chat\/completions|\/audio\/(?:speech|transcriptions))[^\s"',;<>]*/gi,
@@ -19,11 +19,11 @@ const responseTextPatterns: Array<[RegExp, string]> = [
   ],
   [
     /\b(prompt|rawPayload|raw_payload|stack|authorization)(["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^"',;<>}\n]+)/gi,
-    "$1$2[redacted]"
+    "[redacted-debug-field]"
   ],
   [
     /\b(raw\s+payload)(["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^"',;<>}\n]+)/gi,
-    "$1$2[redacted]"
+    "[redacted-debug-field]"
   ],
   [
     /\bat\s+[A-Za-z0-9_.$<>]+\s*\([^)"']+\)/g,

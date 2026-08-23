@@ -217,6 +217,8 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M123 真实供应商联调脚本 fake-compatible 自测：新增 `npm run qa:real-provider:fake`，用本地假 OpenAI-compatible provider 驱动 M122 脚本的 BYOK/vault/聊天/用量/主动 dry-run 逻辑；该命令进入默认本地/CI 门禁，不需要真实 key，不代表真实供应商联调通过。
 - M124 设置页错误脱敏一致性：设置页退出、删除模型密钥等剩余错误路径统一走前端脱敏；前端脱敏补齐 GitHub token、`raw payload` 自然语言字段和堆栈帧；工作台错误脱敏同步覆盖 `raw_payload`/`raw payload`；E2E 覆盖删除密钥失败时 API key、Base URL、Bearer、raw payload 和 stack 不外显。
 - M125 单关系主动回响护栏与诊断：单关系主动草稿接口返回 schedule metadata、skippedReason、maxDrafts 与 draftLimitReached；工作台前台每分钟自动检查只保存 1 条草稿并显示下次候选时间和锚点后已过分钟数；smoke 覆盖单关系裁剪与立即二次检查不重复。
+- M126 模型连接测试真实探针：设置页“测试连接”不再把 compatible `/models` 成功当作连通成功，而是必须完成一次低 token chat completion 探针；`/models` 不兼容但聊天探针成功时允许通过，供应商错误继续按脱敏边界返回。
+- M127 供应商切换端点隔离：用户从 compatible 切换到 Anthropic/Gemini/OpenAI Responses 等 provider 时，不再静默沿用旧 compatible Base URL；切回 compatible 且无新端点时返回明确配置提示，避免旧中转站地址误配到其他供应商。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

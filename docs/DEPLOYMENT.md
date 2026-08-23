@@ -186,7 +186,7 @@ TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先�
 
 若“读取模型列表”失败，先确认设置页里 provider 是 `compatible`，Base URL 是 `https://api.tryanotherone.com/v1`，再点“测试连接”。有些中转站账号、套餐或模型端点不会稳定返回 `/models`；这时可以手动填入中转站文档里的模型名并保存，然后通过聊天和模型调用看板验证真实调用是否已经发生。
 
-保存配置后，可以在设置页点击“测试连接”。该按钮调用 `POST /api/me/llm-test`，复用用户 vault 或服务端 env key，低成本读取模型列表确认连接状态。无 key 时应返回明确的 `missing_api_key` 失败；成功或失败响应都不得包含 API key、Base URL 原文、Authorization header、prompt 或供应商 raw payload。测试连接不代表平台扣费、订阅或额度能力，仍然是用户自带 API 或部署方 env key 的连通性检查。
+保存配置后，可以在设置页点击“测试连接”。该按钮调用 `POST /api/me/llm-test`，复用用户 vault 或服务端 env key，发送一次低 token chat completion 探针确认当前模型真的可用；`/models` 只作为 compatible provider 的辅助诊断，不再作为成功标准。无 key 或无模型名时应返回明确失败；成功或失败响应都不得包含 API key、Base URL 原文、Authorization header、prompt 或供应商 raw payload。测试连接不代表平台扣费、订阅或额度能力，仍然是用户自带 API 或部署方 env key 的连通性检查。
 
 可选真实 BYOK 目标联调使用独立 opt-in 命令，不进入默认 CI 或发布门禁：
 
@@ -371,7 +371,7 @@ npm run env:secrets
 
 - [ ] 文本模型通过统一 adapter 调用，不在业务代码中硬编码供应商 SDK 或模型名。
 - [ ] TryAnotherOne 模型列表通过用户 vault 或服务端 env key 读取；模型名保存为配置，不保存 key 原文。
-- [ ] 设置页“测试连接”通过 `POST /api/me/llm-test` 复用用户 vault 或服务端 env key，低成本读取模型列表；无 key 时返回可预测失败，响应不包含 API key、Base URL 原文、prompt 或供应商 raw payload。
+- [ ] 设置页“测试连接”通过 `POST /api/me/llm-test` 复用用户 vault 或服务端 env key，执行低 token chat completion 探针；无 key 或无模型名时返回可预测失败，响应不包含 API key、Base URL 原文、prompt 或供应商 raw payload。
 - [ ] `npm run qa:real-provider:fake` 通过，确认本地 fake-compatible provider 能驱动 BYOK 联调脚本逻辑；该结果不等于真实供应商通过。
 - [ ] 可选执行 `npm run qa:real-provider` 做真实 compatible BYOK 目标联调；仅在显式设置 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量时运行，不写入默认 CI、`verify:pr` 或发布门禁。
 - [ ] 设置页“配置状态”重新检查后，LLM key/model/baseUrl 的状态与实际配置一致；缺失项只显示下一步建议，不显示用户 key、服务端 env key 或 Base URL 原文。

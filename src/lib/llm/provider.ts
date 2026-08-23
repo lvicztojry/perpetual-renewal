@@ -22,7 +22,9 @@ export function createLlmProvider(config: LlmProviderConfig = {}): LlmProvider {
     return new MockLlmProvider(readMockFallbackReason(requestedProvider));
   }
 
-  const baseUrl = config.baseUrl?.trim() || process.env.LLM_BASE_URL?.trim();
+  const explicitBaseUrl = config.baseUrl?.trim();
+  const baseUrl =
+    explicitBaseUrl || (providerName === "compatible" ? process.env.LLM_BASE_URL?.trim() : undefined);
   const missingConfig = readMissingConfig(providerName, { apiKey, model, baseUrl });
   if (missingConfig.length > 0) {
     return new MockLlmProvider(
@@ -40,7 +42,7 @@ export function createLlmProvider(config: LlmProviderConfig = {}): LlmProvider {
   if (providerName === "anthropic") {
     return new AnthropicProvider({
       apiKey: configuredApiKey,
-      baseUrl: config.baseUrl ?? process.env.LLM_BASE_URL,
+      baseUrl: explicitBaseUrl,
       model: configuredModel,
       version: process.env.ANTHROPIC_VERSION
     });
@@ -49,7 +51,7 @@ export function createLlmProvider(config: LlmProviderConfig = {}): LlmProvider {
   if (providerName === "gemini") {
     return new GeminiProvider({
       apiKey: configuredApiKey,
-      baseUrl: config.baseUrl ?? process.env.LLM_BASE_URL,
+      baseUrl: explicitBaseUrl,
       model: configuredModel
     });
   }
@@ -57,7 +59,7 @@ export function createLlmProvider(config: LlmProviderConfig = {}): LlmProvider {
   if (providerName === "openai-responses") {
     return new OpenAiResponsesProvider({
       apiKey: configuredApiKey,
-      baseUrl: config.baseUrl ?? process.env.LLM_BASE_URL,
+      baseUrl: explicitBaseUrl,
       model: configuredModel
     });
   }

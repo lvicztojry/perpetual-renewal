@@ -41,9 +41,12 @@ export async function saveLlmCredential(userId: string, input: SaveLlmCredential
   }
 
   const encrypted = input.apiKey ? encryptSecret(input.apiKey) : null;
+  const providerChanged = existingRecord ? existingRecord.provider !== input.provider : false;
   const baseUrl =
     input.baseUrl === undefined
-      ? existingRecord?.baseUrl ?? null
+      ? providerChanged
+        ? null
+        : existingRecord?.baseUrl ?? null
       : input.baseUrl?.trim() || null;
 
   if ((input.provider === "compatible" || input.provider === "openai-compatible") && !baseUrl) {

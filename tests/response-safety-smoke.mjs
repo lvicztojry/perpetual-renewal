@@ -47,7 +47,13 @@ for (const leaked of [
   rawPayloadSnakeValue,
   stackValue,
   stackFrame,
-  authorizationValue
+  authorizationValue,
+  "prompt=",
+  "rawPayload",
+  "raw_payload",
+  "stack=",
+  "authorization=",
+  "Authorization"
 ]) {
   assert(!redacted?.includes(leaked), `response sanitizer should hide ${leaked}`);
 }
@@ -57,12 +63,8 @@ for (const expected of [
   "DATABASE_URL=[redacted]",
   "[redacted-url]",
   "[redacted-provider-endpoint]",
-  "prompt=[redacted]",
-  "rawPayload=[redacted]",
-  "raw_payload=[redacted]",
-  "stack=[redacted]",
-  "[redacted-stack]",
-  "authorization=[redacted]"
+  "[redacted-debug-field]",
+  "[redacted-stack]"
 ]) {
   assert(redacted?.includes(expected), `response sanitizer should include ${expected}`);
 }

@@ -397,7 +397,7 @@ function isPortAvailable(port) {
 
 async function startSensitiveModelProviderServer(readBody) {
   const server = createHttpServer((request, response) => {
-    if (request.url !== "/models") {
+    if (request.url !== "/models" && request.url !== "/chat/completions") {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not found" }));
       return;
@@ -426,6 +426,36 @@ async function startSensitiveModelProviderServer(readBody) {
 
 async function startModelListProviderServer(readBody, options = {}) {
   const server = createHttpServer((request, response) => {
+    if (request.url === "/chat/completions") {
+      response.writeHead(options.chatStatus ?? 200, {
+        "content-type": options.chatContentType ?? "application/json"
+      });
+      response.end(
+        typeof options.chatBody === "function"
+          ? options.chatBody(request)
+          : options.chatBody ??
+              JSON.stringify({
+                id: "smoke-chat-probe",
+                model: "smoke-chat-probe-model",
+                choices: [
+                  {
+                    message: {
+                      role: "assistant",
+                      content: "ok"
+                    },
+                    finish_reason: "stop"
+                  }
+                ],
+                usage: {
+                  prompt_tokens: 3,
+                  completion_tokens: 1,
+                  total_tokens: 4
+                }
+              })
+      );
+      return;
+    }
+
     if (request.url !== "/models") {
       response.writeHead(404, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: "not found" }));
@@ -2086,8 +2116,9 @@ async function runSmoke() {
     });
     assert(
       compatibleConnectionTest.body.ok === true &&
-        compatibleConnectionTest.body.provider === "compatible",
-      "LLM connection test should accept a valid compatible model list response"
+        compatibleConnectionTest.body.provider === "compatible" &&
+        compatibleConnectionTest.body.probe === "chat_completion",
+      "LLM connection test should verify compatible chat completions, not just /models"
     );
     assertNoSensitiveProviderDetails(
       compatibleModelList.body,
@@ -2098,6 +2129,61 @@ async function runSmoke() {
     await modelListProvider.stop();
   }
   pass("GET /api/me/llm-models accepts common compatible model list shapes");
+
+  const chatFailurePrompt = "chat-probe-prompt-should-not-leak";
+  const chatFailureRawPayload = "chat-probe-raw-payload-should-not-leak";
+  let chatFailureProvider;
+  chatFailureProvider = await startModelListProviderServer(
+    () =>
+      JSON.stringify({
+        object: "list",
+        data: [{ id: "smoke-chat-failure-model" }]
+      }),
+    {
+      chatStatus: 500,
+      chatBody: () =>
+        JSON.stringify({
+          error: {
+            message:
+              `Authorization: Bearer ${fakeKey}; endpoint=${chatFailureProvider.url}; ` +
+              `prompt=${chatFailurePrompt}; rawPayload=${chatFailureRawPayload}`
+          }
+        })
+    }
+  );
+  try {
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: fakeKey,
+        baseUrl: chatFailureProvider.url,
+        model: "smoke-chat-failure-model"
+      })
+    });
+
+    const chatFailureConnectionTest = await request("/api/me/llm-test", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: chatFailureProvider.url,
+        model: "smoke-chat-failure-model"
+      })
+    });
+    assert(
+      chatFailureConnectionTest.body.ok === false &&
+        chatFailureConnectionTest.body.errorType === "provider_response" &&
+        chatFailureConnectionTest.body.httpStatus === 500,
+      "LLM connection test should fail when /models works but chat completions fail"
+    );
+    assertNoSensitiveProviderDetails(
+      chatFailureConnectionTest.body,
+      "LLM connection test chat failure",
+      [fakeKey, chatFailureProvider.url, chatFailurePrompt, chatFailureRawPayload]
+    );
+  } finally {
+    await chatFailureProvider.stop();
+  }
 
   const invalidShapeProvider = await startModelListProviderServer(() =>
     JSON.stringify({ object: "list", choices: [{ text: "not a model list" }] })
@@ -2127,28 +2213,22 @@ async function runSmoke() {
       "not a model list"
     ]);
 
-    const invalidShapeConnectionTest = await request(
-      "/api/me/llm-test",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          provider: "compatible",
-          baseUrl: invalidShapeProvider.url,
-          model: "smoke-invalid-shape-model"
-        })
-      },
-      { allowError: true }
-    );
+    const invalidShapeConnectionTest = await request("/api/me/llm-test", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "compatible",
+        baseUrl: invalidShapeProvider.url,
+        model: "smoke-invalid-shape-model"
+      })
+    });
     assert(
-      invalidShapeConnectionTest.body.ok === false &&
-        invalidShapeConnectionTest.body.errorType === "provider_response" &&
-        typeof invalidShapeConnectionTest.body.diagnostic === "string" &&
-        invalidShapeConnectionTest.body.diagnostic.includes("data, models, value, or result array"),
-      "LLM connection test should diagnose invalid compatible model list responses"
+      invalidShapeConnectionTest.body.ok === true &&
+        invalidShapeConnectionTest.body.probe === "chat_completion",
+      "LLM connection test should pass when /models is invalid but chat completions work"
     );
     assertNoSensitiveProviderDetails(
       invalidShapeConnectionTest.body,
-      "LLM connection test invalid response",
+      "LLM connection test with invalid model list",
       [fakeKey, invalidShapeProvider.url, savedEndpoint, "not a model list"]
     );
   } finally {
@@ -2173,8 +2253,13 @@ async function runSmoke() {
   });
   assert(
     nonCompatibleCredential.body.credential?.provider === "anthropic" &&
-      nonCompatibleCredential.body.credential?.configured === true,
-    "credential update should allow switching to a non-compatible provider without re-entering api key"
+      nonCompatibleCredential.body.credential?.configured === true &&
+      nonCompatibleCredential.body.credential?.endpointConfigured === false,
+    "credential update should clear old compatible endpoints when switching provider families"
+  );
+  assert(
+    !JSON.stringify(nonCompatibleCredential.body).includes(savedEndpoint),
+    "provider switches should not expose or silently retain the old compatible endpoint"
   );
   const modelListWithNonCompatibleProvider = await request(
     "/api/me/llm-models",

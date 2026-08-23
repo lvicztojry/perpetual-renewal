@@ -1,7 +1,9 @@
 import { readDecryptedLlmCredential } from "@/lib/credentials";
+import { createLlmProvider } from "./provider";
 import type { LlmProviderAlias, LlmProviderName, LlmProviderErrorKind } from "./types";
-import { classifyProviderStatus } from "./types";
+import { LlmProviderError } from "./types";
 import { parseOpenAiCompatibleModelList } from "./model-list";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 
 export type LlmConnectionTestInput = {
   provider?: unknown;
@@ -20,6 +22,7 @@ export type LlmConnectionTestResult = {
   retryable?: boolean;
   httpStatus?: number;
   diagnostic?: string;
+  probe?: "chat_completion";
 };
 
 type LlmConnectionTestErrorType =
@@ -32,7 +35,7 @@ type ResolvedConnectionConfig = {
   provider: LlmProviderName;
   apiKey: string;
   baseUrl: string;
-  model: string | null;
+  model: string;
   credentialSource: "user-vault" | "server-env";
 };
 
@@ -56,58 +59,16 @@ export async function testLlmConnection(
 
   try {
     const config = await resolveConnectionConfig(userId, input);
-    const response = await fetch(buildModelListUrl(config), {
-      headers: buildModelListHeaders(config),
-      signal: AbortSignal.timeout(12_000)
-    });
-
-    if (!response.ok) {
-      const classification = classifyProviderStatus(response.status);
-      return {
-        ok: false,
-        provider: config.provider,
-        model: config.model,
-        credentialSource: config.credentialSource,
-        latencyMs: Date.now() - startedAt,
-        errorType: classification.kind,
-        error: toFriendlyConnectionError(classification.kind, response.status),
-        httpStatus: response.status,
-        diagnostic: `Provider /models endpoint returned HTTP ${response.status}.`,
-        retryable: classification.retryable
-      };
-    }
-
-    if (config.provider === "compatible") {
-      const payload = await response.json().catch(() => undefined);
-      const parsed =
-        payload === undefined
-          ? {
-              ok: false as const,
-              diagnostic: "Provider /models response was not valid JSON."
-            }
-          : parseOpenAiCompatibleModelList(payload);
-
-      if (!parsed.ok) {
-        return {
-          ok: false,
-          provider: config.provider,
-          model: config.model,
-          credentialSource: config.credentialSource,
-          latencyMs: Date.now() - startedAt,
-          errorType: "provider_response",
-          error: "连接测试收到响应，但模型列表格式不是常见 OpenAI-compatible 结构。",
-          diagnostic: parsed.diagnostic,
-          retryable: false
-        };
-      }
-    }
+    await verifyModelListIfAvailable(config, startedAt);
+    await runChatProbe(config);
 
     return {
       ok: true,
       provider: config.provider,
       model: config.model,
       credentialSource: config.credentialSource,
-      latencyMs: Date.now() - startedAt
+      latencyMs: Date.now() - startedAt,
+      probe: "chat_completion"
     };
   } catch (error) {
     const fallback = await readFallbackMetadata(userId, input);
@@ -131,10 +92,10 @@ async function resolveConnectionConfig(
   const apiKey = credential?.apiKey || readEnvApiKey(provider);
   const model =
     readOptionalString(input.model, 128) ?? credential?.model?.trim() ?? process.env.LLM_MODEL?.trim() ?? null;
+  const explicitBaseUrl = readOptionalString(input.baseUrl, 512) ?? credential?.baseUrl?.trim();
   const baseUrl =
-    readOptionalString(input.baseUrl, 512) ??
-    credential?.baseUrl?.trim() ??
-    process.env.LLM_BASE_URL?.trim() ??
+    explicitBaseUrl ??
+    (provider === "compatible" ? process.env.LLM_BASE_URL?.trim() : undefined) ??
     readDefaultBaseUrl(provider);
 
   if (!apiKey) {
@@ -154,6 +115,13 @@ async function resolveConnectionConfig(
     );
   }
 
+  if (!model) {
+    throw new LlmConnectionTestConfigurationError(
+      "invalid_configuration",
+      "请先填写模型名，连接测试会发送一条低 token 聊天探针来确认该模型可用。"
+    );
+  }
+
   if (!/^https?:\/\//i.test(baseUrl)) {
     throw new LlmConnectionTestConfigurationError(
       "invalid_configuration",
@@ -168,6 +136,68 @@ async function resolveConnectionConfig(
     model,
     credentialSource
   };
+}
+
+async function verifyModelListIfAvailable(config: ResolvedConnectionConfig, startedAt: number) {
+  if (config.provider !== "compatible") return;
+
+  const response = await fetch(buildModelListUrl(config), {
+    headers: buildModelListHeaders(config),
+    signal: AbortSignal.timeout(12_000)
+  });
+
+  if (!response.ok) {
+    // Some compatible gateways do not expose /models but still support chat completions.
+    return;
+  }
+
+  const payload = await response.json().catch(() => undefined);
+  const parsed =
+    payload === undefined
+      ? {
+          ok: false as const,
+          diagnostic: "Provider /models response was not valid JSON."
+        }
+      : parseOpenAiCompatibleModelList(payload);
+
+  if (!parsed.ok) {
+    return;
+  }
+
+  if (
+    parsed.models.length > 0 &&
+    config.model &&
+    !parsed.models.some((model) => model.id === config.model)
+  ) {
+    // Keep this as advisory: gateways may hide aliases or support manual model names.
+    void startedAt;
+  }
+}
+
+async function runChatProbe(config: ResolvedConnectionConfig) {
+  const provider = createLlmProvider({
+    provider: config.provider,
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    model: config.model
+  });
+
+  await provider.complete({
+    model: config.model,
+    maxTokens: 8,
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content: "Return a short connection-test acknowledgement."
+      },
+      {
+        role: "user",
+        content: "ping"
+      }
+    ],
+    signal: AbortSignal.timeout(20_000)
+  });
 }
 
 async function readFallbackMetadata(userId: string, input: LlmConnectionTestInput) {
@@ -284,6 +314,18 @@ function toConnectionFailure(error: unknown) {
     };
   }
 
+  if (error instanceof LlmProviderError) {
+    return {
+      errorType: error.details.kind,
+      error: toFriendlyConnectionError(error.details.kind, error.details.status),
+      httpStatus: error.details.status,
+      diagnostic: redactSensitiveResponseText(readProviderDiagnostic(error.details.cause)),
+      retryable:
+        error.details.retryable ??
+        (error.details.kind === "network" || error.details.kind === "timeout")
+    };
+  }
+
   const isTimeout =
     error instanceof DOMException
       ? error.name === "AbortError" || error.name === "TimeoutError"
@@ -298,6 +340,12 @@ function toConnectionFailure(error: unknown) {
     error: string;
     retryable: boolean;
   };
+}
+
+function readProviderDiagnostic(value: unknown) {
+  if (typeof value === "string" && value.trim()) return value.slice(0, 240);
+  if (value && typeof value === "object") return "Provider returned an invalid chat completion response.";
+  return "Chat completion probe failed.";
 }
 
 function toFriendlyConnectionError(kind: LlmProviderErrorKind, status?: number) {

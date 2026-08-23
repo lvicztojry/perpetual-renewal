@@ -54,7 +54,7 @@ E2E 模式边界：
 | 已有服务复用 | `E2E_BASE_URL=http://localhost:3000 npm run e2e -- --project=chromium` | 指向已经启动的本地服务；如果该服务接了真实数据库或用户 vault key，只作为人工体验排查 | 否 |
 | 真实供应商探索 | `E2E_REAL_PROVIDER=1 npm run e2e -- --project=chromium` | 显式保留 LLM env，并放宽 Playwright 超时；用于定位真实 provider 响应、额度、网络或模型兼容问题 | 否 |
 | fake-compatible 脚本自测 | `npm run qa:real-provider:fake` | 启动本地假 OpenAI-compatible provider，驱动 `qa:real-provider` 的 BYOK/vault/聊天/用量流程；不需要真实 key | 是 |
-| 真实 BYOK 目标联调 | `REAL_PROVIDER_QA=1 REAL_LLM_API_KEY=... REAL_LLM_BASE_URL=... REAL_LLM_MODEL=... npm run qa:real-provider` | 通过用户 vault 保存真实 key，验证 compatible `/models` 诊断、连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run | 否 |
+| 真实 BYOK 目标联调 | `REAL_PROVIDER_QA=1 REAL_LLM_API_KEY=... REAL_LLM_BASE_URL=... REAL_LLM_MODEL=... npm run qa:real-provider` | 通过用户 vault 保存真实 key，验证 compatible `/models` 诊断、chat completion 连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run | 否 |
 
 真实 API/真实 LLM 体验验证建议只跑目标用例，不直接跑全量 E2E。全量里包含 memory fallback 隔离测试，会刻意断言本地内存仓库行为；真实 PostgreSQL/真实 LLM 服务上跑全量容易把环境差异误判为发布门禁失败。
 
@@ -123,7 +123,7 @@ npm run db:smoke
 | safety | `POST /api/safety/check` | 撒娇式允许、非性化未成年人陪伴、医疗/法律担心的情绪支持、公众人物想象式鼓励、自伤、他伤、现实行动、公众人物授权、金钱法律、排他依赖、关系施压、角色越权、未成年人性化、隐私跟踪、专业建议、身份欺骗均命中预期策略 |
 | safety event | `POST /api/safety/check` | `action != allow` 时记录脱敏事件；只返回 `contentHash`/`riskHash` 等审计元数据，不返回原文、prompt、API key 或 baseUrl |
 | 数据导出 | `GET /api/me/export` | 当前 session 用户 JSON 快照；包含关系、消息、记忆、主动回响、模型调用和安全事件 hash；不返回供应商密钥、endpoint URL 或 vault 字段 |
-| 模型连接测试 | `POST /api/me/llm-test` | 无 key、URL 构造失败、供应商 HTTP 失败或底层 fetch 失败均返回可预测失败；响应只包含状态、provider/model、credentialSource、latencyMs 和友好错误，不返回 API key、Bearer、Base URL 原文、prompt、供应商 raw payload、底层网络原文或堆栈 |
+| 模型连接测试 | `POST /api/me/llm-test` | 无 key、无模型名、URL 构造失败、供应商 HTTP 失败或底层 fetch 失败均返回可预测失败；成功以低 token chat completion 探针为准；响应只包含状态、provider/model、credentialSource、latencyMs、probe 和友好错误，不返回 API key、Bearer、Base URL 原文、prompt、供应商 raw payload、底层网络原文或堆栈 |
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
 | 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
 | 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
@@ -419,7 +419,7 @@ npm run e2e
 - 调用 `POST /api/me/llm-test`。
 - 在没有用户 vault key 或服务端 env key 时，断言返回 `ok=false`、`credentialSource=none`、`errorType=missing_api_key`。
 - 断言响应不包含 API key、Base URL 原文、Authorization header、prompt、请求 payload 或供应商 raw payload。
-- 该接口只做低成本模型列表探测；不是订阅、扣费、额度或真实聊天回复能力。
+- 该接口只做低 token chat completion 探针；compatible provider 的模型列表读取只是辅助诊断。它不是订阅、扣费或额度能力。
 
 配置状态自动检查：
 
