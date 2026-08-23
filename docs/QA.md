@@ -41,10 +41,27 @@ npm run e2e
 默认行为：
 
 - 使用 Playwright，项目名为 `chromium`，实际浏览器使用系统 Edge：`channel: "msedge"`。
-- `baseURL` 与 `webServer.url` 均为 `http://localhost:3000`；如复用已有服务，可设置 `E2E_BASE_URL=http://localhost:3000`。
-- 自动在 `localhost:3000` 启动 Next dev server，并使用内存 repository 与 mock provider fallback。
+- 未设置 `E2E_BASE_URL` 时，runner 会自动在 `localhost:3000` 启动 Next dev server，并使用内存 repository 与 mock provider fallback。这是发布前默认、稳定、可重复的 UI 门禁。
+- 设置 `E2E_BASE_URL` 时，runner 会进入 existing-server 模式：只等待并复用该地址上的已有服务，不再启动第二个 Next dev server，也不清空真实 LLM/数据库配置。
 - 浏览器 E2E 依赖 cookie 与 hydration 状态，建议保持 `localhost`，不要混用 `127.0.0.1`。
 - 登录 hydration 保护采用 `useSyncExternalStore`，用于避免登录页在客户端接管前按原生表单提交。
+
+E2E 模式边界：
+
+| 模式 | 命令 | 用途 | 发布门禁 |
+| --- | --- | --- | --- |
+| mock/local 浏览器门禁 | `npm run e2e` | 自动启动隔离 dev server，清空 LLM key/baseUrl/model，使用 memory repository 和 mock fallback，验证 UI 主链路稳定性 | 是 |
+| 已有服务复用 | `E2E_BASE_URL=http://localhost:3000 npm run e2e -- --project=chromium` | 指向已经启动的本地服务；如果该服务接了真实数据库或用户 vault key，只作为人工体验排查 | 否 |
+| 真实供应商探索 | `E2E_REAL_PROVIDER=1 npm run e2e -- --project=chromium` | 显式保留 LLM env，并放宽 Playwright 超时；用于定位真实 provider 响应、额度、网络或模型兼容问题 | 否 |
+
+真实 API/真实 LLM 体验验证建议只跑目标用例，不直接跑全量 E2E。全量里包含 memory fallback 隔离测试，会刻意断言本地内存仓库行为；真实 PostgreSQL/真实 LLM 服务上跑全量容易把环境差异误判为发布门禁失败。
+
+```powershell
+$env:E2E_BASE_URL="http://127.0.0.1:3000"
+npm run e2e -- tests/e2e/relationship-flow.spec.ts --project=chromium -g "proactive panel surfaces"
+```
+
+真实供应商响应可能慢于 mock。做真实体验验证时，优先观察页面状态、模型调用看板和服务端脱敏错误；默认发布门禁仍使用 `npm run e2e` 的 managed mock/memory 模式。真实供应商慢响应、超时、429、余额不足或模型不可用应记录为联调风险，不应直接判定发布门禁失败。
 
 完整本地验收建议：
 
@@ -122,7 +139,7 @@ npm run db:smoke
 
 当前基线：`npm run e2e` 已通过 13 tests。
 
-当前浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、人工 QA 或后续用例补齐。
+默认浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、targeted existing-server E2E、人工 QA 或后续用例补齐。需要真实供应商联调时，结论按“用户是否能在设置页保存 key、读取或手动填写模型、完成连接测试并得到一次聊天/语音/主动回响结果”记录，不和 `npm run e2e` 的 mock/local 基线混用。
 
 ## 文档漂移门禁
 
@@ -393,6 +410,8 @@ npm run e2e
 | anthropic | `LLM_PROVIDER=anthropic`、`LLM_API_KEY`、`LLM_MODEL` | 能完成同一 chat payload |
 | gemini | `LLM_PROVIDER=gemini`、`LLM_API_KEY`、`LLM_MODEL` | 能完成同一 chat payload |
 | openai-responses | `LLM_PROVIDER=openai-responses`、`LLM_API_KEY`、`LLM_MODEL` | 作为可选专用适配器通过 |
+
+真实供应商验收记录里必须区分三类结论：应用缺陷、供应商/网络/额度问题、人工体验风险。只有应用在 mock/local E2E、smoke、db smoke 或真实 provider 成功返回后的解析、脱敏、保存逻辑出错，才归入发布门禁失败；单次 provider 慢响应、超时、429、模型列表不可读但可手动填写模型名的情况，按联调风险记录并保留重试证据。
 
 ## 验收记录模板
 

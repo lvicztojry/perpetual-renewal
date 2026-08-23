@@ -502,7 +502,7 @@
 
 - 已接入 Playwright 浏览器 E2E：`tests/e2e/relationship-flow.spec.ts`。
 - 当前覆盖 login -> create relationship -> chat -> confirm memory -> proactive draft -> logout。
-- 当前 `npm run e2e` 已通过；Playwright 使用 `http://localhost:3000` 与系统 Edge `msedge`。
+- 当前 `npm run e2e` 已通过；默认启动 managed mock/memory 服务，作为稳定发布浏览器门禁。设置 `E2E_BASE_URL` 时复用已有服务并进入真实 API/真实 LLM 探索联调模式，不作为默认发布门禁。
 
 ### QA-3 暂缓运营反馈机制
 
@@ -690,6 +690,7 @@
 - 调度响应只返回扫描数量、生成数量、保存数量、候选时间和原因，不返回 secret、key、连接串、prompt 或消息正文。
 - M110 已将关系对象默认主动回响节奏改为 1 分钟，并为当前打开的工作台增加前台自动检查。
 - 主动回响面板已新增本地检查状态提示，展示“当前节奏 每 1 分钟”“自动检查每 1 分钟”、手动/自动检查结果和下次检查时间；E2E 覆盖该提示，便于真实 API 试用时排查“为什么还没主动回响”。
+- E2E 分层运行补丁已接入：`npm run e2e` 保持 managed mock/memory 发布门禁；`E2E_BASE_URL` 复用当前服务做真实数据库或真实供应商体验排查，并放宽 Playwright 超时。真实供应商慢响应、超时、429、余额不足或模型不可用按联调风险记录，不和默认 E2E 门禁混用。
 
 ### M6 质量与验收
 

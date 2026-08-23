@@ -1,6 +1,6 @@
 # MVP Status
 
-更新日期：2026-08-22
+更新日期：2026-08-23
 
 本文件是主控施工状态面板，用于快速判断当前第一版 MVP 是否可演示、可继续开发、可进入真实环境联调。
 
@@ -66,7 +66,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `smoke`：90 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
-- `e2e`：13 tests passed。
+- `e2e`：13 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -92,7 +92,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 | LLM 配置 | 默认 `LLM_PROVIDER=compatible`、`LLM_BASE_URL=https://api.tryanotherone.com/v1`；key 放用户 vault 或服务端 secret |
 | Voice 配置 | 默认 `VOICE_PROVIDER=shared-llm`，语音模型用 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL` |
 | 数据库迁移 | 本地开发用 `npm run prisma:migrate`；生产目标数据库用 `npm run prisma:migrate:deploy` 后跑 `npm run verify:deploy` |
-| 推送/PR 前检查 | 必跑 `npm run verify:local -- --skip-e2e`、`npm run e2e`、`npm run verify:release`、`git status --short --branch` 与 `git status --short --ignored`；生产环境补齐配置后再跑 `npm run verify:deploy` |
+| 推送/PR 前检查 | 必跑 `npm run verify:local -- --skip-e2e`、`npm run e2e`、`npm run verify:release`、`git status --short --branch` 与 `git status --short --ignored`；生产环境补齐配置后再跑 `npm run verify:deploy`；真实 API/真实 LLM 体验验证单独记录，不替代 mock/local E2E 门禁 |
 
 生成 secret 的建议命令：
 
@@ -103,6 +103,8 @@ npm run env:secrets
 命令会一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，只打印、不写文件；输出值只放入 `.env.local` 或部署平台 secret。
 
 本地体验口径：用 `npm run dev` 启动后打开 `http://127.0.0.1:3000` 或 `http://localhost:3000`；真实 API key 优先在设置页保存。工作台打开时当前关系对象会每分钟检查主动回响草稿；如果关闭页面，本地没有 all-user 常驻调度，生产才由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
+
+E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 LLM key/baseUrl/model 并使用 mock fallback。复用已有服务或显式 `E2E_REAL_PROVIDER=1` 时，结果只作为真实供应商联调/体验风险记录；供应商慢响应、超时、429、余额不足或模型列表不可读但可手动填写模型名，不直接判定发布门禁失败。
 
 ## 继续施工队列
 

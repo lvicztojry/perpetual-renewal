@@ -17,7 +17,8 @@ async function loginAsFreshUser(page: Page, prefix: string) {
   await expect(page.getByText(/已就绪 \d+ 项 · 需处理 \d+ 项/)).toBeVisible();
   await expect(page.getByText("Session 签名 secret")).toBeVisible();
   await expect(page.getByText(E2E_SESSION_COOKIE_SECRET)).toHaveCount(0);
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: "模型供应商" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "导出数据" })).toBeEnabled();
 
   return unique;
 }

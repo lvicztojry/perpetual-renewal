@@ -20,6 +20,7 @@ npm run dev
 - 当前同步点：运行 `git status --short --branch` 和 `git log -1 --oneline` 查看。
 - 初始 baseline：`ef4939e feat: build relationship ai mvp baseline`
 - 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；真实部署前在目标环境运行 `npm run verify:deploy`。
+- `npm run e2e` 默认启动 managed mock/memory 服务，作为稳定 UI 门禁；如要复用当前真实配置服务，先启动 `npm run dev`，再设置 `E2E_BASE_URL=http://127.0.0.1:3000` 只跑目标 spec/用例。
 - 类型检查：`npm run typecheck` 会先运行 `npm run next:typegen`，确保 Next route types 已生成且 `next-env.d.ts` 保持稳定。
 
 ## 真实配置

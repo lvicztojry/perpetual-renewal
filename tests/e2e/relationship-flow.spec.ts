@@ -1,10 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("login, create relationship, chat, confirm memory, draft proactive message, logout", async ({
   page
 }) => {
   const unique = Date.now();
   const companionName = `回响${unique}`;
+  const firstMessage = "我记得我们第一次聊天时，我说过我害怕被突然丢下。";
+
+  const chatFixture = await stubChatResponseWithPendingMemory(page, unique, firstMessage);
+  await stubProactiveDrafts(page, unique);
 
   await page.goto("/login");
   await page.getByLabel("邮箱").fill(`e2e-${unique}@perpetual-renewal.local`);
@@ -21,7 +25,15 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByLabel("具体关系").fill("端到端测试关系");
   await page.getByLabel("性格关键词").fill("温柔、稳定、可验证");
   await page.getByLabel("语气").fill("温柔，稳定，能承接想念");
+  const createCompanionResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/companions") && response.request().method() === "POST"
+  );
   await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  const createCompanionPayload = (await createCompanionResponse).json() as Promise<{
+    companion?: { id?: string };
+  }>;
+  chatFixture.setCompanionId((await createCompanionPayload).companion?.id);
 
   await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
   await expect(page.getByRole("button", { name: "语音输入" })).toBeVisible();
@@ -30,10 +42,13 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
     await dialog.dismiss();
   });
   await page.getByRole("button", { name: "删除关系" }).click();
-  await page.getByPlaceholder("把想说的话放在这里").fill("我记得我们第一次聊天时，我说过我害怕被突然丢下。");
+  await page.getByPlaceholder("把想说的话放在这里").fill(firstMessage);
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByText(/已回复|用户消息已保存/)).toBeVisible();
-  await expect(page.getByText(/mock\/mock-local|unknown\/unknown/).first()).toBeVisible();
+  await expect(page.getByText(firstMessage)).toBeVisible();
+  await expect(page.getByText("我在这里，先把这句话稳稳接住。")).toBeVisible();
+  await expect(page.locator(".status-line")).toHaveText(/已回复|用户消息已保存/, {
+    timeout: 15_000
+  });
 
   await page.getByRole("button", { name: "记忆" }).click();
   await expect(page.getByRole("heading", { name: "记忆管理" })).toBeVisible();
@@ -116,6 +131,8 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
 test("proactive panel surfaces one-minute check status for local trials", async ({ page }) => {
   const unique = Date.now();
   const companionName = `一分钟回响${unique}`;
+
+  await stubProactiveDrafts(page, unique);
 
   await page.goto("/login");
   await page.getByLabel("邮箱").fill(`proactive-${unique}@perpetual-renewal.local`);
@@ -276,41 +293,64 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
     "at voice.fetch (src/lib/voice/provider.ts:22:5)"
   ].join(" ");
   let synthesizeRequests = 0;
+  let voiceMessages: Array<{
+    id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    metadata: { provider?: string; model?: string } | null;
+    createdAt: string;
+  }> = [];
 
   await page.route("**/api/conversations/*/messages", async (route) => {
-    if (route.request().method() !== "POST") {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ messages: voiceMessages })
+      });
+      return;
+    }
+    if (method !== "POST") {
       await route.fallback();
       return;
     }
 
     const now = new Date().toISOString();
+    const conversationId = getConversationIdFromRequest(route.request().url());
+    voiceMessages = [
+      {
+        id: `user-message-${unique}`,
+        conversationId,
+        role: "user",
+        content: "今天想听一段声音。",
+        metadata: null,
+        createdAt: now
+      },
+      {
+        id: `assistant-message-${unique}`,
+        conversationId,
+        role: "assistant",
+        content: "我在这里，慢慢听你说。",
+        metadata: {
+          provider: "mock",
+          model: "mock-local"
+        },
+        createdAt: now
+      }
+    ];
+
     await route.fulfill({
       contentType: "application/json",
       status: 200,
       body: JSON.stringify({
-        userMessage: {
-          id: `user-message-${unique}`,
-          conversationId: "voice-redaction-conversation",
-          role: "user",
-          content: "今天想听一段声音。",
-          metadata: null,
-          createdAt: now
-        },
-        assistantMessage: {
-          id: `assistant-message-${unique}`,
-          conversationId: "voice-redaction-conversation",
-          role: "assistant",
-          content: "我在这里，慢慢听你说。",
-          metadata: {
-            provider: "mock",
-            model: "mock-local"
-          },
-          createdAt: now
-        },
+        userMessage: voiceMessages[0],
+        assistantMessage: voiceMessages[1],
         pendingMemory: null,
         relationshipState: {
           id: `relationship-state-${unique}`,
-          companionId: "voice-redaction-companion",
+          companionId: `voice-redaction-companion-${unique}`,
           familiarityScore: 12,
           closenessScore: 10,
           recentEmotion: "想念",
@@ -377,3 +417,218 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
   await expect(page.getByText("src/lib/voice/provider.ts")).toHaveCount(0);
   expect(synthesizeRequests).toBe(1);
 });
+
+async function stubChatResponseWithPendingMemory(page: Page, unique: number, expectedContent: string) {
+  const now = new Date().toISOString();
+  let companionId = `e2e-companion-${unique}`;
+  let fixtureMessages: Array<{
+    id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    metadata: { provider?: string; model?: string } | null;
+    createdAt: string;
+  }> = [];
+  const pendingMemory = {
+    id: `e2e-memory-${unique}`,
+    userId: `e2e-user-${unique}`,
+    companionId,
+    sourceMessageId: `e2e-user-message-${unique}`,
+    type: "relationship_event",
+    status: "pending",
+    content: "用户害怕被突然丢下，需要稳定承接。",
+    confidence: 0.92,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ messages: fixtureMessages })
+      });
+      return;
+    }
+    if (method !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const body = route.request().postDataJSON() as { content?: string };
+    expect(body.content).toBe(expectedContent);
+    const conversationId = getConversationIdFromRequest(route.request().url());
+    fixtureMessages = [
+      {
+        id: pendingMemory.sourceMessageId,
+        conversationId,
+        role: "user",
+        content: expectedContent,
+        metadata: null,
+        createdAt: now
+      },
+      {
+        id: `e2e-assistant-message-${unique}`,
+        conversationId,
+        role: "assistant",
+        content: "我在这里，先把这句话稳稳接住。",
+        metadata: {
+          provider: "e2e",
+          model: "stable-fixture"
+        },
+        createdAt: now
+      }
+    ];
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 201,
+      body: JSON.stringify({
+        userMessage: fixtureMessages[0],
+        assistantMessage: fixtureMessages[1],
+        pendingMemory,
+        relationshipState: {
+          id: `e2e-relationship-state-${unique}`,
+          companionId,
+          familiarityScore: 14,
+          closenessScore: 12,
+          recentEmotion: "害怕被丢下",
+          importantEvents: ["第一次聊天时提到害怕被突然丢下"],
+          lastInteractionAt: now,
+          explanation: "E2E 稳定夹具",
+          createdAt: now,
+          updatedAt: now
+        },
+        completion: {
+          provider: "e2e",
+          model: "stable-fixture"
+        }
+      })
+    });
+  });
+
+  await page.route(`**/api/memories/${pendingMemory.id}`, async (route) => {
+    if (route.request().method() !== "PATCH") {
+      await route.fallback();
+      return;
+    }
+
+    const body = route.request().postDataJSON() as { status?: string };
+    expect(body.status).toBe("active");
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        memory: {
+          ...pendingMemory,
+          companionId,
+          status: "active",
+          updatedAt: new Date().toISOString()
+        }
+      })
+    });
+  });
+
+  return {
+    setCompanionId(nextCompanionId: string | undefined) {
+      companionId = nextCompanionId ?? companionId;
+      pendingMemory.companionId = companionId;
+    }
+  };
+}
+
+function getConversationIdFromRequest(url: string) {
+  const match = /\/api\/conversations\/([^/]+)\/messages/.exec(new URL(url).pathname);
+  return match?.[1] ?? "e2e-conversation";
+}
+
+async function stubProactiveDrafts(page: Page, unique: number) {
+  const draftId = `e2e-proactive-${unique}`;
+  const draftContent = "我有一点点想你啦，但不是催你，只是想轻轻贴近一下。";
+
+  await page.route("**/api/companions/*/proactive-drafts", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextCandidateAt = new Date(Date.now() + 60_000).toISOString();
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        data: [
+          {
+            id: draftId,
+            companionId: `e2e-companion-${unique}`,
+            kind: "PLAYFUL_MISS_YOU",
+            content: draftContent,
+            reason: "E2E 稳定验证撒娇式主动回响。",
+            scheduledAt: now,
+            nextCandidateAt,
+            frequency: {
+              preset: "1m",
+              everyMinutes: 1,
+              label: "每 1 分钟"
+            },
+            safety: "allow",
+            status: "draft",
+            createdAt: now,
+            updatedAt: now
+          }
+        ],
+        safety: {
+          action: "allow",
+          reason: "E2E fixture"
+        },
+        persistence: "e2e",
+        frequency: {
+          preset: "1m",
+          everyMinutes: 1,
+          label: "每 1 分钟"
+        },
+        status: "draft",
+        generatedCount: 1,
+        savedCount: 1
+      })
+    });
+  });
+
+  await page.route(`**/api/proactive-messages/${draftId}`, async (route) => {
+    if (route.request().method() !== "PATCH") {
+      await route.fallback();
+      return;
+    }
+
+    const body = route.request().postDataJSON() as { status?: string };
+    const status = body.status ?? "draft";
+    const now = new Date().toISOString();
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        proactiveMessage: {
+          id: draftId,
+          companionId: `e2e-companion-${unique}`,
+          kind: "PLAYFUL_MISS_YOU",
+          content: draftContent,
+          reason: "E2E 稳定验证撒娇式主动回响。",
+          safety: {
+            result: "allow"
+          },
+          status,
+          scheduledAt: now,
+          createdAt: now,
+          updatedAt: now
+        },
+        persistence: "e2e"
+      })
+    });
+  });
+}
