@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { shouldFallbackToMemoryOnPrismaError, shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 
 export const ACCOUNT_DELETE_CONFIRMATION = "删除我的账号";
@@ -203,24 +204,11 @@ function deleteFallbackAccount(userId: string): DeleteAccountSummary {
 }
 
 function shouldUseFallbackDeletion() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    (process.env.RENEWAL_REPOSITORY === "memory" || !process.env.DATABASE_URL)
-  );
+  return shouldUseMemoryFallback();
 }
 
 function shouldFallbackToMemory(error: unknown) {
-  if (process.env.NODE_ENV === "production") return false;
-
-  const code = typeof error === "object" && error ? (error as { code?: string }).code : undefined;
-  if (code && databaseUnavailableCodes.has(code)) return true;
-
-  const message = error instanceof Error ? error.message : "";
-  return (
-    message.includes("Can't reach database server") ||
-    message.includes("Environment variable not found") ||
-    message.includes("does not exist in the current database")
-  );
+  return shouldFallbackToMemoryOnPrismaError(error, { codes: databaseUnavailableCodes });
 }
 
 export function isFallbackDemoAccount(userId: string) {

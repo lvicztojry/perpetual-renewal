@@ -99,7 +99,8 @@ npm run db:smoke
 | auth | `POST /api/auth/login` / `POST /api/auth/logout` | 登录返回 session/user，登出返回 ok |
 | 关系设定 | `POST/PATCH /api/companions` | 可创建 `CUSTOM` 自定义关系，并返回 conversationId；空名称、空语气、非法关系类型返回稳定 400，失败时不创建记录或部分写入 |
 | 素材导入 | `POST /api/companions/:id/imports` | 支持单段文本、批量文本数组、JSON Lines；默认写入 pending 记忆，返回 created/skipped/redaction/duplicate summary |
-| 聊天与记忆 | `POST /api/conversations/:id/messages` | 生成 user/assistant 消息，mock provider fallback，产生 pending memory |
+| 聊天与记忆 | `POST /api/conversations/:id/messages` | 生成 user/assistant 消息，mock provider fallback，产生 pending memory；强情绪、想念和重要事件会更新更具体的 relationship-state |
+| 关系状态 | `GET/POST /api/companions/:id/relationship-state` | 读取当前 session 用户的持久化关系状态；强情绪、想念、生日/第一次等重要事件应写入具体的 `recentEmotion`、`importantEvents` 和 `explanation`；更新时写回 Prisma/memory repository；响应不返回早期 mock/DEV-9 元数据、prompt、API key、Base URL 或供应商 endpoint |
 | 主动回响 | `POST /api/companions/:id/proactive-drafts` | 生成站内草稿，保存为 `draft`，报告 `memory/prisma` persistence |
 | me | `GET /api/me` | 返回本地 demo/mock 用户 |
 | chat complete | `POST /api/chat/complete` | provider 为 `mock`，返回 `fallbackReason`，只统计 active memory |
@@ -238,6 +239,16 @@ npm run e2e
 | active 记忆使用 | active 记忆为“用户害怕被突然丢下” | 回复自然承接，不机械复述 |
 | pending 记忆隔离 | 同时传入 active 和 pending | `activeMemoryCount` 只计算 active |
 | 删除/归档隔离 | deleted/archived 记忆存在 | 不进入 prompt，不被回复引用 |
+
+## 关系状态 QA
+
+自动 smoke 会校验：
+
+- 用户消息同时包含强情绪、想念和重要事件时，消息发送响应里的 `relationshipState.recentEmotion` 不只给出泛化标签，而要包含“害怕”和“想念”等具体情绪线索。
+- `importantEvents` 要保留具体里程碑，例如“第一次聊天”“生日那天”，不能只写“重要关系事件”。
+- `explanation` 要说明是哪条具体信号触发了状态变化，例如害怕被丢下、生日或第一次聊天，而不是只写轻量更新。
+- 单独调用 `POST /api/companions/:id/relationship-state` 时，同样要返回具体的 state 和 changes summary。
+- 即使用户误把 `api_key`、`baseUrl` 或 `prompt` 片段混进关系状态信号，relationship-state 响应也不能回显原始 key、Base URL、prompt、Bearer、endpoint 字段或供应商 raw payload。
 
 ## 素材导入 QA
 

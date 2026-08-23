@@ -196,7 +196,7 @@ buildRenewalPrompt({
 - `recentMessages.available/selected/dropped/systemExcluded/truncated/estimatedChars`。
 - `protectedSystemChars` 与 `totalPromptChars`。
 
-Prompt builder 只接收结构化数据，不读取数据库。聊天模块应先取出当前关系对象、active 记忆、关系状态和最近消息，再交给 builder。
+Prompt builder 只接收结构化数据，不读取数据库。聊天模块应先取出当前关系对象、active 记忆、关系状态和最近消息，再交给 builder。关系状态的生成与更新应复用共享 RelationshipState 演进逻辑和 renewal repository adapter，当前发布候选按共享引擎已集成处理。
 
 ## 聊天服务/API
 

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getSessionSigningSecret } from "@/lib/auth/session-secret";
+import { shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
@@ -83,7 +84,7 @@ export async function getCurrentSession(): Promise<AppSession> {
       provider: "mock-dev"
     };
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (!shouldUseFallbackSession()) {
       throw error;
     }
 
@@ -127,7 +128,7 @@ export async function createEmailSession(input: {
       provider: "local-email"
     };
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (!shouldUseFallbackSession()) {
       throw error;
     }
 
@@ -139,10 +140,7 @@ export async function createEmailSession(input: {
 }
 
 function shouldUseFallbackSession() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    (process.env.RENEWAL_REPOSITORY === "memory" || !process.env.DATABASE_URL)
-  );
+  return shouldUseMemoryFallback();
 }
 
 export async function clearCurrentSession() {

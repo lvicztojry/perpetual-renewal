@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { updateRelationshipRecordAfterMessage } from "./relationship-state-adapter";
 
 import {
   DEMO_USER_ID,
@@ -506,22 +507,17 @@ export class PrismaRenewalRepository implements RenewalRepository {
       throw new Error(`Relationship state for ${companionId} was not found.`);
     }
 
-    const isLongMessage = message.content.length > 48;
-    const emotion = detectEmotion(message.content);
-    const importantEvent = extractImportantEvent(message.content);
+    const currentRecord = toRelationshipStateRecord(current);
+    const nextState = updateRelationshipRecordAfterMessage(currentRecord, message);
     const updated = await prisma.relationshipState.update({
       where: { companionId },
       data: {
-        familiarityScore: Math.min(100, current.familiarityScore + (isLongMessage ? 2 : 1)),
-        closenessScore: Math.min(100, current.closenessScore + (emotion ? 2 : 1)),
-        recentEmotion: emotion ?? current.recentEmotion,
-        importantEvents: importantEvent
-          ? [importantEvent, ...toStringArray(current.importantEvents)].slice(0, 12)
-          : current.importantEvents ?? [],
-        lastInteractionAt: new Date(message.createdAt),
-        explanation: importantEvent
-          ? "根据最近一次用户消息轻量更新，并记录了可能的重要关系事件。"
-          : "根据最近一次用户消息轻量更新，真实状态引擎后续可替换。"
+        familiarityScore: nextState.familiarityScore,
+        closenessScore: nextState.closenessScore,
+        recentEmotion: nextState.recentEmotion ?? null,
+        importantEvents: nextState.importantEvents.slice(0, 12),
+        lastInteractionAt: nextState.lastInteractionAt ? new Date(nextState.lastInteractionAt) : null,
+        explanation: nextState.explanation ?? null
       }
     });
 
@@ -756,20 +752,4 @@ function isInputJsonValue(value: unknown): value is Prisma.InputJsonValue {
     );
   }
   return false;
-}
-
-function detectEmotion(content: string) {
-  if (content.includes("想") || content.includes("见不到")) return "想念";
-  if (content.includes("难过") || content.includes("累") || content.includes("崩溃")) return "低落";
-  if (content.includes("开心") || content.includes("高兴")) return "愉快";
-  return null;
-}
-
-function extractImportantEvent(content: string) {
-  if (!/生日|纪念日|约定|第一次|见面|离开|去世|分开|考试|面试|搬家/.test(content)) {
-    return null;
-  }
-
-  const summary = content.length > 36 ? `${content.slice(0, 36)}...` : content;
-  return `用户提到：${summary}`;
 }

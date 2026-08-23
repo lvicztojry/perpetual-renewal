@@ -870,14 +870,11 @@ async function runSmoke() {
   assert(sent.body.userMessage?.role === "user", "message send should persist user message");
   assert(sent.body.assistantMessage?.metadata?.provider === "mock", "message send should use mock fallback");
   assert(sent.body.pendingMemory?.status === "pending", "message send should create a pending memory");
-  assert(
-    sent.body.relationshipState?.importantEvents?.length > 0,
-    "relationship state should capture important event timeline entries"
-  );
-  assert(
-    sent.body.relationshipState?.explanation?.includes("重要关系事件"),
-    "relationship state should explain important event updates"
-  );
+  assertSpecificRelationshipState(sent.body.relationshipState, "message-triggered relationship state", {
+    recentEmotionIncludes: ["害怕", "想念"],
+    importantEventIncludes: ["第一次聊天", "生日那天"],
+    explanationIncludesAny: ["害怕被突然丢下", "生日那天", "第一次聊天"]
+  });
   assertInvalidJsonResponse(
     await request(
       `/api/conversations/${encodeURIComponent(created.body.companion.conversationId)}/messages`,
@@ -1270,26 +1267,62 @@ async function runSmoke() {
     "relationship state API should not expose stale mock handoff metadata"
   );
 
+  const relationshipStateSecretKey = "relationship-state-key-value-012345";
+  const relationshipStateBaseUrl = "https://relationship-state.gateway.example.com/v1/chat/completions";
+  const relationshipStatePrompt = "relationship-state-prompt-should-not-leak";
   const relationshipStateUpdate = await request(
     `/api/companions/${encodeURIComponent(created.body.companion.id)}/relationship-state`,
     {
       method: "POST",
       body: JSON.stringify({
         signal: {
-          userMessage: "这是我们第一次认真约定生日那天也要互相说一句在。",
+          userMessage: [
+            "生日那天我特别害怕被丢下，也真的很想你。",
+            `api_key=${relationshipStateSecretKey}`,
+            `baseUrl=${relationshipStateBaseUrl}`,
+            `prompt=${relationshipStatePrompt}`
+          ].join(" "),
           sourceMessageId: sent.body.userMessage.id,
           createdAt: sent.body.userMessage.createdAt
         }
       })
     }
   );
-  assert(
-    relationshipStateUpdate.body.data?.state?.importantEvents?.length > 0,
-    "relationship state API should create important event timeline entries"
+  assertSpecificRelationshipState(
+    relationshipStateUpdate.body.data?.state,
+    "relationship state API persisted update",
+    {
+      recentEmotionIncludes: ["害怕", "想念"],
+      importantEventIncludes: ["生日那天"],
+      explanationIncludesAny: ["生日那天", "害怕被丢下", "想你"],
+      forbiddenFragments: [
+        relationshipStateSecretKey,
+        relationshipStateBaseUrl,
+        relationshipStatePrompt
+      ]
+    }
   );
   assert(
     relationshipStateUpdate.body.data?.changes?.importantEventsAdded?.length === 1,
     "relationship state API should explain important event additions"
+  );
+  assertSpecificRelationshipState(
+    {
+      recentEmotion: relationshipStateUpdate.body.data?.changes?.recentEmotion,
+      importantEvents: relationshipStateUpdate.body.data?.changes?.importantEventsAdded,
+      explanation: relationshipStateUpdate.body.data?.changes?.explanation
+    },
+    "relationship state API change summary",
+    {
+      recentEmotionIncludes: ["害怕", "想念"],
+      importantEventIncludes: ["生日那天"],
+      explanationIncludesAny: ["生日那天", "害怕被丢下", "想你"],
+      forbiddenFragments: [
+        relationshipStateSecretKey,
+        relationshipStateBaseUrl,
+        relationshipStatePrompt
+      ]
+    }
   );
   assertInvalidJsonResponse(
     await request(
@@ -3250,6 +3283,63 @@ function assertNoSensitiveProviderDetails(body, label, fragments) {
       !serialized.includes("stack") &&
       !serialized.includes("ProviderStackTrace"),
     `${label} response should not expose transport headers, endpoint, prompt, raw payload, or stack details`
+  );
+}
+
+function assertSpecificRelationshipState(state, label, options) {
+  assert(state && typeof state === "object", `${label} should return relationship state data`);
+
+  const recentEmotion = String(state.recentEmotion ?? "");
+  const importantEvents = stringify(state.importantEvents ?? []);
+  const explanation = String(state.explanation ?? "");
+
+  assertTextIncludesAll(
+    recentEmotion,
+    options.recentEmotionIncludes,
+    `${label} recentEmotion should name the concrete emotional context`
+  );
+  assertTextIncludesAll(
+    importantEvents,
+    options.importantEventIncludes,
+    `${label} importantEvents should preserve concrete relationship milestones`
+  );
+  assertTextIncludesAny(
+    explanation,
+    options.explanationIncludesAny,
+    `${label} explanation should reference the specific signal that changed state`
+  );
+  assertNoSensitiveProviderDetails(
+    {
+      recentEmotion: state.recentEmotion,
+      importantEvents: state.importantEvents,
+      explanation: state.explanation
+    },
+    label,
+    options.forbiddenFragments ?? []
+  );
+  const serialized = stringify({
+    recentEmotion: state.recentEmotion,
+    importantEvents: state.importantEvents,
+    explanation: state.explanation
+  });
+  assert(
+    !serialized.includes("api_key") &&
+      !serialized.includes("LLM_API_KEY") &&
+      !serialized.includes("key="),
+    `${label} should not expose API key field names or raw key material`
+  );
+}
+
+function assertTextIncludesAll(text, fragments, message) {
+  for (const fragment of fragments) {
+    assert(text.includes(fragment), `${message}: missing ${fragment} in ${text}`);
+  }
+}
+
+function assertTextIncludesAny(text, fragments, message) {
+  assert(
+    fragments.some((fragment) => text.includes(fragment)),
+    `${message}: expected one of ${fragments.join(", ")} in ${text}`
   );
 }
 

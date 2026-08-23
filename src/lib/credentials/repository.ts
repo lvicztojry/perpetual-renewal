@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { shouldFallbackToMemoryOnPrismaError, shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import type {
   DecryptedLlmCredential,
   ProviderCredentialStatus,
@@ -154,10 +155,7 @@ async function readCredentialRecord(userId: string): Promise<CredentialRecord | 
 }
 
 function shouldUseFallbackCredentials() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    (process.env.RENEWAL_REPOSITORY === "memory" || !process.env.DATABASE_URL)
-  );
+  return shouldUseMemoryFallback();
 }
 
 function toCredentialStatus(record: CredentialRecord): ProviderCredentialStatus {
@@ -220,16 +218,8 @@ function getFallbackStore() {
 }
 
 function shouldFallbackToMemory(error: unknown) {
-  if (process.env.NODE_ENV === "production") return false;
-
-  const code = typeof error === "object" && error ? (error as { code?: string }).code : undefined;
-  if (code && databaseUnavailableCodes.has(code)) return true;
-
-  const message = error instanceof Error ? error.message : "";
-  return (
-    message.includes("Can't reach database server") ||
-    message.includes("Environment variable not found") ||
-    message.includes('relation "ProviderCredential" does not exist') ||
-    message.includes("does not exist in the current database")
-  );
+  return shouldFallbackToMemoryOnPrismaError(error, {
+    codes: databaseUnavailableCodes,
+    schemaHints: ['relation "ProviderCredential" does not exist']
+  });
 }

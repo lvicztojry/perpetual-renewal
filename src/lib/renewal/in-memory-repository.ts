@@ -12,6 +12,7 @@ import {
   type RenewalRepository,
   type UpdateCompanionInput
 } from "./types";
+import { updateRelationshipRecordAfterMessage } from "./relationship-state-adapter";
 
 type InMemoryStore = {
   companions: CompanionRecord[];
@@ -652,39 +653,17 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       throw new Error(`Relationship state for ${companionId} was not found.`);
     }
 
-    const isLongMessage = message.content.length > 48;
-    const emotion = detectEmotion(message.content);
-    const importantEvent = extractImportantEvent(message.content);
-    state.familiarityScore = Math.min(100, state.familiarityScore + (isLongMessage ? 2 : 1));
-    state.closenessScore = Math.min(100, state.closenessScore + (emotion ? 2 : 1));
-    state.recentEmotion = emotion ?? state.recentEmotion;
-    if (importantEvent) {
-      state.importantEvents = [importantEvent, ...state.importantEvents].slice(0, 12);
-    }
-    state.lastInteractionAt = message.createdAt;
-    state.explanation = importantEvent
-      ? "根据最近一次用户消息轻量更新，并记录了可能的重要关系事件。"
-      : "根据最近一次用户消息轻量更新，真实状态引擎后续可替换。";
+    const nextState = updateRelationshipRecordAfterMessage(state, message);
+    state.familiarityScore = nextState.familiarityScore;
+    state.closenessScore = nextState.closenessScore;
+    state.recentEmotion = nextState.recentEmotion ?? null;
+    state.importantEvents = nextState.importantEvents.slice(0, 12);
+    state.lastInteractionAt = nextState.lastInteractionAt ?? null;
+    state.explanation = nextState.explanation ?? null;
     state.updatedAt = now();
 
     return state;
   }
-}
-
-function detectEmotion(content: string) {
-  if (content.includes("想") || content.includes("见不到")) return "想念";
-  if (content.includes("难过") || content.includes("累") || content.includes("崩溃")) return "低落";
-  if (content.includes("开心") || content.includes("高兴")) return "愉快";
-  return null;
-}
-
-function extractImportantEvent(content: string) {
-  if (!/生日|纪念日|约定|第一次|见面|离开|去世|分开|考试|面试|搬家/.test(content)) {
-    return null;
-  }
-
-  const summary = content.length > 36 ? `${content.slice(0, 36)}...` : content;
-  return `用户提到：${summary}`;
 }
 
 export function createRenewalRepository(): RenewalRepository {

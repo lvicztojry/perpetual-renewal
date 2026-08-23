@@ -357,7 +357,8 @@
 
 交付物：
 
-- RelationshipState 更新逻辑。
+- `src/lib/relationship` 共享 RelationshipState 演进逻辑。
+- renewal repository 的关系状态 adapter 与持久化写回。
 - 状态解释字段。
 - 状态读取 API。
 
@@ -365,6 +366,7 @@
 
 - 状态变化有来源消息或事件依据。
 - 状态不会单次互动后异常大幅跳变。
+- 聊天后更新、关系状态 API 和主动回响上下文使用同一套状态结果，当前发布候选按共享引擎已集成处理。
 
 ### DEV-10 主动回响
 
@@ -540,7 +542,7 @@
 | DEV-7 记忆提取与存储 | integrated | 已支持聊天记忆候选、pending/active/archived/deleted 生命周期 |
 | DEV-8 记忆管理界面 | integrated | 已支持记忆查看、确认、编辑、归档、删除 |
 | DEV-8.5 素材导入入口 | integrated | 已支持手动粘贴、批量文本数组、JSON Lines、文本文件、媒体说明和通讯录脱敏摘要导入为 pending 记忆；原始媒体/通讯录文件不上传 |
-| DEV-9 关系状态引擎 | integrated | 已维护熟悉度、亲密度、最近情绪、重要事件和状态解释 |
+| DEV-9 关系状态引擎 | integrated | 已通过共享状态演进逻辑维护熟悉度、亲密度、最近情绪、重要事件和状态解释 |
 | DEV-10 主动回响 | integrated | 已接入站内草稿、撒娇式主动回响、关系级频率预设/自定义和受保护调度入口 |
 | SAFE-1 沉浸边界与安全规则 | integrated | 已形成运行时安全规则、QA 样例和高风险场景能力边界 |
 | DEV-11 安全策略接入 | integrated | 已接入输入/输出/主动消息过滤与脱敏安全事件日志 |
@@ -814,7 +816,7 @@
 | M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 92 checks、E2E 基线 13 tests |
 | M66 本地 session 隔离、cron 边界和文档指标派生门禁 | integrated | 主控 + session/cron/文档模块审计 | `src/lib/auth/session.ts`、`src/lib/users/profile.ts`、`src/lib/users/delete-account.ts`、`src/lib/renewal/in-memory-repository.ts`、`tests/smoke.mjs`、`tests/e2e/memory-isolation.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 无数据库 memory fallback 登录按邮箱派生本地 userId，并同步 fallback profile/删除清理，避免并行 E2E 共享 demo user；memory repository 关系详情按 userId 过滤 conversation/memory；主动回响 all-user cron 覆盖无密钥、错密钥、Bearer/header secret、limit/maxDrafts clamp 和 dry-run 不保存；docs check 自动派生当前 smoke checks、E2E tests、QA 数字和最新 M milestone |
 | M67 主动回响调度文档与交接门禁 | integrated | 主控 + 架构/交接文档模块审计 | `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md`、`docs/PR_DRAFT.md`、`scripts/docs-consistency.mjs` | 架构与部署文档移除“应用内定时任务起步/后续迁移队列”旧说法，明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截主动回响调度边界回流；交接材料同步 M66 后候选状态、PR 草稿路径、生产 `verify:deploy` 前置配置口径 |
-| M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
+| M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态经共享关系状态演进逻辑更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
 | M69 核心写接口 JSON 输入护栏 | integrated | 主控 | `src/lib/http/json.ts`、`src/app/api/companions/*`、`src/app/api/conversations/*`、`src/app/api/memories/*`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/*` | 新增共享 JSON body 解析 helper，让关系创建/编辑、消息发送/操作、记忆编辑和安全检查在坏 JSON 或非对象 body 时返回友好 400；smoke 覆盖这些核心接口的坏 JSON 响应，不暴露 SyntaxError、Unexpected token 或 stack |
 | M70 JSON 输入护栏补齐 | integrated | 主控 + API/文档模块审计 | `src/app/api/auth/login/route.ts`、`src/app/api/me/*`、`src/app/api/companions/[companionId]/*`、`src/app/api/proactive-messages/*`、`tests/smoke.mjs`、`docs/*` | 登录、用户资料、账号删除、用户 LLM credential/test、关系记忆候选、关系状态、主动草稿和主动消息状态更新统一使用共享 JSON object 解析；坏 JSON 或非对象 body 返回友好 400，不暴露 SyntaxError、Unexpected token、Cannot read properties、stack、Bearer、baseUrl 或密钥相关内容；smoke 在既有 76 checks 内追加回归断言 |
 | M71 JSON 解析入口收口 | integrated | 主控 + API/文档模块审计 | `src/lib/http/json.ts`、`src/app/api/chat/complete/route.ts`、`src/app/api/companions/[companionId]/imports/route.ts`、`src/app/api/proactive/run/route.ts`、`src/app/api/voice/*`、`tests/smoke.mjs`、`docs/*` | API 目录不再直接调用 `request.json()`；chat、导入、语音和主动调度入口统一共享 JSON helper；`POST /api/proactive/run` 保留空 body 默认 dry-run，但坏 JSON、`null`、数组等非对象 body 返回友好 400；QA/错误文案文档补齐 JSON body 护栏口径 |
@@ -866,6 +868,7 @@
 | M117 Vercel Cron 主动回响入口 | integrated | 主动回响调度模块 + 主控 | `src/app/api/proactive/run/route.ts`、`src/lib/config/status.ts`、`scripts/env-readiness.mjs`、`.env.example`、`tests/smoke.mjs`、`README.md`、`docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md`、`docs/RELEASE_HANDOFF.md` | 新增 Vercel Cron 兼容的 `GET /api/proactive/run` all-user 入口，支持 `CRON_SECRET` alias 和 Bearer 鉴权；部署文档提供可复制的 Vercel Cron 与 GitHub Actions scheduled workflow 示例；readiness 与设置页配置状态识别 `PROACTIVE_CRON_SECRET` 或 `CRON_SECRET`；smoke 覆盖 GET 未授权拒绝、Bearer 授权通过且不回显 secret |
 | M118 现实替代沉浸口径补强 | integrated | 产品口径模块 + 主控 | `src/lib/prompt-builder/builder.ts`、`src/components/relationship-object-form.tsx`、`tests/prompt-builder-smoke.mjs`、`tests/qa-samples.json`、`docs/QA.md`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | 现实人物替代日常 prompt 改为承接投射和想念、不主动拆穿沉浸；涉及现实本人意愿、线下联系、见面或现实行动时再回到能力边界。前任与公众人物想象补齐沉浸语气模板，避免可选关系类型缺少关系内表达 |
 | M119 模型诊断脱敏补强 | integrated | API 隐私边界模块 + 主控 | `src/app/api/me/llm-models/route.ts`、`src/lib/http/response-safety.ts`、`tests/smoke.mjs`、`docs/MVP_STATUS.md`、`docs/TASKBOOK.md` | 模型列表 diagnostic 返回前统一走 `redactSensitiveResponseText()`；响应脱敏覆盖 `raw payload` 自然语言字段写法；smoke 静态门禁确认模型诊断、raw payload、provider endpoint 与 usage fallbackReason 脱敏边界 |
+| M120 关系状态与持久化可靠性收束 | integrated | 关系状态模块 + 持久化模块 + 主控 | `src/lib/relationship/state.ts`、`src/lib/renewal/relationship-state-adapter.ts`、`src/lib/renewal/*repository.ts`、`src/lib/persistence/memory-fallback.ts`、`src/lib/credentials/repository.ts`、`src/lib/auth/session.ts`、`src/lib/users/*`、`src/lib/safety-events/repository.ts`、`src/lib/usage/repository.ts`、`tests/smoke.mjs`、`docs/*` | 聊天后 relationship-state 更新和关系状态 API 统一复用共享状态演进逻辑，保留“害怕/想念/第一次聊天/生日那天”等具体信号并过滤误贴密钥、端点和 prompt；持久化 fallback 收束为无数据库或显式 memory 模式，已配置真实数据库时 Prisma 不可达会明确失败而不静默切到 memory |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 支持无数据库本地/CI 占位检查；配置真实 `DATABASE_URL` 时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据；当前本机真实 Neon/PostgreSQL 已通过 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |

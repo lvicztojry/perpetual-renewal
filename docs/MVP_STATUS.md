@@ -27,7 +27,7 @@
 | Prompt 上下文预算 | integrated | 角色设定固定保留，记忆与最近消息按预算裁剪 |
 | 记忆系统 | integrated | pending、active、archived、deleted 生命周期；deleted 记忆不进入用户列表、prompt 或导出 |
 | 素材导入 | integrated | 单段文本、批量文本数组、JSON Lines、本地 `.txt/.jsonl/.json` 文件读取、媒体说明、照片/音视频文件摘要、通讯录脱敏摘要，默认 pending 并脱敏密钥形态 |
-| 关系状态 | integrated | 熟悉度、亲密度、近期情绪、重要事件 |
+| 关系状态 | integrated | 共享状态演进逻辑已接入聊天后更新、关系状态 API 和主动回响上下文；Prisma/memory repository 持久化 |
 | 主动回响 | integrated | 站内草稿、撒娇式未回复回响、1 分钟默认节奏、自定义频率、当前工作台前台自动检查、受保护 cron 入口 |
 | 主动草稿状态 | integrated | draft、sent、dismissed、blocked 状态管理与筛选 |
 | 安全边界 | integrated | 运行时规则、安全 QA 样例、脱敏安全事件日志 |
@@ -157,7 +157,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M65 导出隐私、DB credential 和设置页 E2E 硬化：导出层新增字符串级敏感内容脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束和级联清理；E2E 增加设置页密钥、连接失败态、导出下载、账号删除确认和 320px/768px 响应式覆盖。
 - M66 本地 session 隔离、cron 边界和文档指标派生门禁：memory fallback 登录按邮箱派生隔离 userId，避免并行 E2E 共享 demo user；主动回响 all-user cron 覆盖 Bearer/header secret 与 guard clamp；`docs:check` 从测试源自动派生 smoke/E2E/QA 数字和最新 M milestone。
 - M67 主动回响调度文档与交接门禁：架构与部署文档明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截旧调度表述回流；交接材料同步 PR 草稿路径、M66 后候选状态和生产 `verify:deploy` 前置配置口径。
-- M68 关系状态 API 持久化收束：`/api/companions/:id/relationship-state` 读取和更新当前 session 用户的持久化关系状态，不再返回早期 mock/DEV-9 元数据；POST 基于当前 companion 状态更新并写回 Prisma 或 memory fallback。
+- M68 关系状态 API 持久化收束：`/api/companions/:id/relationship-state` 读取和更新当前 session 用户的持久化关系状态，不再返回早期 mock/DEV-9 元数据；POST 基于当前 companion 状态经共享关系状态演进逻辑计算后写回 Prisma 或 memory fallback。
 - M69 核心写接口 JSON 输入护栏：关系创建/编辑、消息发送/操作、记忆编辑和安全检查统一坏 JSON 400 响应，不暴露解析异常、内部 stack 或旧调试信息。
 - M70 JSON 输入护栏补齐：登录、用户资料、账号删除、用户 LLM credential/test、关系记忆候选、关系状态、主动草稿和主动消息状态更新统一 JSON object 入参解析；坏 JSON、`null`、数组等非对象 body 返回友好 400，响应不暴露解析器原文、TypeError、stack、Bearer、baseUrl 或密钥相关内容。
 - M71 JSON 解析入口收口：API 目录不再直接调用 `request.json()`；chat、导入、语音和主动调度入口统一共享 JSON helper；`POST /api/proactive/run` 保留空 body 默认 dry-run，但坏 JSON、`null`、数组等非对象 body 返回友好 400；QA/错误文案文档补齐 JSON body 护栏口径。
@@ -209,6 +209,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M117 Vercel Cron 主动回响入口：`GET /api/proactive/run` 支持 Vercel Cron 的 Bearer secret 调用，`CRON_SECRET` 可作为 `PROACTIVE_CRON_SECRET` alias；部署文档提供 Vercel Cron 与 GitHub Actions scheduled workflow 示例，readiness、设置页配置状态和 smoke 均覆盖该 alias。
 - M118 现实替代沉浸口径补强：现实人物替代 prompt 从“不要声称自己就是现实本人”收束为“日常承接投射和想念，不主动拆穿沉浸；涉及现实本人意愿、线下联系、见面或现实行动时回到能力边界”。前任与公众人物想象补齐关系语气模板，保持沉浸但不诱导纠缠、不声称授权。
 - M119 模型诊断脱敏补强：`/api/me/llm-models` 返回 compatible 模型列表 diagnostic 前再次执行响应文本脱敏，`response-safety` 覆盖 `raw payload` 自然语言字段写法，smoke 静态门禁锁住模型诊断与 raw payload 脱敏边界。
+- M120 关系状态与持久化可靠性收束：聊天后关系状态更新和关系状态 API 复用共享 RelationshipState 演进逻辑，保留具体情绪、想念和重要事件信号并过滤误贴密钥/端点/prompt；已配置真实数据库时不再因 Prisma 短暂不可达静默切到 memory，避免本地体验误判为“保存成功但刷新丢失”。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

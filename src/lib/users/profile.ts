@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 
 export type UserProfile = {
   id: string;
@@ -54,7 +55,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
 
     return toUserProfile(user);
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (!shouldUseFallbackProfile()) {
       throw error;
     }
 
@@ -80,7 +81,7 @@ export async function updateUserProfile(
 
     return toUserProfile(user);
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (!shouldUseFallbackProfile()) {
       throw error;
     }
 
@@ -114,10 +115,7 @@ export function upsertFallbackProfile(
 }
 
 function shouldUseFallbackProfile() {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    (process.env.RENEWAL_REPOSITORY === "memory" || !process.env.DATABASE_URL)
-  );
+  return shouldUseMemoryFallback();
 }
 
 function parseProfileInput(input: UserProfileInput) {

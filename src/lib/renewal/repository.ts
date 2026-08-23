@@ -1,6 +1,7 @@
 import { InMemoryRenewalRepository } from "./in-memory-repository";
 import { PrismaRenewalRepository } from "./prisma-repository";
 import { safeLogValue } from "@/lib/logging/sanitize";
+import { shouldFallbackToMemoryOnPrismaError, shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import type { MessageRole, ProactiveMessageStatus, RenewalRepository } from "./types";
 
 const databaseUnavailableCodes = new Set([
@@ -16,12 +17,8 @@ const databaseUnavailableCodes = new Set([
 
 export function createRenewalRepository(): RenewalRepository {
   const fallback = new InMemoryRenewalRepository();
-  const isLocalFallbackAllowed = process.env.NODE_ENV !== "production";
 
-  if (
-    isLocalFallbackAllowed &&
-    (process.env.RENEWAL_REPOSITORY === "memory" || !process.env.DATABASE_URL)
-  ) {
+  if (shouldUseMemoryFallback()) {
     return fallback;
   }
 
@@ -260,15 +257,5 @@ class FallbackRenewalRepository implements RenewalRepository {
 }
 
 function shouldFallbackToMemory(error: unknown) {
-  if (process.env.NODE_ENV === "production") return false;
-
-  const code = typeof error === "object" && error ? (error as { code?: string }).code : undefined;
-  if (code && databaseUnavailableCodes.has(code)) return true;
-
-  const message = error instanceof Error ? error.message : "";
-  return (
-    message.includes("Can't reach database server") ||
-    message.includes("Environment variable not found") ||
-    message.includes("does not exist in the current database")
-  );
+  return shouldFallbackToMemoryOnPrismaError(error, { codes: databaseUnavailableCodes });
 }
