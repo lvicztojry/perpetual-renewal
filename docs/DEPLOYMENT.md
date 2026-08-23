@@ -188,6 +188,18 @@ TryAnotherOne 的模型列表端点需要 Bearer token。推荐在设置页先�
 
 保存配置后，可以在设置页点击“测试连接”。该按钮调用 `POST /api/me/llm-test`，复用用户 vault 或服务端 env key，低成本读取模型列表确认连接状态。无 key 时应返回明确的 `missing_api_key` 失败；成功或失败响应都不得包含 API key、Base URL 原文、Authorization header、prompt 或供应商 raw payload。测试连接不代表平台扣费、订阅或额度能力，仍然是用户自带 API 或部署方 env key 的连通性检查。
 
+可选真实 BYOK 目标联调使用独立 opt-in 命令，不进入默认 CI 或发布门禁：
+
+```bash
+REAL_PROVIDER_QA=1 \
+REAL_LLM_API_KEY="your-test-key" \
+REAL_LLM_BASE_URL="https://api.tryanotherone.com/v1" \
+REAL_LLM_MODEL="provider-model-name" \
+npm run qa:real-provider
+```
+
+该脚本会创建唯一 QA 用户，把测试 key 保存到用户 vault，验证模型列表/连接测试、一次真实聊天、消息持久化、模型调用看板记录和主动回响 dry-run。失败输出会脱敏；不要把真实 key、Base URL、供应商 raw payload、prompt 或截图中的私密数据写进文档、PR 或日志。脚本会优先复用已启动的本地 3000 服务；`REAL_QA_BASE_URL=http://127.0.0.1:3000` 可显式指定已有服务，`REAL_PROVIDER_FORCE_NEW_SERVER=1` 可强制自启临时服务；默认结束会删除 QA 用户。
+
 ## Vercel Deployment
 
 1. 将仓库连接到 Vercel。
@@ -352,6 +364,7 @@ npm run env:secrets
 - [ ] 文本模型通过统一 adapter 调用，不在业务代码中硬编码供应商 SDK 或模型名。
 - [ ] TryAnotherOne 模型列表通过用户 vault 或服务端 env key 读取；模型名保存为配置，不保存 key 原文。
 - [ ] 设置页“测试连接”通过 `POST /api/me/llm-test` 复用用户 vault 或服务端 env key，低成本读取模型列表；无 key 时返回可预测失败，响应不包含 API key、Base URL 原文、prompt 或供应商 raw payload。
+- [ ] 可选执行 `npm run qa:real-provider` 做真实 compatible BYOK 目标联调；仅在显式设置 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量时运行，不写入默认 CI、`verify:pr` 或发布门禁。
 - [ ] 设置页“配置状态”重新检查后，LLM key/model/baseUrl 的状态与实际配置一致；缺失项只显示下一步建议，不显示用户 key、服务端 env key 或 Base URL 原文。
 - [ ] 真实语音调用与 LLM 共用中转站；若网关未开通音频模型，接口应安全 fallback 到 mock 或返回可理解失败，不泄露 key/baseUrl。
 - [ ] 成本看板只记录 provider、model、用途、状态、tokens、估算成本和延迟，不记录 prompt、用户消息、AI 回复、供应商 raw payload 或密钥。

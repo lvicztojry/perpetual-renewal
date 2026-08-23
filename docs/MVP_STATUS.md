@@ -211,6 +211,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M119 模型诊断脱敏补强：`/api/me/llm-models` 返回 compatible 模型列表 diagnostic 前再次执行响应文本脱敏，`response-safety` 覆盖 `raw payload` 自然语言字段写法，smoke 静态门禁锁住模型诊断与 raw payload 脱敏边界。
 - M120 关系状态与持久化可靠性收束：聊天后关系状态更新和关系状态 API 复用共享 RelationshipState 演进逻辑，保留具体情绪、想念和重要事件信号并过滤误贴密钥/端点/prompt；已配置真实数据库时不再因 Prisma 短暂不可达静默切到 memory，避免本地体验误判为“保存成功但刷新丢失”。
 - M121 持久化故障用户体验边界：新增统一 persistence error response；已配置真实 `DATABASE_URL` 且 Prisma/数据库不可用时，关键 auth、workspace、credential、profile、export、usage、safety、voice 和 proactive API 返回安全的 503、`database_unavailable` 与 `retryable=true`，前端展示可操作中文提示且不暴露连接串、Prisma 原始错误、stack、prompt 或 key。
+- M122 真实 BYOK 供应商目标联调：新增 opt-in `npm run qa:real-provider`，显式 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量后，通过用户 vault 验证 compatible 模型诊断、连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run；脚本脱敏失败摘要和服务日志，不进入默认 CI、`verify:pr` 或发布门禁。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 
@@ -221,5 +222,5 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 仍需目标环境复核后再做的模块：
 
 - 部署目标数据库和 secret：将本机已验证的配置项同步到目标环境的 secret store，包括 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 或 Vercel `CRON_SECRET` alias，并在目标环境复跑 `npm run verify:deploy`。
-- 真实 LLM 模型 key/model：优先由用户在设置页 vault 保存；部署平台 secret 只作为服务端 fallback。
+- 真实 LLM 模型 key/model：优先由用户在设置页 vault 保存；部署平台 secret 只作为服务端 fallback；需要可复现目标联调时使用 `npm run qa:real-provider`，但不要把它作为默认发布门禁。
 - 内容审核后台、用户反馈问卷、内测邀请机制：你已决定暂不进入当前第一版。

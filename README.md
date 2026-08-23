@@ -44,6 +44,7 @@ VOICE_PROVIDER="shared-llm"
 - 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查，部署目标还必须在 mirror env/secrets 后运行 `npm run verify:deploy`。
 - LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
 - 模型列表：设置页读取模型列表需要已保存或即将保存的 API key；如果供应商不支持 `/models` 或临时失败，可以手动填入模型名后点“测试连接”。
+- 真实 BYOK 联调：需要显式 opt-in，设置 `REAL_PROVIDER_QA=1`、`REAL_LLM_API_KEY`、`REAL_LLM_BASE_URL`、`REAL_LLM_MODEL` 后运行 `npm run qa:real-provider`；脚本会验证用户 vault -> 模型诊断 -> 真实聊天 -> 用量记录，并脱敏输出。它不属于默认 `verify:pr`、CI 或发布门禁。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口；Vercel Cron 可用 `CRON_SECRET` 作为同用途 alias。
@@ -108,6 +109,12 @@ npm run build
 npm run e2e
 npm run secrets:check
 npm --cache .\.npm-cache audit --audit-level=high
+```
+
+真实 BYOK 供应商目标联调是单独的可选命令：
+
+```bash
+REAL_PROVIDER_QA=1 REAL_LLM_API_KEY="..." REAL_LLM_BASE_URL="..." REAL_LLM_MODEL="..." npm run qa:real-provider
 ```
 
 ## 文档入口
