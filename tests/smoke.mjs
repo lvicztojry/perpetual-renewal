@@ -501,6 +501,76 @@ async function startModelListProviderServer(readBody, options = {}) {
   };
 }
 
+async function startVoiceRouteProviderServer() {
+  const requests = [];
+  const server = createHttpServer(async (request, response) => {
+    const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = Buffer.concat(chunks).toString("utf8");
+    const record = {
+      path: pathname,
+      method: request.method,
+      authorization: request.headers.authorization,
+      contentType: request.headers["content-type"],
+      body
+    };
+
+    if (record.contentType?.includes("application/json")) {
+      try {
+        record.json = JSON.parse(body);
+      } catch {
+        record.json = null;
+      }
+    }
+
+    requests.push(record);
+
+    if (pathname === "/v1/audio/transcriptions" && request.method === "POST") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          text: "fake route transcription",
+          language: "zh-CN",
+          duration: 1.5
+        })
+      );
+      return;
+    }
+
+    if (pathname === "/v1/audio/speech" && request.method === "POST") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          audioBase64: Buffer.from("fake route speech audio", "utf8").toString("base64"),
+          mimeType: "audio/wav"
+        })
+      );
+      return;
+    }
+
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: `unexpected voice route ${pathname}` }));
+  });
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+
+  const address = server.address();
+  assert(address && typeof address === "object", "voice route provider should bind to a local port");
+
+  return {
+    requests,
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    stop: () =>
+      new Promise((resolveClose) => {
+        server.close(() => resolveClose());
+      })
+  };
+}
+
 async function waitForServer(url) {
   const startedAt = Date.now();
   let lastError;
@@ -2090,6 +2160,98 @@ async function runSmoke() {
     "voice synthesis with user credential should not expose key or endpoint"
   );
   pass("POST /api/voice/synthesize uses sanitized user vault fallback");
+
+  const voiceRouteKey = "voice-route-vault-key-value";
+  const voiceRouteModel = "voice-route-vault-model";
+  const voiceRouteAudioText = "route-voice-api-audio-payload";
+  const voiceRouteAudioBase64 = Buffer.from(voiceRouteAudioText, "utf8").toString("base64");
+  const voiceRouteProvider = await startVoiceRouteProviderServer();
+  try {
+    await request("/api/me/llm-credential", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: "compatible",
+        apiKey: voiceRouteKey,
+        baseUrl: voiceRouteProvider.baseUrl,
+        model: voiceRouteModel
+      })
+    });
+
+    const routeTranscription = await request("/api/voice/transcribe", {
+      method: "POST",
+      body: JSON.stringify({
+        audioBase64: voiceRouteAudioBase64,
+        mimeType: "audio/wav",
+        fileName: "route-voice.wav",
+        language: "zh-CN"
+      })
+    });
+    const routeSynthesisText = "路由级语音合成 shared LLM";
+    const routeSynthesis = await request("/api/voice/synthesize", {
+      method: "POST",
+      body: JSON.stringify({
+        text: routeSynthesisText,
+        voice: "warm",
+        format: "wav",
+        speed: 1.25
+      })
+    });
+
+    assert(
+      routeTranscription.body.text === "fake route transcription" &&
+        routeTranscription.body.provider === "shared-llm" &&
+        routeTranscription.body.requestedProvider === "shared-llm" &&
+        routeTranscription.body.credentialSource === "user-vault" &&
+        routeTranscription.body.model === voiceRouteModel &&
+        routeTranscription.body.fallback === false,
+      "voice transcription route should use shared-LLM user vault provider without fallback"
+    );
+    assert(
+      routeSynthesis.body.provider === "shared-llm" &&
+        routeSynthesis.body.requestedProvider === "shared-llm" &&
+        routeSynthesis.body.credentialSource === "user-vault" &&
+        routeSynthesis.body.model === voiceRouteModel &&
+        routeSynthesis.body.voice === "warm" &&
+        routeSynthesis.body.fallback === false &&
+        routeSynthesis.body.mimeType === "audio/wav",
+      "voice synthesis route should use shared-LLM user vault provider without fallback"
+    );
+
+    const sttRequest = voiceRouteProvider.requests.find((item) => item.path === "/v1/audio/transcriptions");
+    const ttsRequest = voiceRouteProvider.requests.find((item) => item.path === "/v1/audio/speech");
+    assert(sttRequest, "voice transcription route should call fake STT provider");
+    assert(ttsRequest, "voice synthesis route should call fake TTS provider");
+    assert(sttRequest?.authorization === `Bearer ${voiceRouteKey}`, "voice STT route should forward vault key as Bearer");
+    assert(ttsRequest?.authorization === `Bearer ${voiceRouteKey}`, "voice TTS route should forward vault key as Bearer");
+    assert(
+      sttRequest?.body.includes(`name="model"\r\n\r\n${voiceRouteModel}`) &&
+        sttRequest?.body.includes('name="file"; filename="route-voice.wav"') &&
+        sttRequest?.body.includes(voiceRouteAudioText) &&
+        sttRequest?.body.includes(`name="language"\r\n\r\nzh-CN`),
+      "voice STT route should forward vault model, file metadata, language, and audio payload"
+    );
+    assert(
+      ttsRequest?.json?.model === voiceRouteModel &&
+        ttsRequest?.json?.input === routeSynthesisText &&
+        ttsRequest?.json?.voice === "warm" &&
+        ttsRequest?.json?.response_format === "wav" &&
+        ttsRequest?.json?.speed === 1.25,
+      "voice TTS route should forward vault model and synthesis payload"
+    );
+    assertNoSensitiveProviderDetails(routeTranscription.body, "voice route transcription success", [
+      voiceRouteKey,
+      voiceRouteProvider.baseUrl,
+      voiceRouteAudioText
+    ]);
+    assertNoSensitiveProviderDetails(routeSynthesis.body, "voice route synthesis success", [
+      voiceRouteKey,
+      voiceRouteProvider.baseUrl,
+      routeSynthesisText
+    ]);
+  } finally {
+    await voiceRouteProvider.stop();
+  }
+  pass("POST /api/voice/* routes forward shared-LLM user vault credentials and payloads");
 
   const modelListProvider = await startModelListProviderServer(() =>
     JSON.stringify({

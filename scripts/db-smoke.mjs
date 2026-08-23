@@ -16,7 +16,7 @@ if (!process.env.DATABASE_URL) {
   process.exit(0);
 }
 
-runPrismaCommand("generate", ["prisma", "generate"]);
+runPrismaCommand("generate", ["prisma", "generate"], { tolerateLockedPrismaEngine: true });
 runPrismaCommand("validate", ["node", "scripts/prisma-validate.mjs"]);
 
 const { PrismaClient } = await import("@prisma/client");
@@ -299,7 +299,7 @@ async function assertCleanup() {
   assert(providerCredentials === 0, "test provider credentials should be cleaned up");
 }
 
-function runPrismaCommand(label, command) {
+function runPrismaCommand(label, command, options = {}) {
   const resolved = resolveCommand(command);
   const result = spawnSync(resolved.command, resolved.args, {
     cwd: process.cwd(),
@@ -314,6 +314,16 @@ function runPrismaCommand(label, command) {
     process.stderr.write(sanitize(result.stderr));
   }
   if (result.status !== 0) {
+    if (
+      options.tolerateLockedPrismaEngine &&
+      isLockedPrismaEngineGenerateError(result.stdout, result.stderr)
+    ) {
+      console.warn(
+        "Prisma generate could not replace the Windows query engine because another local Node process is using it; continuing with the existing generated client."
+      );
+      return;
+    }
+
     throw new Error(`Prisma ${label} failed with exit code ${result.status ?? "unknown"}.`);
   }
 }
@@ -329,11 +339,40 @@ function resolveCommand(command) {
 }
 
 function sanitize(value) {
-  return value
+  let sanitized = value
     .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]")
     .replace(/https?:\/\/[^\s"']*(?:\/v1|\/v1beta|\/chat\/completions)[^\s"']*/gi, "[REDACTED_PROVIDER_ENDPOINT]")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
     .replace(/(?:sk|pk|rk)-[A-Za-z0-9_-]{12,}/g, "[REDACTED_KEY]");
+
+  for (const part of databaseConnectionParts()) {
+    sanitized = sanitized.split(part).join("[REDACTED_DATABASE_HOST]");
+  }
+
+  return sanitized;
+}
+
+function isLockedPrismaEngineGenerateError(stdout = "", stderr = "") {
+  const output = `${stdout}\n${stderr}`.toLowerCase();
+  return (
+    process.platform === "win32" &&
+    output.includes("eperm") &&
+    output.includes("operation not permitted") &&
+    output.includes("query_engine-windows.dll.node") &&
+    output.includes("rename")
+  );
+}
+
+function databaseConnectionParts() {
+  const rawUrl = process.env.DATABASE_URL?.trim();
+  if (!rawUrl) return [];
+
+  try {
+    const url = new URL(rawUrl);
+    return [url.host, url.hostname].filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function isUniqueConstraintError(error) {

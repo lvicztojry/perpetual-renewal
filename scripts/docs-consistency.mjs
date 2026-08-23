@@ -396,6 +396,8 @@ function checkPackageJson() {
   expectEqual(scripts["qa:vault"], "node tests/config-vault-security.mjs", "package.json scripts.qa:vault");
   expectEqual(scripts["qa:logging"], "node tests/logging-sanitize-smoke.mjs", "package.json scripts.qa:logging");
   expectEqual(scripts["qa:response"], "node tests/response-safety-smoke.mjs", "package.json scripts.qa:response");
+  expectEqual(scripts["qa:providers"], "node tests/provider-adapters-smoke.mjs", "package.json scripts.qa:providers");
+  expectEqual(scripts["qa:proactive-cron"], "node tests/proactive-cron-contract.mjs", "package.json scripts.qa:proactive-cron");
   expectEqual(scripts["pwa:check"], "node scripts/pwa-check.mjs", "package.json scripts.pwa:check");
   expectEqual(scripts["git:boundary"], "node scripts/git-boundary-check.mjs", "package.json scripts.git:boundary");
   expectEqual(scripts["next:typegen"], "node scripts/next-typegen.mjs", "package.json scripts.next:typegen");
@@ -411,7 +413,7 @@ function checkPackageJson() {
   );
   expectEqual(
     scripts["verify:deploy"],
-    "npm run env:readiness -- --strict && npm run prisma:validate && npm run db:smoke",
+    "npm run env:readiness -- --strict && npm run qa:proactive-cron && npm run prisma:validate && npm run db:smoke",
     "package.json scripts.verify:deploy"
   );
 
@@ -584,6 +586,7 @@ function checkDeploymentDocs() {
     ["docs/MVP_STATUS.md", "npm run qa:vault"],
     ["docs/MVP_STATUS.md", "npm run qa:logging"],
     ["docs/MVP_STATUS.md", "npm run qa:response"],
+    ["docs/MVP_STATUS.md", "npm run qa:proactive-cron"],
     ["docs/MVP_STATUS.md", "npm run pwa:check"],
     ["docs/MVP_STATUS.md", `M${taskbookMilestones.latestNumber}`],
     ["docs/MVP_STATUS.md", "session 签名来源"],

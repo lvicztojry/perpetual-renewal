@@ -104,6 +104,7 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:voice
 npm run qa:real-provider:fake
 npm run pwa:check
 npm run env:readiness

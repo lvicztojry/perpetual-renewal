@@ -120,6 +120,8 @@
 
 ```bash
 npm run secrets:check
+npm run qa:response
+npm run qa:voice
 npm run smoke
 npm run e2e
 ```

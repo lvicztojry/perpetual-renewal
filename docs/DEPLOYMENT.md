@@ -296,6 +296,8 @@ Vercel Cron 使用 GET 请求。仓库根目录的 `vercel.json` 已配置每分
 
 GET 入口只支持 all-user 调度，必须携带 Bearer cron secret；成功鉴权后默认 `dryRun:false`，由调度器自身的频率、去重和 `maxDrafts` 护栏控制实际草稿生成量。Vercel Cron 需要在部署平台配置 `CRON_SECRET`，它会作为 Bearer token 发送到 cron 路径。若当前 Vercel 套餐不允许每分钟 cron，可先把 `schedule` 改成平台允许的最低频率；主动回响对象自身仍可配置 1 分钟候选频率。
 
+`limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量；调度器会归一化并裁剪过大的值。`npm run qa:proactive-cron` 会静态复核 `vercel.json`、GET 鉴权、`CRON_SECRET` alias、`dryRun` 默认值和这两个护栏参数；`npm run verify:deploy` 已包含该门禁。
+
 POST 入口仍保留给 GitHub Actions、外部 cron、手动验证和 smoke。默认 `scope` 是 `current-user`，适合登录用户手动触发或 smoke 验证。生产定时调用若要扫描全部用户，必须使用 `scope: all`，设置 `PROACTIVE_CRON_SECRET` 或 `CRON_SECRET`，并在请求头携带：
 
 ```text

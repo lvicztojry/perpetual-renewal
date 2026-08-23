@@ -14,7 +14,9 @@
     "qa:vault": "node tests/config-vault-security.mjs",
     "qa:logging": "node tests/logging-sanitize-smoke.mjs",
     "qa:response": "node tests/response-safety-smoke.mjs",
+    "qa:providers": "node tests/provider-adapters-smoke.mjs",
     "qa:voice": "node tests/voice-shared-llm-smoke.mjs",
+    "qa:proactive-cron": "node tests/proactive-cron-contract.mjs",
     "qa:real-provider": "node tests/qa-real-provider.mjs",
     "qa:real-provider:fake": "node tests/qa-real-provider-fake.mjs",
     "pwa:check": "node scripts/pwa-check.mjs",
@@ -34,7 +36,7 @@
     "verify:local": "node scripts/verify-local.mjs",
     "verify:pr": "npm run verify:local -- --skip-e2e",
     "verify:release": "node scripts/verify-local.mjs --audit",
-    "verify:deploy": "npm run env:readiness -- --strict && npm run prisma:validate && npm run db:smoke"
+    "verify:deploy": "npm run env:readiness -- --strict && npm run qa:proactive-cron && npm run prisma:validate && npm run db:smoke"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

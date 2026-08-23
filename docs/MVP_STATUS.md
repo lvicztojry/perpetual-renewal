@@ -55,6 +55,8 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:providers
+npm run qa:proactive-cron
 npm run qa:real-provider:fake
 npm run pwa:check
 npm run prisma:validate
@@ -65,7 +67,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：92 checks passed。
+- `smoke`：93 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
@@ -76,12 +78,13 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:vault`：vault and config readiness security matrix passed。
 - `qa:logging`：runtime log sanitization passed。
 - `qa:response`：API response text sanitization passed。
+- `qa:providers`：non-compatible provider adapter hermetic fake-server coverage passed。
 - `qa:voice`：shared-LLM voice fake-compatible STT/TTS passed。
 - `qa:real-provider:fake`：local fake-compatible BYOK flow self-test passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `env:readiness -- --strict`：missing=0，warning=3；输出保持脱敏。
-- `db:smoke`：真实 Neon/PostgreSQL 连接通过；完整 smoke 92 checks passed。
+- `db:smoke`：真实 Neon/PostgreSQL 连接通过；完整 smoke 93 checks passed。
 - C 盘可视化目录无项目产物；npm audit cache 使用项目内 `.npm-cache`。
 
 ## 真实配置与部署复核
@@ -188,7 +191,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M93 语音转写元数据边界：STT 输入拒绝异常文件名、语言标签和过长 mock 文本，错误响应不回显 Bearer、prompt、raw payload 或用户配置。
 - M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步当前 smoke checks / 13 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
 - M95 工作台错误展示脱敏：聊天、记忆、主动回响、导入、语音和用量看板错误展示统一走前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时不显示原文。
-- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败、fetch 网络失败和 compatible 模型列表异常响应诊断，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 92 checks。
+- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败、fetch 网络失败和 compatible 模型列表异常响应诊断，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 93 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
@@ -224,6 +227,8 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M129 用量与导出隐私元数据：模型调用日志写入/读取时统一脱敏 provider、model、errorKind 和 fallbackReason；用户导出新增 usage/safety `limits` 元数据，明确 limit、returned、truncated 和 availableAtLeast，避免 5000 条上限静默截断。
 - M130 语音 shared-LLM QA 门禁：新增 `npm run qa:voice`，用本地 fake-compatible STT/TTS 覆盖 shared-LLM Bearer header、模型 fallback、用户 vault 优先和失败脱敏，并接入本地 verify 与 CI。
 - M131 BYOK 浏览器闭环门禁：新增 fake-compatible 浏览器 E2E，覆盖设置页保存 BYOK key/baseUrl/model、测试连接走 chat completion、创建关系发送消息、provider 收到 Bearer，页面显示真实 provider 回复且不泄露 key/Base URL；E2E 改为单 worker 保障 memory/fake provider 稳定。
+- M132 生产调度部署门禁复核：新增 `npm run qa:proactive-cron`，复核 `vercel.json` 每分钟 GET cron、Bearer/`CRON_SECRET` alias、GET 默认 `dryRun:false`、`limit`/`maxDrafts` 护栏和部署文档；`verify:deploy` 现在会在目标环境同时跑严格 readiness、cron 合同、Prisma validate 和 DB smoke。
+- M133 非 compatible provider hermetic 覆盖：新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload、默认官方 base URL 不误用 compatible `LLM_BASE_URL`，以及供应商错误诊断脱敏；进入 verify-local 与 CI。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

@@ -62,8 +62,14 @@ jobs:
       - name: Response safety QA
         run: npm run qa:response
 
+      - name: Provider adapters QA
+        run: npm run qa:providers
+
       - name: Voice shared-LLM QA
         run: npm run qa:voice
+
+      - name: Proactive cron contract QA
+        run: npm run qa:proactive-cron
 
       - name: Real provider QA fake
         run: npm run qa:real-provider:fake
