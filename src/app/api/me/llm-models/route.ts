@@ -1,5 +1,6 @@
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
+import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import { LlmModelListError, listAvailableLlmModels } from "@/lib/llm/model-list";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,6 @@ function toModelListErrorMetadata(error: unknown) {
     errorType: error.code,
     httpStatus: error.options.httpStatus,
     retryable: error.options.retryable,
-    diagnostic: error.options.diagnostic
+    diagnostic: redactSensitiveResponseText(error.options.diagnostic)
   };
 }

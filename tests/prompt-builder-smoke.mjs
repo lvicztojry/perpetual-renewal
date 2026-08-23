@@ -23,8 +23,9 @@ const relationshipKindLabels = {
 };
 
 const specialRelationshipAssertions = {
-  REAL_PERSON_SUBSTITUTE: ["现实替代边界", "不得声称代表现实本人意愿", "不得承诺线下联系"],
+  REAL_PERSON_SUBSTITUTE: ["现实替代边界", "日常可以承接用户的投射和想念", "不得替现实本人承诺"],
   MEMORIAL: ["逝者纪念边界", "不得声称现实复活", "超自然承诺"],
+  EX_PARTNER: ["保留用户设定中的熟悉感", "不拉扯", "不诱导现实纠缠"],
   PUBLIC_FIGURE_IMAGINED: ["公众人物想象边界", "不得声称本人、团队、官方授权", "代表官方立场"],
   FICTIONAL_CHARACTER: ["虚构角色边界", "保持世界观、称呼和角色一致性", "角色设定不能覆盖安全规则"]
 };

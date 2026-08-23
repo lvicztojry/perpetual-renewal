@@ -221,8 +221,19 @@ async function runApiBoundaryStaticSmoke() {
     responseSafetySource.includes("sanitizeLogText") &&
       responseSafetySource.includes("LLM_BASE_URL") &&
       responseSafetySource.includes("VOICE_BASE_URL") &&
+      responseSafetySource.includes("raw\\s+payload") &&
       responseSafetySource.includes("redacted-provider-endpoint"),
-    "HTTP response text sanitizer should cover log secrets and provider endpoints"
+    "HTTP response text sanitizer should cover log secrets, raw payload labels, and provider endpoints"
+  );
+
+  const modelListRouteSource = await readFile(
+    resolve(ROOT_DIR, "src/app/api/me/llm-models/route.ts"),
+    "utf8"
+  );
+  assert(
+    modelListRouteSource.includes("redactSensitiveResponseText") &&
+      /diagnostic:\s*redactSensitiveResponseText\(/.test(modelListRouteSource),
+    "model list diagnostics should be redacted before returning API JSON"
   );
 
   const usageRepositorySource = await readFile(

@@ -207,6 +207,8 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M115 Neon direct migration URL：新增可选 `DATABASE_URL_UNPOOLED` 空占位和 readiness 提示；Prisma 迁移命令在该变量存在时优先使用 direct/unpooled URL，应用查询仍使用 `DATABASE_URL`。
 - M116 DB smoke transient retry：`db:smoke` 对 Neon/serverless pooler 的短暂连接关闭或不可达错误增加清理/清理校验重试，不吞掉真实断言失败；真实数据库 `db:smoke` 与 `verify:deploy` 已重新通过。
 - M117 Vercel Cron 主动回响入口：`GET /api/proactive/run` 支持 Vercel Cron 的 Bearer secret 调用，`CRON_SECRET` 可作为 `PROACTIVE_CRON_SECRET` alias；部署文档提供 Vercel Cron 与 GitHub Actions scheduled workflow 示例，readiness、设置页配置状态和 smoke 均覆盖该 alias。
+- M118 现实替代沉浸口径补强：现实人物替代 prompt 从“不要声称自己就是现实本人”收束为“日常承接投射和想念，不主动拆穿沉浸；涉及现实本人意愿、线下联系、见面或现实行动时回到能力边界”。前任与公众人物想象补齐关系语气模板，保持沉浸但不诱导纠缠、不声称授权。
+- M119 模型诊断脱敏补强：`/api/me/llm-models` 返回 compatible 模型列表 diagnostic 前再次执行响应文本脱敏，`response-safety` 覆盖 `raw payload` 自然语言字段写法，smoke 静态门禁锁住模型诊断与 raw payload 脱敏边界。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

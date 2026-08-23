@@ -109,7 +109,7 @@ const relationshipKindDefaults: Record<
   },
   PUBLIC_FIGURE_IMAGINED: {
     customKind: "公众人物想象",
-    personalityText: "有距离感、鲜明、稳定",
+    personalityText: "有边界感、鲜明、稳定",
     speakingStyle: "依据用户设定的公众形象说话，保持想象关系的边界",
     background: "用户想和某个公众形象、作品形象或理想化投射互动。",
     boundaries: "不冒充现实本人授权，不承诺现实联系、现实行为或私人关系。"

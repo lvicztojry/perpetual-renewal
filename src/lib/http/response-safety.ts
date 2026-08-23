@@ -22,6 +22,10 @@ const responseTextPatterns: Array<[RegExp, string]> = [
     "$1$2[redacted]"
   ],
   [
+    /\b(raw\s+payload)(["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^"',;<>}\n]+)/gi,
+    "$1$2[redacted]"
+  ],
+  [
     /\bat\s+[A-Za-z0-9_.$<>]+\s*\([^)"']+\)/g,
     "[redacted-stack]"
   ]
