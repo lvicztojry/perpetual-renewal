@@ -6,6 +6,8 @@ import * as ts from "typescript";
 const VAULT_PATH = new URL("../src/lib/credentials/vault.ts", import.meta.url);
 const CONFIG_STATUS_PATH = new URL("../src/lib/config/status.ts", import.meta.url);
 const SESSION_SECRET_PATH = new URL("../src/lib/auth/session-secret.ts", import.meta.url);
+const SAFETY_HASH_PATH = new URL("../src/lib/safety-events/hash.ts", import.meta.url);
+const SAFETY_SERVICE_PATH = new URL("../src/lib/safety-events/service.ts", import.meta.url);
 const errors = [];
 
 const originalEnv = { ...process.env };
@@ -14,6 +16,7 @@ const originalNodeEnv = process.env.NODE_ENV;
 try {
   await runVaultChecks();
   await runSessionSecretChecks();
+  await runSafetyEventHashChecks();
   await runConfigReadinessChecks();
 } finally {
   process.env = { ...originalEnv };
@@ -32,7 +35,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("Config/vault security smoke passed: production secret, session signing, HMAC fingerprint, and readiness matrix.");
+console.log("Config/vault security smoke passed: production secret, session signing, HMAC fingerprint, safety event hashes, and readiness matrix.");
 
 async function runVaultChecks() {
   const { encryptSecret, decryptSecret } = await loadVaultModule();
@@ -237,6 +240,91 @@ async function runSessionSecretChecks() {
   );
 }
 
+async function runSafetyEventHashChecks() {
+  const hashModule = await loadSafetyHashModule();
+
+  withEnv({ USER_KEY_VAULT_SECRET: "s".repeat(32) }, () => {
+    const hashes = hashModule.buildSafetyEventHashes({
+      userId: "safety-user",
+      type: "SELF_HARM",
+      action: "boundary_response",
+      stage: "user_input",
+      severity: "high",
+      content: "I might hurt myself"
+    });
+    assert(
+      hashes.contentHash.startsWith("hmac-sha256:") &&
+        hashes.riskHash.startsWith("hmac-sha256:"),
+      "safety event hashes should use HMAC when a strong vault secret exists"
+    );
+    assert(
+      hashModule.canBuildPersistentSafetyEventHashes() === true,
+      "strong vault secret should allow persistent safety event hashes"
+    );
+  });
+
+  withEnv({ USER_KEY_VAULT_SECRET: "" }, () => {
+    const hashes = hashModule.buildSafetyEventHashes({
+      userId: "safety-user",
+      type: "SELF_HARM",
+      action: "boundary_response",
+      stage: "user_input",
+      severity: "high",
+      content: "I might hurt myself"
+    });
+    assert(
+      hashes.contentHash.startsWith("hmac-sha256:") &&
+        hashModule.canBuildPersistentSafetyEventHashes() === false,
+      "missing vault secret should only permit non-persistent keyed development safety hashes"
+    );
+  });
+
+  await withEnvAsync({ USER_KEY_VAULT_SECRET: "" }, async () => {
+    const service = await loadSafetyServiceModule({
+      persistence: "prisma",
+      create: async (event) => event,
+      listForExport: async () => []
+    });
+    const result = await service.recordSafetyEvent(safetyEventInput());
+    assert(
+      result.logged === false &&
+        result.persistence === "noop" &&
+        result.skippedReason === "missing_persistent_hash_secret",
+      "persistent safety event logging should fail closed without a strong hash secret"
+    );
+  });
+
+  await withEnvAsync({ USER_KEY_VAULT_SECRET: "" }, async () => {
+    const service = await loadSafetyServiceModule({
+      persistence: "memory",
+      create: async (event) => event,
+      listForExport: async () => []
+    });
+    const result = await service.recordSafetyEvent(safetyEventInput());
+    assert(
+      result.logged === true &&
+        result.persistence === "memory" &&
+        result.event?.contentHash?.startsWith("hmac-sha256:"),
+      "memory fallback should still permit local keyed development safety hashes"
+    );
+  });
+
+  await withEnvAsync({ USER_KEY_VAULT_SECRET: "s".repeat(32) }, async () => {
+    const service = await loadSafetyServiceModule({
+      persistence: "prisma",
+      create: async (event) => event,
+      listForExport: async () => []
+    });
+    const result = await service.recordSafetyEvent(safetyEventInput());
+    assert(
+      result.logged === true &&
+        result.persistence === "prisma" &&
+        result.event?.contentHash?.startsWith("hmac-sha256:"),
+      "persistent safety event logging should use HMAC hashes with a strong secret"
+    );
+  });
+}
+
 async function loadVaultModule() {
   const crypto = await import("node:crypto");
   return loadTsModule(VAULT_PATH, {
@@ -276,6 +364,31 @@ async function loadSessionSecretModule() {
   return loadTsModule(SESSION_SECRET_PATH, {
     require(specifier) {
       throw new Error(`Unexpected require while loading session secret module: ${specifier}`);
+    }
+  });
+}
+
+async function loadSafetyHashModule() {
+  const crypto = await import("node:crypto");
+  return loadTsModule(SAFETY_HASH_PATH, {
+    require(specifier) {
+      if (specifier === "node:crypto") return crypto;
+      throw new Error(`Unexpected require while loading safety hash module: ${specifier}`);
+    }
+  });
+}
+
+async function loadSafetyServiceModule(repository) {
+  const safetyHashModule = await loadSafetyHashModule();
+  return loadTsModule(SAFETY_SERVICE_PATH, {
+    require(specifier) {
+      if (specifier === "./hash") return safetyHashModule;
+      if (specifier === "./repository") {
+        return {
+          createSafetyEventRepository: () => repository
+        };
+      }
+      throw new Error(`Unexpected require while loading safety event service module: ${specifier}`);
     }
   });
 }
@@ -341,6 +454,19 @@ function emptyCredential() {
     keyFingerprint: null,
     credentialSource: "server-env",
     updatedAt: null
+  };
+}
+
+function safetyEventInput() {
+  return {
+    userId: "safety-user",
+    companionId: "safety-companion",
+    messageId: "safety-message",
+    type: "SELF_HARM",
+    action: "boundary_response",
+    stage: "user_input",
+    severity: "high",
+    content: "I might hurt myself"
   };
 }
 

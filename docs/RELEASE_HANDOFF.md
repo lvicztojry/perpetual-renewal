@@ -91,6 +91,10 @@
 - M125 scope: single-companion proactive draft generation now returns schedule metadata and truncation metadata, foreground auto-checks save at most one draft, and workspace status explains the next candidate time plus elapsed minutes from the timing anchor.
 - M126 scope: model connection tests now require a low-token chat completion probe; compatible `/models` responses are advisory, and failure diagnostics remain redacted across endpoint, prompt, raw payload, authorization and stack variants.
 - M127 scope: provider changes no longer silently reuse stale compatible Base URLs for Anthropic/Gemini/OpenAI Responses; compatible providers still require an explicit endpoint from the form, user vault, or compatible env fallback.
+- M128 scope: persistent safety events now require HMAC keyed hashes from a strong `USER_KEY_VAULT_SECRET`; missing secrets fail closed for Prisma logging while local memory fallback can still use development hashes.
+- M129 scope: usage metadata is sanitized on write/read for provider, model, errorKind and fallbackReason, and exports now include usage/safety `limits` metadata so collection caps are visible.
+- M130 scope: `npm run qa:voice` covers shared-LLM fake-compatible STT/TTS, Bearer headers, model fallback, user-vault reuse and sanitized provider failures; it is part of local verify and CI.
+- M131 scope: browser E2E now covers the BYOK compatible flow end-to-end against a local fake provider, and Playwright runs with one worker for stable memory/fake-provider isolation.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
@@ -111,18 +115,19 @@ Last updated: 2026-08-23
 - `npm run qa:vault`: passed.
 - `npm run qa:logging`: passed.
 - `npm run qa:response`: passed.
+- `npm run qa:voice`: passed.
 - `npm run qa:real-provider:fake`: passed.
 - `npm run env:readiness -- --strict`: passed, missing=0 and warning=3.
 - `npm run pwa:check`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: passed against the real Neon/PostgreSQL configuration.
 - `npm run build`: passed.
-- `npm run e2e`: passed, 14 tests.
+- `npm run e2e`: passed, 15 tests.
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
 - `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
 - M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M127 follow-up: smoke now covers account deletion, post-delete derived-data isolation, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, Vercel Cron GET auth, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, API response-boundary static guards, automatic quote redaction, 1 minute proactive cadence defaults, assistant reply format normalization, deleted-memory API/export invisibility, compatible model diagnostics, raw-payload response sanitization, concrete relationship-state emotion/event updates, safe configured-database outage responses, single-companion proactive draft truncation/schedule diagnostics, chat-completion connection probes, and provider endpoint switch isolation; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, response text sanitization, voice fallback display redaction, settings credential-delete failure redaction, real-person-substitute immersion prompt wording, optional real compatible BYOK target flow, and fake-compatible real-provider QA self-test, while release verification normalizes Next route type imports before boundary checks, docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR/deployment materials, `env:secrets` standardizes local secret generation without writing project files, Prisma scripts load local env before migration/deploy commands, optional Neon direct migration URLs are supported, DB smoke retries transient database cleanup connection drops, configured PostgreSQL no longer silently falls back to memory on Prisma connectivity errors, deployment docs now include copyable protected proactive scheduler examples for Vercel Cron and GitHub Actions, and target deployments must mirror env/secrets then run `npm run verify:deploy`.
+- M57-M131 follow-up: smoke now covers account deletion, post-delete derived-data isolation, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, Vercel Cron GET auth, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, API response-boundary static guards, automatic quote redaction, 1 minute proactive cadence defaults, assistant reply format normalization, deleted-memory API/export invisibility, compatible model diagnostics, raw-payload response sanitization, concrete relationship-state emotion/event updates, safe configured-database outage responses, single-companion proactive draft truncation/schedule diagnostics, chat-completion connection probes, provider endpoint switch isolation, keyed safety-event hash export, and usage/safety export limit metadata; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, response text sanitization, shared-LLM voice provider behavior, BYOK fake-compatible browser flow, voice fallback display redaction, settings credential-delete failure redaction, real-person-substitute immersion prompt wording, optional real compatible BYOK target flow, and fake-compatible real-provider QA self-test, while release verification normalizes Next route type imports before boundary checks, docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR/deployment materials, `env:secrets` standardizes local secret generation without writing project files, Prisma scripts load local env before migration/deploy commands, optional Neon direct migration URLs are supported, DB smoke retries transient database cleanup connection drops, configured PostgreSQL no longer silently falls back to memory on Prisma connectivity errors, deployment docs now include copyable protected proactive scheduler examples for Vercel Cron and GitHub Actions, and target deployments must mirror env/secrets then run `npm run verify:deploy`.
 
 ## Before Push Or PR Update
 
@@ -179,6 +184,7 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:voice
 npm run qa:real-provider:fake
 npm run env:readiness
 npm run prisma:validate

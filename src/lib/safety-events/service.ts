@@ -1,7 +1,12 @@
 import type { SafetyAction, SafetyCheckStage, SafetyEventType } from "@/lib/relationship";
-import { buildSafetyEventHashes } from "./hash";
+import { buildSafetyEventHashes, canBuildPersistentSafetyEventHashes } from "./hash";
 import { createSafetyEventRepository } from "./repository";
-import type { CreateSafetyEventInput, SafetyEventLog, SafetyEventLogResult } from "./types";
+import type {
+  CreateSafetyEventInput,
+  SafetyEventExportPage,
+  SafetyEventLog,
+  SafetyEventLogResult
+} from "./types";
 
 const makeId = () =>
   `safe-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -14,8 +19,16 @@ export async function recordSafetyEvent(
     return { logged: false, persistence: "noop" };
   }
 
-  const event = normalizeSafetyEvent(input);
   const repository = createSafetyEventRepository();
+  if (repository.persistence !== "memory" && !canBuildPersistentSafetyEventHashes()) {
+    return {
+      logged: false,
+      persistence: "noop",
+      skippedReason: "missing_persistent_hash_secret"
+    };
+  }
+
+  const event = normalizeSafetyEvent(input);
   const created = await repository.create(event);
 
   return {
@@ -35,9 +48,27 @@ export async function recordSafetyEvent(
 }
 
 export async function listSafetyEventsForExport(userId: string, limit = MAX_EXPORT_EVENTS) {
+  const page = await listSafetyEventsExportPage(userId, limit);
+  return page.items;
+}
+
+export async function listSafetyEventsExportPage(
+  userId: string,
+  limit = MAX_EXPORT_EVENTS
+): Promise<SafetyEventExportPage> {
   const safeLimit = Math.min(MAX_EXPORT_EVENTS, Math.max(1, Math.round(limit)));
   const repository = createSafetyEventRepository();
-  return repository.listForExport(userId, safeLimit);
+  const events = await repository.listForExport(userId, safeLimit + 1);
+  const truncated = events.length > safeLimit;
+  const items = truncated ? events.slice(0, safeLimit) : events;
+
+  return {
+    items,
+    limit: safeLimit,
+    returned: items.length,
+    truncated,
+    availableAtLeast: truncated ? events.length : items.length
+  };
 }
 
 function normalizeSafetyEvent(input: CreateSafetyEventInput): SafetyEventLog {

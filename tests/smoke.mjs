@@ -288,8 +288,24 @@ async function runApiBoundaryStaticSmoke() {
   );
   assert(
     usageRepositorySource.includes("redactSensitiveResponseText") &&
-      /fallbackReason:\s*redactSensitiveResponseText\(/.test(usageRepositorySource),
-    "usage logs should sanitize fallbackReason before persistence"
+      usageRepositorySource.includes("sanitizeUsageMetadata") &&
+      /provider:\s*sanitizeUsageMetadata\(/.test(usageRepositorySource) &&
+      /model:\s*sanitizeUsageMetadata\(/.test(usageRepositorySource) &&
+      /errorKind:\s*sanitizeNullableUsageMetadata\(/.test(usageRepositorySource) &&
+      /fallbackReason:\s*sanitizeNullableUsageMetadata\(/.test(usageRepositorySource),
+    "usage logs should sanitize provider, model, errorKind, and fallbackReason before persistence or export"
+  );
+
+  const exportSnapshotSource = await readFile(
+    resolve(ROOT_DIR, "src/lib/export/snapshot.ts"),
+    "utf8"
+  );
+  assert(
+    exportSnapshotSource.includes("listModelUsageLogsExportPage") &&
+      exportSnapshotSource.includes("listSafetyEventsExportPage") &&
+      exportSnapshotSource.includes("limits:") &&
+      exportSnapshotSource.includes("truncated"),
+    "user export should include usage and safety export limit metadata"
   );
 
   const generateReplySource = await readFile(
@@ -1984,6 +2000,17 @@ async function runSmoke() {
     "user export should include sanitized model call logs"
   );
   assert(
+    exportedWithCredential.body.limits?.modelUsageLogs?.limit === 5000 &&
+      exportedWithCredential.body.limits.modelUsageLogs.returned ===
+        exportedWithCredential.body.modelUsageLogs.length &&
+      typeof exportedWithCredential.body.limits.modelUsageLogs.truncated === "boolean" &&
+      exportedWithCredential.body.limits?.safetyEvents?.limit === 5000 &&
+      exportedWithCredential.body.limits.safetyEvents.returned ===
+        exportedWithCredential.body.safetyEvents.length &&
+      typeof exportedWithCredential.body.limits.safetyEvents.truncated === "boolean",
+    "user export should disclose usage and safety export limits instead of silently truncating"
+  );
+  assert(
     !exportedText.includes(fakeKey) &&
       !exportedText.includes("https://gateway.example.com/v1") &&
       !exportedText.includes(accidentalExportSecret) &&
@@ -3109,9 +3136,14 @@ async function runSmoke() {
   );
   assert(
     exportedAfterSafety.body.safetyEvents.every(
-      (event) => event.contentHash && event.riskHash && !("content" in event)
+      (event) =>
+        event.contentHash?.startsWith("hmac-sha256:") &&
+        event.riskHash?.startsWith("hmac-sha256:") &&
+        !event.contentHash.startsWith("sha256:") &&
+        !event.riskHash.startsWith("sha256:") &&
+        !("content" in event)
     ),
-    "user export safety events should only include hashed content references"
+    "user export safety events should only include keyed hashed content references"
   );
   assert(
     !JSON.stringify(exportedAfterSafety.body).includes("我想伤害自己"),

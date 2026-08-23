@@ -70,3 +70,10 @@ export type UsageDashboard = {
   recent: ModelUsageLog[];
 };
 
+export type ModelUsageExportPage = {
+  items: ModelUsageLog[];
+  limit: number;
+  returned: number;
+  truncated: boolean;
+  availableAtLeast: number;
+};

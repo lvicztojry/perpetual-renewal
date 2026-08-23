@@ -20,6 +20,7 @@ const steps = [
   ["Config/vault QA", ["run", "qa:vault"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],
   ["Response safety QA", ["run", "qa:response"]],
+  ["Voice shared-LLM QA", ["run", "qa:voice"]],
   ["Real provider QA fake", ["run", "qa:real-provider:fake"]],
   ["PWA check", ["run", "pwa:check"]],
   ["Environment readiness", ["run", "env:readiness"]],

@@ -7,8 +7,8 @@ import type {
   ProactiveMessageRecord,
   RelationshipStateRecord
 } from "@/lib/renewal/types";
-import { listSafetyEventsForExport } from "@/lib/safety-events";
-import { listModelUsageLogsForExport } from "@/lib/usage";
+import { listSafetyEventsExportPage } from "@/lib/safety-events";
+import { listModelUsageLogsExportPage } from "@/lib/usage";
 import { getUserProfile } from "@/lib/users/profile";
 import type {
   ExportCompanionSnapshot,
@@ -83,13 +83,15 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
 
 export async function buildUserExportSnapshot(userId: string): Promise<UserExportSnapshot> {
   const repository = createRenewalRepository();
-  const [profile, credentialStatus, companions, modelUsageLogs, safetyEvents] = await Promise.all([
+  const [profile, credentialStatus, companions, modelUsagePage, safetyEventPage] = await Promise.all([
     getUserProfile(userId),
     getLlmCredentialStatus(userId),
     repository.listCompanions(userId),
-    listModelUsageLogsForExport(userId, EXPORT_LIMIT),
-    listSafetyEventsForExport(userId, EXPORT_LIMIT)
+    listModelUsageLogsExportPage(userId, EXPORT_LIMIT),
+    listSafetyEventsExportPage(userId, EXPORT_LIMIT)
   ]);
+  const modelUsageLogs = modelUsagePage.items;
+  const safetyEvents = safetyEventPage.items;
 
   const companionSnapshots: ExportCompanionSnapshot[] = [];
   for (const companion of companions) {
@@ -136,12 +138,30 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       modelUsageLogs: modelUsageLogs.length,
       safetyEvents: safetyEvents.length
     },
+    limits: {
+      modelUsageLogs: toCollectionLimit(modelUsagePage),
+      safetyEvents: toCollectionLimit(safetyEventPage)
+    },
     privacy: {
       ownDataOnly: true,
       providerSecretsExcluded: true,
       vaultCiphertextExcluded: true,
       providerEndpointExcluded: true
     }
+  };
+}
+
+function toCollectionLimit(page: {
+  limit: number;
+  returned: number;
+  truncated: boolean;
+  availableAtLeast: number;
+}) {
+  return {
+    limit: page.limit,
+    returned: page.returned,
+    truncated: page.truncated,
+    availableAtLeast: page.availableAtLeast
   };
 }
 

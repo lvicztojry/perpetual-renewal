@@ -12,6 +12,13 @@ import type {
 } from "@/lib/renewal/types";
 import type { UserProfile } from "@/lib/users/profile";
 
+export type ExportCollectionLimit = {
+  limit: number;
+  returned: number;
+  truncated: boolean;
+  availableAtLeast: number;
+};
+
 export type ExportCredentialSummary = Pick<
   ProviderCredentialStatus,
   "configured" | "kind" | "provider" | "model" | "credentialSource" | "updatedAt"
@@ -47,6 +54,10 @@ export type UserExportSnapshot = {
     proactiveMessages: number;
     modelUsageLogs: number;
     safetyEvents: number;
+  };
+  limits: {
+    modelUsageLogs: ExportCollectionLimit;
+    safetyEvents: ExportCollectionLimit;
   };
   privacy: {
     ownDataOnly: true;

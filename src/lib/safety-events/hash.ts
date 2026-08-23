@@ -1,4 +1,4 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 
 export function buildSafetyEventHashes(input: {
   userId: string;
@@ -24,16 +24,29 @@ export function buildSafetyEventHashes(input: {
   return { contentHash, riskHash };
 }
 
+export function canBuildPersistentSafetyEventHashes() {
+  return readSafetyHashSecret() !== null;
+}
+
 function normalizeForHash(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function digest(value: string) {
+  const secret = readSafetyHashSecret() ?? readEphemeralSafetyHashSecret();
+  return `hmac-sha256:${createHmac("sha256", secret).update(value).digest("hex")}`;
+}
+
+function readSafetyHashSecret() {
   const secret = process.env.USER_KEY_VAULT_SECRET?.trim();
+  return secret && secret.length >= 32 ? secret : null;
+}
 
-  if (secret) {
-    return `hmac-sha256:${createHmac("sha256", secret).update(value).digest("hex")}`;
-  }
+function readEphemeralSafetyHashSecret() {
+  globalThis.renewalEphemeralSafetyHashSecret ??= randomBytes(32).toString("hex");
+  return globalThis.renewalEphemeralSafetyHashSecret;
+}
 
-  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+declare global {
+  var renewalEphemeralSafetyHashSecret: string | undefined;
 }

@@ -1,2 +1,6 @@
-export { listSafetyEventsForExport, recordSafetyEvent } from "./service";
-export type { SafetyEventLog, SafetyEventLogResult } from "./types";
+export {
+  listSafetyEventsExportPage,
+  listSafetyEventsForExport,
+  recordSafetyEvent
+} from "./service";
+export type { SafetyEventExportPage, SafetyEventLog, SafetyEventLogResult } from "./types";

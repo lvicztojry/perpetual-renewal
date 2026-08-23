@@ -68,7 +68,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `smoke`：92 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
-- `e2e`：14 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
+- `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -76,6 +76,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:vault`：vault and config readiness security matrix passed。
 - `qa:logging`：runtime log sanitization passed。
 - `qa:response`：API response text sanitization passed。
+- `qa:voice`：shared-LLM voice fake-compatible STT/TTS passed。
 - `qa:real-provider:fake`：local fake-compatible BYOK flow self-test passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
@@ -139,7 +140,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 - M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、目标环境配置复核和后续动作。
-- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 14 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
+- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 15 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
 - M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
@@ -174,12 +175,12 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M80 主动回响重复生成门禁：smoke 覆盖调度器保存站内草稿后，在同一 `now` 再次执行不会立刻重复生成或保存草稿，并以已保存草稿作为下一次候选时间锚点。
 - M81 手动记忆输入边界补强：smoke 覆盖手动创建记忆保留 `sourceMessageId` 链接，未知 `sourceMessageId` 与空白 `content` 返回稳定 400，且不写入悬挂/空 pending 记忆。
 - M82 记忆编辑空内容护栏：`PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；smoke 覆盖拒绝后保留原记忆内容，不把 active/pending 记忆覆盖为空。
-- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案稳定，且页面不回显完整 key；当前 E2E 基线 14 tests。
+- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案稳定，且页面不回显完整 key；当前 E2E 基线 15 tests。
 - M84 聊天消息输入错误边界：`POST /api/conversations/:id/messages` 空白内容返回稳定 400；`regenerate` 拒绝用户消息并返回稳定文案，不透传异常对象。
 - M85 导入错误恢复 E2E 覆盖：主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复，确认友好错误、导入按钮不可用，并可重新选择有效 `.jsonl` 文件继续导入候选。
 - M86 关系对象校验错误边界：`POST/PATCH /api/companions` 对空名称、空语气、非法关系类型返回稳定白名单 400；非法关系不会创建记录，失败编辑不会部分写入其他字段。
 - M87 用量看板查询范围边界：`GET /api/usage/model-calls` 只接受 1-90 天有限 `rangeDays`；非法 query 返回稳定 400，不回显 key、Base URL、prompt 或 raw payload。
-- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当前 E2E 基线 14 tests。
+- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当前 E2E 基线 15 tests。
 - M89 运营反馈机制暂缓口径：PRD、Taskbook 和部署清单明确内容审核后台、反馈问卷、内测邀请机制不进入第一版，后续恢复时单独设计运营反馈模块。
 - M90 用户模型端点类型校验：`PUT /api/me/llm-credential` 对非字符串 `baseUrl` 返回稳定 400，不静默忽略异常类型，也不回显用户 API key 或端点字段。
 - M91 导出常见外部 token 脱敏：用户误把 GitHub PAT/`ghp_` 等常见外部 token 写入记忆时，导出快照会替换为 `[REDACTED_KEY]`，不把 token 原文带出。
@@ -219,6 +220,10 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M125 单关系主动回响护栏与诊断：单关系主动草稿接口返回 schedule metadata、skippedReason、maxDrafts 与 draftLimitReached；工作台前台每分钟自动检查只保存 1 条草稿并显示下次候选时间和锚点后已过分钟数；smoke 覆盖单关系裁剪与立即二次检查不重复。
 - M126 模型连接测试真实探针：设置页“测试连接”不再把 compatible `/models` 成功当作连通成功，而是必须完成一次低 token chat completion 探针；`/models` 不兼容但聊天探针成功时允许通过，供应商错误继续按脱敏边界返回。
 - M127 供应商切换端点隔离：用户从 compatible 切换到 Anthropic/Gemini/OpenAI Responses 等 provider 时，不再静默沿用旧 compatible Base URL；切回 compatible 且无新端点时返回明确配置提示，避免旧中转站地址误配到其他供应商。
+- M128 安全事件 keyed hash 门禁：持久化安全事件必须使用 `USER_KEY_VAULT_SECRET` 生成 `hmac-sha256:` 内容/risk hash；缺少强 secret 时真实仓库不写审计事件，本地 memory fallback 只使用进程级临时 HMAC 开发 hash。
+- M129 用量与导出隐私元数据：模型调用日志写入/读取时统一脱敏 provider、model、errorKind 和 fallbackReason；用户导出新增 usage/safety `limits` 元数据，明确 limit、returned、truncated 和 availableAtLeast，避免 5000 条上限静默截断。
+- M130 语音 shared-LLM QA 门禁：新增 `npm run qa:voice`，用本地 fake-compatible STT/TTS 覆盖 shared-LLM Bearer header、模型 fallback、用户 vault 优先和失败脱敏，并接入本地 verify 与 CI。
+- M131 BYOK 浏览器闭环门禁：新增 fake-compatible 浏览器 E2E，覆盖设置页保存 BYOK key/baseUrl/model、测试连接走 chat completion、创建关系发送消息、provider 收到 Bearer，页面显示真实 provider 回复且不泄露 key/Base URL；E2E 改为单 worker 保障 memory/fake provider 稳定。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

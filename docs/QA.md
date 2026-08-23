@@ -54,6 +54,7 @@ E2E 模式边界：
 | 已有服务复用 | `E2E_BASE_URL=http://localhost:3000 npm run e2e -- --project=chromium` | 指向已经启动的本地服务；如果该服务接了真实数据库或用户 vault key，只作为人工体验排查 | 否 |
 | 真实供应商探索 | `E2E_REAL_PROVIDER=1 npm run e2e -- --project=chromium` | 显式保留 LLM env，并放宽 Playwright 超时；用于定位真实 provider 响应、额度、网络或模型兼容问题 | 否 |
 | fake-compatible 脚本自测 | `npm run qa:real-provider:fake` | 启动本地假 OpenAI-compatible provider，驱动 `qa:real-provider` 的 BYOK/vault/聊天/用量流程；不需要真实 key | 是 |
+| fake-compatible 浏览器闭环 | `npm run e2e -- tests/e2e/byok-provider-flow.spec.ts --project=chromium` | 浏览器内保存 BYOK key/baseUrl/model，测试连接走 chat completion，创建关系并显示 fake provider 回复；不需要真实 key | 是 |
 | 真实 BYOK 目标联调 | `REAL_PROVIDER_QA=1 REAL_LLM_API_KEY=... REAL_LLM_BASE_URL=... REAL_LLM_MODEL=... npm run qa:real-provider` | 通过用户 vault 保存真实 key，验证 compatible `/models` 诊断、chat completion 连接测试、一次真实聊天、消息持久化、用量记录和主动回响 dry-run | 否 |
 
 真实 API/真实 LLM 体验验证建议只跑目标用例，不直接跑全量 E2E。全量里包含 memory fallback 隔离测试，会刻意断言本地内存仓库行为；真实 PostgreSQL/真实 LLM 服务上跑全量容易把环境差异误判为发布门禁失败。
@@ -87,7 +88,7 @@ npm run e2e
 npm run verify:release
 ```
 
-需要定位单项问题时，可以按顺序拆开执行 `typecheck`、`lint`、`docs:check`、`git:boundary`、`secrets:check`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`pwa:check`、`env:readiness`、`prisma:validate`、`db:smoke`、`smoke`、`build`、`e2e` 和项目内 cache 的 high-level audit。
+需要定位单项问题时，可以按顺序拆开执行 `typecheck`、`lint`、`docs:check`、`git:boundary`、`secrets:check`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`qa:response`、`qa:voice`、`pwa:check`、`env:readiness`、`prisma:validate`、`db:smoke`、`smoke`、`build`、`e2e` 和项目内 cache 的 high-level audit。
 
 本地真实 PostgreSQL 验收：
 
@@ -121,8 +122,8 @@ npm run db:smoke
 | me | `GET /api/me` | 返回本地 demo/mock 用户 |
 | chat complete | `POST /api/chat/complete` | provider 为 `mock`，返回 `fallbackReason`，只统计 active memory |
 | safety | `POST /api/safety/check` | 撒娇式允许、非性化未成年人陪伴、医疗/法律担心的情绪支持、公众人物想象式鼓励、自伤、他伤、现实行动、公众人物授权、金钱法律、排他依赖、关系施压、角色越权、未成年人性化、隐私跟踪、专业建议、身份欺骗均命中预期策略 |
-| safety event | `POST /api/safety/check` | `action != allow` 时记录脱敏事件；只返回 `contentHash`/`riskHash` 等审计元数据，不返回原文、prompt、API key 或 baseUrl |
-| 数据导出 | `GET /api/me/export` | 当前 session 用户 JSON 快照；包含关系、消息、记忆、主动回响、模型调用和安全事件 hash；不返回供应商密钥、endpoint URL 或 vault 字段 |
+| safety event | `POST /api/safety/check` | `action != allow` 时记录脱敏事件；持久化仓库只写 `hmac-sha256:` keyed hash，缺少强 secret 时不写弱 hash；响应不返回原文、prompt、API key 或 baseUrl |
+| 数据导出 | `GET /api/me/export` | 当前 session 用户 JSON 快照；包含关系、消息、记忆、主动回响、模型调用和安全事件 keyed hash；不返回供应商密钥、endpoint URL 或 vault 字段；usage/safety 导出带 `limits` 元数据说明是否截断 |
 | 模型连接测试 | `POST /api/me/llm-test` | 无 key、无模型名、URL 构造失败、供应商 HTTP 失败或底层 fetch 失败均返回可预测失败；成功以低 token chat completion 探针为准；响应只包含状态、provider/model、credentialSource、latencyMs、probe 和友好错误，不返回 API key、Bearer、Base URL 原文、prompt、供应商 raw payload、底层网络原文或堆栈 |
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
 | 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
@@ -134,7 +135,7 @@ npm run db:smoke
 
 ## 浏览器 E2E 覆盖范围
 
-当前脚本位于 `tests/e2e/relationship-flow.spec.ts` 与 `tests/e2e/settings-privacy.spec.ts`，覆盖一条可演示主链路和设置/隐私关键链路：
+当前脚本位于 `tests/e2e/relationship-flow.spec.ts`、`tests/e2e/settings-privacy.spec.ts` 与 `tests/e2e/byok-provider-flow.spec.ts`，覆盖一条可演示主链路、设置/隐私关键链路和 BYOK fake-compatible 浏览器闭环：
 
 | 链路 | 覆盖点 | 自动校验 |
 | --- | --- | --- |
@@ -151,10 +152,11 @@ npm run db:smoke
 | 账号删除 | 设置页危险区 | 错误确认短语无法点击；正确输入“删除我的账号”后清理 session 并回到登录页 |
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
 | 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误且不泄露完整 key |
+| BYOK 浏览器闭环 | 设置页 + 工作台聊天 | 保存用户 API key/Base URL/model 后测试连接会调用 `/chat/completions`；创建关系并发送消息后页面显示 fake provider 回复；provider 收到 Bearer，页面不显示 key 或 Base URL |
 | 工作台错误脱敏 | 调用看板错误态 | 后端错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时，工作台只显示脱敏占位，不展示敏感原文 |
 | 语音 fallback 展示脱敏 | 朗读最近回复 | 语音合成成功但回退到 mock/provider fallback 时，页面展示的 fallback reason 先脱敏；Bearer、API key、Base URL、rawPayload 和 stack 不展示原文 |
 
-当前基线：`npm run e2e` 已通过 14 tests。
+当前基线：`npm run e2e` 已通过 15 tests。
 
 默认浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、targeted existing-server E2E、人工 QA 或后续用例补齐。需要真实供应商联调时，结论按“用户是否能在设置页保存 key、读取或手动填写模型、完成连接测试并得到一次聊天/语音/主动回响结果”记录，不和 `npm run e2e` 的 mock/local 基线混用。
 

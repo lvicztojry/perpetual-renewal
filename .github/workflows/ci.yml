@@ -62,6 +62,9 @@ jobs:
       - name: Response safety QA
         run: npm run qa:response
 
+      - name: Voice shared-LLM QA
+        run: npm run qa:voice
+
       - name: Real provider QA fake
         run: npm run qa:real-provider:fake
 

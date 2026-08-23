@@ -1,6 +1,11 @@
 import { createUsageRepository } from "./repository";
 import { safeLogValue } from "@/lib/logging/sanitize";
-import type { CreateModelUsageLogInput, ModelUsageLog, UsageDashboard } from "./types";
+import type {
+  CreateModelUsageLogInput,
+  ModelUsageExportPage,
+  ModelUsageLog,
+  UsageDashboard
+} from "./types";
 
 const usageRepository = createUsageRepository();
 const MAX_DASHBOARD_LOGS = 2_000;
@@ -33,8 +38,26 @@ export async function listModelUsageLogsForExport(
   userId: string,
   limit = MAX_EXPORT_LOGS
 ): Promise<ModelUsageLog[]> {
+  const page = await listModelUsageLogsExportPage(userId, limit);
+  return page.items;
+}
+
+export async function listModelUsageLogsExportPage(
+  userId: string,
+  limit = MAX_EXPORT_LOGS
+): Promise<ModelUsageExportPage> {
   const safeLimit = Math.min(MAX_EXPORT_LOGS, Math.max(1, Math.round(limit)));
-  return usageRepository.listForExport(userId, safeLimit);
+  const logs = await usageRepository.listForExport(userId, safeLimit + 1);
+  const truncated = logs.length > safeLimit;
+  const items = truncated ? logs.slice(0, safeLimit) : logs;
+
+  return {
+    items,
+    limit: safeLimit,
+    returned: items.length,
+    truncated,
+    availableAtLeast: truncated ? logs.length : items.length
+  };
 }
 
 function summarize(logs: ModelUsageLog[]): UsageDashboard["summary"] {

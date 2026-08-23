@@ -30,8 +30,17 @@ export type SafetyEventLog = {
 export type SafetyEventLogResult = {
   logged: boolean;
   persistence: "prisma" | "memory" | "noop";
+  skippedReason?: "missing_persistent_hash_secret";
   event?: Pick<
     SafetyEventLog,
     "id" | "type" | "action" | "stage" | "severity" | "contentHash" | "riskHash" | "createdAt"
   >;
+};
+
+export type SafetyEventExportPage = {
+  items: SafetyEventLog[];
+  limit: number;
+  returned: number;
+  truncated: boolean;
+  availableAtLeast: number;
 };

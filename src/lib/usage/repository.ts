@@ -22,6 +22,10 @@ declare global {
 }
 
 const databaseUnavailableCodes = new Set(["P1000", "P1001", "P1002", "P1003", "P2021", "P2024"]);
+const MAX_PROVIDER_LENGTH = 80;
+const MAX_MODEL_LENGTH = 160;
+const MAX_ERROR_KIND_LENGTH = 80;
+const MAX_FALLBACK_REASON_LENGTH = 500;
 const makeId = () =>
   `usage-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -178,6 +182,8 @@ function normalizeCreateInput(input: CreateModelUsageLogInput): ModelUsageLog {
   const totalTokens =
     normalizeToken(input.usage?.totalTokens) ??
     (inputTokens !== null || outputTokens !== null ? (inputTokens ?? 0) + (outputTokens ?? 0) : null);
+  const provider = sanitizeUsageMetadata(input.provider, "unknown", MAX_PROVIDER_LENGTH);
+  const model = sanitizeUsageMetadata(input.model, "unknown", MAX_MODEL_LENGTH);
 
   return {
     id: makeId(),
@@ -186,17 +192,17 @@ function normalizeCreateInput(input: CreateModelUsageLogInput): ModelUsageLog {
     conversationId: input.conversationId ?? null,
     messageId: input.messageId ?? null,
     purpose: input.purpose,
-    provider: input.provider,
-    model: input.model?.trim() || "unknown",
+    provider,
+    model,
     status: input.status,
     inputTokens,
     outputTokens,
     totalTokens,
-    estimatedCostUsd: input.status === "success" ? estimateCostUsd(input.provider, input.usage) : 0,
+    estimatedCostUsd: input.status === "success" ? estimateCostUsd(provider, input.usage) : 0,
     latencyMs: normalizeToken(input.latencyMs),
-    errorKind: input.errorKind ?? null,
+    errorKind: sanitizeNullableUsageMetadata(input.errorKind, MAX_ERROR_KIND_LENGTH),
     httpStatus: normalizeToken(input.httpStatus),
-    fallbackReason: redactSensitiveResponseText(input.fallbackReason ?? undefined) ?? null,
+    fallbackReason: sanitizeNullableUsageMetadata(input.fallbackReason, MAX_FALLBACK_REASON_LENGTH),
     createdAt: new Date().toISOString()
   };
 }
@@ -214,19 +220,34 @@ function toModelUsageLog(row: Record<string, unknown>): ModelUsageLog {
     conversationId: nullableString(row.conversationId),
     messageId: nullableString(row.messageId),
     purpose: String(row.purpose) as ModelUsageLog["purpose"],
-    provider: String(row.provider),
-    model: String(row.model),
+    provider: sanitizeUsageMetadata(row.provider, "unknown", MAX_PROVIDER_LENGTH),
+    model: sanitizeUsageMetadata(row.model, "unknown", MAX_MODEL_LENGTH),
     status: String(row.status) as ModelUsageLog["status"],
     inputTokens: nullableNumber(row.inputTokens),
     outputTokens: nullableNumber(row.outputTokens),
     totalTokens: nullableNumber(row.totalTokens),
     estimatedCostUsd: nullableNumber(row.estimatedCostUsd) ?? 0,
     latencyMs: nullableNumber(row.latencyMs),
-    errorKind: nullableString(row.errorKind),
+    errorKind: sanitizeNullableUsageMetadata(row.errorKind, MAX_ERROR_KIND_LENGTH),
     httpStatus: nullableNumber(row.httpStatus),
-    fallbackReason: nullableString(row.fallbackReason),
+    fallbackReason: sanitizeNullableUsageMetadata(row.fallbackReason, MAX_FALLBACK_REASON_LENGTH),
     createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt)
   };
+}
+
+function sanitizeUsageMetadata(value: unknown, fallback: string, maxLength: number) {
+  const raw = typeof value === "string" ? value : String(value ?? "");
+  const redacted = redactSensitiveResponseText(raw)?.trim() ?? "";
+  const normalized = redacted.replace(/\s+/g, " ");
+  const safeValue = normalized || fallback;
+
+  return safeValue.length > maxLength ? `${safeValue.slice(0, maxLength)}...` : safeValue;
+}
+
+function sanitizeNullableUsageMetadata(value: unknown, maxLength: number) {
+  if (value === null || value === undefined) return null;
+  const redacted = sanitizeUsageMetadata(value, "", maxLength);
+  return redacted || null;
 }
 
 function nullableString(value: unknown) {
