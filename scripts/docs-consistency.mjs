@@ -817,7 +817,11 @@ function readE2eMetrics() {
   const testCount = readdirSync(dir)
     .filter((file) => file.endsWith(".spec.ts"))
     .map((file) => readText(join(dir, file)) ?? "")
-    .reduce((count, content) => count + [...content.matchAll(/\btest(?:\.(?:only|skip|fixme))?\s*\(/g)].length, 0);
+    .reduce(
+      (count, content) =>
+        count + [...content.matchAll(/^\s*test(?:\.(?:only|skip|fixme))?\s*\(/gm)].length,
+      0
+    );
 
   return { testCount };
 }

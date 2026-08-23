@@ -1863,7 +1863,7 @@ async function runSmoke() {
     body: JSON.stringify({
       scope: "all",
       dryRun: true,
-      limit: 999,
+      limit: 1,
       maxDrafts: 999,
       now: schedulerNow
     })
@@ -1874,16 +1874,45 @@ async function runSmoke() {
     "all-user proactive scheduler should accept x-proactive-cron-secret"
   );
   assert(
-    proactiveAllWithHeaderSecret.body.scannedCount <= 100 &&
+    proactiveAllWithHeaderSecret.body.scannedCount <= 1 &&
       proactiveAllWithHeaderSecret.body.maxDrafts === 200 &&
       proactiveAllWithHeaderSecret.body.savedCount === 0,
-    "all-user proactive scheduler should clamp oversized limit/maxDrafts in dry-run"
+    "all-user proactive scheduler should clamp oversized maxDrafts in a bounded dry-run"
   );
   assert(
     !JSON.stringify(proactiveAllWithHeaderSecret.body).includes(SMOKE_CRON_SECRET),
     "all-user proactive scheduler header response should not echo cron secret"
   );
   pass("POST /api/proactive/run all scope accepts header secret and clamps guards");
+
+  const proactiveAllWithEarlyStop = await request("/api/proactive/run", {
+    method: "POST",
+    headers: {
+      "x-proactive-cron-secret": SMOKE_CRON_SECRET
+    },
+    body: JSON.stringify({
+      scope: "all",
+      dryRun: true,
+      limit: 999,
+      maxDrafts: 1,
+      now: new Date(Date.parse(schedulerNow) + 60 * 60 * 1000).toISOString()
+    })
+  });
+  assert(
+    proactiveAllWithEarlyStop.body.maxDrafts === 1 &&
+      proactiveAllWithEarlyStop.body.generatedCount <= 1 &&
+      proactiveAllWithEarlyStop.body.scannedCount <= proactiveAllWithEarlyStop.body.maxDrafts,
+    "all-user proactive scheduler should stop scanning once maxDrafts is reached"
+  );
+  assert(
+    proactiveAllWithEarlyStop.body.results?.length === proactiveAllWithEarlyStop.body.scannedCount,
+    "all-user proactive scheduler should only return scanned companion results after early stop"
+  );
+  assert(
+    !JSON.stringify(proactiveAllWithEarlyStop.body).includes(SMOKE_CRON_SECRET),
+    "all-user proactive scheduler early-stop response should not echo cron secret"
+  );
+  pass("POST /api/proactive/run all scope stops after maxDrafts");
 
   const me = await request("/api/me");
   assert(me.body.user?.id, "me endpoint should return a user");

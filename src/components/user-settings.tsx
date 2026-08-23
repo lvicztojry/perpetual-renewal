@@ -385,8 +385,9 @@ export function UserSettings() {
 
       if (!response.ok || !payload.models) {
         const message = formatModelListError(payload);
-        nextFailure = toModelListFailure(payload, message);
-        throw new Error(message);
+        const safeMessage = redactCredentialSecrets(message, credentialForm);
+        nextFailure = toModelListFailure(payload, safeMessage);
+        throw new Error(safeMessage);
       }
 
       setModels(payload.models);

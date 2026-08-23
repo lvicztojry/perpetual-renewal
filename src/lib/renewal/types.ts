@@ -208,7 +208,7 @@ export type RegenerateMessageResult = {
 export type RenewalRepository = {
   persistence: RepositoryPersistence;
   listCompanions(userId: string): Promise<CompanionProfile[]>;
-  listCompanionsForProactive(userId?: string): Promise<CompanionProfile[]>;
+  listCompanionsForProactive(userId?: string, limit?: number): Promise<CompanionProfile[]>;
   getCompanion(userId: string, companionId: string): Promise<CompanionProfile | null>;
   createCompanion(userId: string, input: CreateCompanionInput): Promise<CompanionProfile>;
   updateCompanion(

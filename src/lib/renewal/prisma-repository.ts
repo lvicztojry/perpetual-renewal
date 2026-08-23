@@ -64,7 +64,7 @@ export class PrismaRenewalRepository implements RenewalRepository {
     return companions.map(toCompanionProfile);
   }
 
-  async listCompanionsForProactive(userId?: string) {
+  async listCompanionsForProactive(userId?: string, limit?: number) {
     if (userId) {
       await ensureUser(userId);
     }
@@ -75,6 +75,7 @@ export class PrismaRenewalRepository implements RenewalRepository {
         ...(userId ? { userId } : {})
       },
       orderBy: { updatedAt: "desc" },
+      ...(limit ? { take: limit } : {}),
       include: companionProfileInclude
     });
 

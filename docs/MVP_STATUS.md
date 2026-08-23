@@ -67,7 +67,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 结果摘要：
 
-- `smoke`：93 checks passed。
+- `smoke`：94 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
@@ -84,7 +84,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
 - `env:readiness -- --strict`：missing=0，warning=3；输出保持脱敏。
-- `db:smoke`：真实 Neon/PostgreSQL 连接通过；完整 smoke 93 checks passed。
+- `db:smoke`：真实 Neon/PostgreSQL 连接通过；完整 smoke 94 checks passed。
 - C 盘可视化目录无项目产物；npm audit cache 使用项目内 `.npm-cache`。
 
 ## 真实配置与部署复核
@@ -178,7 +178,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M80 主动回响重复生成门禁：smoke 覆盖调度器保存站内草稿后，在同一 `now` 再次执行不会立刻重复生成或保存草稿，并以已保存草稿作为下一次候选时间锚点。
 - M81 手动记忆输入边界补强：smoke 覆盖手动创建记忆保留 `sourceMessageId` 链接，未知 `sourceMessageId` 与空白 `content` 返回稳定 400，且不写入悬挂/空 pending 记忆。
 - M82 记忆编辑空内容护栏：`PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；smoke 覆盖拒绝后保留原记忆内容，不把 active/pending 记忆覆盖为空。
-- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案稳定，且页面不回显完整 key；当前 E2E 基线 15 tests。
+- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案和 diagnostic 前端脱敏稳定，且页面不回显完整 key、Base URL、Bearer、prompt、rawPayload 或 stack；当前 E2E 基线 15 tests。
 - M84 聊天消息输入错误边界：`POST /api/conversations/:id/messages` 空白内容返回稳定 400；`regenerate` 拒绝用户消息并返回稳定文案，不透传异常对象。
 - M85 导入错误恢复 E2E 覆盖：主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复，确认友好错误、导入按钮不可用，并可重新选择有效 `.jsonl` 文件继续导入候选。
 - M86 关系对象校验错误边界：`POST/PATCH /api/companions` 对空名称、空语气、非法关系类型返回稳定白名单 400；非法关系不会创建记录，失败编辑不会部分写入其他字段。
@@ -191,7 +191,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M93 语音转写元数据边界：STT 输入拒绝异常文件名、语言标签和过长 mock 文本，错误响应不回显 Bearer、prompt、raw payload 或用户配置。
 - M94 发布候选文档口径同步：README、部署、QA、PR 草稿、handoff 和 Taskbook 同步当前 smoke checks / 13 E2E tests、`qa:logging`、Neon-first PostgreSQL、TryAnotherOne compatible、BYOK 与 `VOICE_PROVIDER=shared-llm` 口径。
 - M95 工作台错误展示脱敏：聊天、记忆、主动回响、导入、语音和用量看板错误展示统一走前端脱敏；E2E 覆盖调用看板错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时不显示原文。
-- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败、fetch 网络失败和 compatible 模型列表异常响应诊断，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 93 checks。
+- M96 模型连接失败隐私覆盖：`/api/me/llm-test` 与 `/api/me/llm-models` 覆盖 URL 构造失败、供应商 HTTP 失败、fetch 网络失败和 compatible 模型列表异常响应诊断，响应不回显 key、Bearer、endpoint/Base URL、prompt、rawPayload、stack 或底层网络原文；当前 smoke 基线 94 checks。
 - M97 API 私有缓存边界：新增 `privateJson()`，用户数据、聊天、记忆、关系、导出、配置、模型、用量、语音、主动回响与安全检查 API 统一返回 `Cache-Control: private, no-store` 等响应头；smoke 覆盖代表性接口缓存头。
 - M98 签名 session cookie：本地 email session cookie 从裸 `userId` 改为 HMAC 签名的 `v1.<payload>.<signature>`；生产环境要求 `SESSION_COOKIE_SECRET` 或 `USER_KEY_VAULT_SECRET`；smoke 覆盖伪造裸 userId cookie 不可越权、登录/登出/删号 cookie 属性和清理。
 - M99 Session 签名 secret 门禁：运行时、设置页配置状态和 `env:readiness --strict` 统一检查 session 签名来源；生产环境要求 `SESSION_COOKIE_SECRET` 或可复用的强 `USER_KEY_VAULT_SECRET` 至少 32 bytes，短 secret 会失败或显示 warning。
@@ -229,6 +229,8 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M131 BYOK 浏览器闭环门禁：新增 fake-compatible 浏览器 E2E，覆盖设置页保存 BYOK key/baseUrl/model、测试连接走 chat completion、创建关系发送消息、provider 收到 Bearer，页面显示真实 provider 回复且不泄露 key/Base URL；E2E 改为单 worker 保障 memory/fake provider 稳定。
 - M132 生产调度部署门禁复核：新增 `npm run qa:proactive-cron`，复核 `vercel.json` 每分钟 GET cron、Bearer/`CRON_SECRET` alias、GET 默认 `dryRun:false`、`limit`/`maxDrafts` 护栏和部署文档；`verify:deploy` 现在会在目标环境同时跑严格 readiness、cron 合同、Prisma validate 和 DB smoke。
 - M133 非 compatible provider hermetic 覆盖：新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload、默认官方 base URL 不误用 compatible `LLM_BASE_URL`，以及供应商错误诊断脱敏；进入 verify-local 与 CI。
+- M134 主动回响调度性能护栏：all-user scheduler 将规范化 `limit` 下推到 repository/Prisma `take`，同一用户 profile 读取复用缓存，达到 `maxDrafts` 后停止继续扫描；smoke 新增早停覆盖，真实 DB 下原 100 对象 clamp 路径从约 61 秒降到约 2.3 秒。
+- M135 设置页模型列表 diagnostic 前端脱敏：模型列表失败时前端会对 diagnostic 再执行本地脱敏；E2E 覆盖异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 和 stack 时页面只显示安全占位；当前全量 E2E 基线 15 tests。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

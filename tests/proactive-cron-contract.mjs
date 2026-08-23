@@ -129,11 +129,32 @@ function checkSchedulerGuards() {
     "scheduler should clamp limit to the supported range"
   );
   assert(
+    scheduler.includes("listCompanionsForProactive(input.userId, limit)"),
+    "scheduler should push the normalized scan limit into the repository query"
+  );
+  assert(
+    scheduler.includes("if (remainingDrafts <= 0)") && scheduler.includes("break;"),
+    "scheduler should stop processing companions after the draft cap is reached"
+  );
+  assert(
+    scheduler.includes("profileByUserId") && scheduler.includes("readCachedUserProfile"),
+    "scheduler should reuse user profile reads across all-user runs"
+  );
+  assert(
     scheduler.includes("Math.min(MAX_SCHEDULER_MAX_DRAFTS, Math.max(1, Math.floor(value)))"),
     "scheduler should clamp maxDrafts to the supported range"
   );
 
-  pass("proactive scheduler clamps limit/maxDrafts and defaults safely");
+  const repositoryTypes = readText("src/lib/renewal/types.ts");
+  const prismaRepository = readText("src/lib/renewal/prisma-repository.ts");
+  assert(
+    repositoryTypes.includes("listCompanionsForProactive(userId?: string, limit?: number)") &&
+      prismaRepository.includes("async listCompanionsForProactive(userId?: string, limit?: number)") &&
+      prismaRepository.includes("...(limit ? { take: limit } : {})"),
+    "Prisma proactive companion scans should apply the scheduler limit in the database query"
+  );
+
+  pass("proactive scheduler clamps limit/maxDrafts, pushes scan limits down, and stops after draft caps");
 }
 
 function checkCronAliasReadiness() {

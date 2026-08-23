@@ -169,6 +169,8 @@ test("settings redacts provider values after credential delete failure", async (
 
 test("settings reads provider models and keeps API key private", async ({ page }) => {
   const fakeApiKey = `e2e-model-list-key-${Date.now()}-5678`;
+  const fakeBaseUrl = "https://api.tryanotherone.com/v1";
+  const fakeBearer = `Bearer ${fakeApiKey}`;
   let modelListRequests = 0;
 
   await page.route("**/api/me/llm-models", async (route) => {
@@ -191,20 +193,34 @@ test("settings reads provider models and keeps API key private", async ({ page }
       return;
     }
 
+    if (modelListRequests === 2) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 400,
+        body: JSON.stringify({
+          error: "读取模型列表超时，请稍后再试。",
+          errorType: "provider_timeout",
+          retryable: true
+        })
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       status: 400,
       body: JSON.stringify({
-        error: "读取模型列表超时，请稍后再试。",
-        errorType: "provider_timeout",
-        retryable: true
+        error: "模型供应商返回格式不兼容。",
+        errorType: "invalid_provider_response",
+        retryable: false,
+        diagnostic: `${fakeBearer} via ${fakeBaseUrl} prompt rawPayload stack at Object.test (C:\\secret\\provider.ts:1:1)`
       })
     });
   });
 
   await loginAsFreshUser(page, "settings-models");
 
-  await page.getByLabel("Base URL").fill("https://api.tryanotherone.com/v1");
+  await page.getByLabel("Base URL").fill(fakeBaseUrl);
   await page.getByLabel("API Key").fill(fakeApiKey);
   await page.getByRole("button", { name: "读取模型列表" }).click();
 
@@ -223,7 +239,16 @@ test("settings reads provider models and keeps API key private", async ({ page }
   await expect(page.getByRole("button", { name: "重试读取" })).toBeVisible();
   await expect(page.getByRole("button", { name: "改为手动填写" })).toBeVisible();
   await expect(page.getByText(fakeApiKey)).toHaveCount(0);
-  expect(modelListRequests).toBe(2);
+
+  await page.getByRole("button", { name: "重试读取" }).click();
+  await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
+  await expect(page.getByText("[已隐藏 Base URL]")).toBeVisible();
+  await expect(page.getByText("[已隐藏调试字段]")).toBeVisible();
+  await expect(page.getByText("[已隐藏堆栈]")).toBeVisible();
+  await expect(page.getByText(fakeApiKey)).toHaveCount(0);
+  await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
+  await expect(page.getByText(fakeBearer)).toHaveCount(0);
+  expect(modelListRequests).toBe(3);
 });
 
 test("settings export downloads a redacted JSON snapshot", async ({ page }) => {

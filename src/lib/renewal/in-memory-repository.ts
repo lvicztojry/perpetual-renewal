@@ -212,13 +212,14 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       .map((companion) => toProfile(store, companion));
   }
 
-  async listCompanionsForProactive(userId?: string) {
+  async listCompanionsForProactive(userId?: string, limit?: number) {
     const store = getStore();
     return store.companions
       .filter(
         (companion) =>
           companion.proactiveMessagesEnabled && (!userId || companion.userId === userId)
       )
+      .slice(0, limit)
       .map((companion) => toProfile(store, companion));
   }
 

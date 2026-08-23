@@ -88,7 +88,7 @@ npm run e2e
 npm run verify:release
 ```
 
-需要定位单项问题时，可以按顺序拆开执行 `typecheck`、`lint`、`docs:check`、`git:boundary`、`secrets:check`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`qa:response`、`qa:voice`、`pwa:check`、`env:readiness`、`prisma:validate`、`db:smoke`、`smoke`、`build`、`e2e` 和项目内 cache 的 high-level audit。
+需要定位单项问题时，可以按顺序拆开执行 `typecheck`、`lint`、`docs:check`、`git:boundary`、`secrets:check`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`qa:response`、`qa:providers`、`qa:voice`、`qa:proactive-cron`、`pwa:check`、`env:readiness`、`prisma:validate`、`db:smoke`、`smoke`、`build`、`e2e` 和项目内 cache 的 high-level audit。
 
 本地真实 PostgreSQL 验收：
 
@@ -151,7 +151,7 @@ npm run db:smoke
 | 数据导出 | 设置页数据与隐私 | 下载 JSON 快照，确认不包含用户 API key、Base URL 或 vault 加密字段 |
 | 账号删除 | 设置页危险区 | 错误确认短语无法点击；正确输入“删除我的账号”后清理 session 并回到登录页 |
 | 设置页响应式 | 320px 与 768px 宽视口 | 基础资料、模型供应商、导出、配置状态和主动频率设置保持可见可用，无横向溢出 |
-| 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误且不泄露完整 key |
+| 模型列表读取 | 设置页模型供应商 | 保存用户 API key 后可读取兼容中转站模型列表、点击模型回填输入框；读取失败显示稳定错误，diagnostic 也会前端脱敏，不泄露完整 key、Base URL、Bearer、prompt、rawPayload 或 stack |
 | BYOK 浏览器闭环 | 设置页 + 工作台聊天 | 保存用户 API key/Base URL/model 后测试连接会调用 `/chat/completions`；创建关系并发送消息后页面显示 fake provider 回复；provider 收到 Bearer，页面不显示 key 或 Base URL |
 | 工作台错误脱敏 | 调用看板错误态 | 后端错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时，工作台只显示脱敏占位，不展示敏感原文 |
 | 语音 fallback 展示脱敏 | 朗读最近回复 | 语音合成成功但回退到 mock/provider fallback 时，页面展示的 fallback reason 先脱敏；Bearer、API key、Base URL、rawPayload 和 stack 不展示原文 |

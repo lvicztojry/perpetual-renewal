@@ -121,7 +121,9 @@
 ```bash
 npm run secrets:check
 npm run qa:response
+npm run qa:providers
 npm run qa:voice
+npm run qa:proactive-cron
 npm run smoke
 npm run e2e
 ```

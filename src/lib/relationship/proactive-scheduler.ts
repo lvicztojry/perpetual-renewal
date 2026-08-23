@@ -1,4 +1,4 @@
-import { getUserProfile } from "@/lib/users/profile";
+import { getUserProfile, type UserProfile } from "@/lib/users/profile";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type {
   CompanionProfile as RenewalCompanionProfile,
@@ -53,8 +53,9 @@ export async function runProactiveScheduler(
   const dryRun = input.dryRun ?? true;
   const limit = normalizeLimit(input.limit);
   const maxDrafts = normalizeMaxDrafts(input.maxDrafts);
-  const companions = (await repository.listCompanionsForProactive(input.userId)).slice(0, limit);
+  const companions = await repository.listCompanionsForProactive(input.userId, limit);
   const results: ProactiveSchedulerResult["results"] = [];
+  const profileByUserId = new Map<string, Promise<UserProfile>>();
   let generatedCount = 0;
   let savedCount = 0;
   let eligibleCount = 0;
@@ -62,18 +63,10 @@ export async function runProactiveScheduler(
   for (const companion of companions) {
     const remainingDrafts = maxDrafts - generatedCount;
     if (remainingDrafts <= 0) {
-      results.push({
-        companionId: companion.id,
-        companionName: companion.name,
-        due: false,
-        generatedCount: 0,
-        savedCount: 0,
-        reason: "本轮主动回响生成上限已达到。"
-      });
-      continue;
+      break;
     }
 
-    const profile = await getUserProfile(companion.userId);
+    const profile = await readCachedUserProfile(profileByUserId, companion.userId);
     const proactiveEnabled = companion.proactiveMessagesEnabled && profile.proactiveMessagesEnabled;
 
     if (!proactiveEnabled) {
@@ -173,14 +166,24 @@ export async function runProactiveScheduler(
     dryRun,
     scope: input.userId ? "current-user" : "all",
     persistence: repository.persistence,
-    scannedCount: companions.length,
+    scannedCount: results.length,
     eligibleCount,
     generatedCount,
     savedCount,
-    skippedCount: companions.length - eligibleCount,
+    skippedCount: results.length - eligibleCount,
     maxDrafts,
     results
   };
+}
+
+function readCachedUserProfile(cache: Map<string, Promise<UserProfile>>, userId: string) {
+  let profile = cache.get(userId);
+  if (!profile) {
+    profile = getUserProfile(userId);
+    cache.set(userId, profile);
+  }
+
+  return profile;
 }
 
 function normalizeLimit(value: number | undefined) {

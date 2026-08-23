@@ -375,6 +375,7 @@ npm run env:secrets
 - [ ] TryAnotherOne 模型列表通过用户 vault 或服务端 env key 读取；模型名保存为配置，不保存 key 原文。
 - [ ] 设置页“测试连接”通过 `POST /api/me/llm-test` 复用用户 vault 或服务端 env key，执行低 token chat completion 探针；无 key 或无模型名时返回可预测失败，响应不包含 API key、Base URL 原文、prompt 或供应商 raw payload。
 - [ ] `npm run qa:real-provider:fake` 通过，确认本地 fake-compatible provider 能驱动 BYOK 联调脚本逻辑；该结果不等于真实供应商通过。
+- [ ] `npm run qa:providers` 通过，确认 Anthropic、Gemini、OpenAI Responses 等非 compatible adapter 的鉴权、payload、默认 base URL 隔离和错误脱敏仍可用。
 - [ ] `npm run qa:voice` 通过，确认 shared-LLM 语音 fake-compatible STT/TTS、Bearer、模型 fallback、用户 vault 优先和失败脱敏仍可用。
 - [ ] 可选执行 `npm run qa:real-provider` 做真实 compatible BYOK 目标联调；仅在显式设置 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量时运行，不写入默认 CI、`verify:pr` 或发布门禁。
 - [ ] 设置页“配置状态”重新检查后，LLM key/model/baseUrl 的状态与实际配置一致；缺失项只显示下一步建议，不显示用户 key、服务端 env key 或 Base URL 原文。
@@ -401,7 +402,9 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:providers
 npm run qa:voice
+npm run qa:proactive-cron
 npm run qa:real-provider:fake
 npm run pwa:check
 npm run prisma:validate
@@ -420,7 +423,7 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 - [ ] `secrets:check` 通过，且没有把真实 API key、Bearer token、数据库密码、vault secret 写进仓库。
 - [ ] `npm --cache .\.npm-cache audit --audit-level=high` 通过，或已记录明确的不可利用原因和升级计划。
-- [ ] `build`、`smoke`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`qa:response`、`qa:voice` 通过。
+- [ ] `build`、`smoke`、`qa:samples`、`qa:prompt`、`qa:imports`、`qa:vault`、`qa:logging`、`qa:response`、`qa:providers`、`qa:voice`、`qa:proactive-cron` 通过。
 - [ ] 如本轮涉及前端交互，`npm run e2e` 也应通过。
 
 ### 6. Incident Response Before Push
@@ -474,7 +477,9 @@ npm run qa:imports
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:providers
 npm run qa:voice
+npm run qa:proactive-cron
 npm run pwa:check
 npm run env:readiness
 npm run prisma:validate
