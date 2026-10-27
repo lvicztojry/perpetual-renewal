@@ -129,7 +129,7 @@ function checkSchedulerGuards() {
     "scheduler should clamp limit to the supported range"
   );
   assert(
-    scheduler.includes("listCompanionsForProactive(input.userId, limit)"),
+    scheduler.includes("listCompanionsForProactive(input.userId, limit, cursor)"),
     "scheduler should push the normalized scan limit into the repository query"
   );
   assert(
@@ -148,8 +148,8 @@ function checkSchedulerGuards() {
   const repositoryTypes = readText("src/lib/renewal/types.ts");
   const prismaRepository = readText("src/lib/renewal/prisma-repository.ts");
   assert(
-    repositoryTypes.includes("listCompanionsForProactive(userId?: string, limit?: number)") &&
-      prismaRepository.includes("async listCompanionsForProactive(userId?: string, limit?: number)") &&
+    repositoryTypes.includes("listCompanionsForProactive(userId?: string, limit?: number, afterId?: string)") &&
+      prismaRepository.includes("async listCompanionsForProactive(userId?: string, limit?: number, afterId?: string)") &&
       prismaRepository.includes("...(limit ? { take: limit } : {})"),
     "Prisma proactive companion scans should apply the scheduler limit in the database query"
   );
@@ -166,6 +166,11 @@ function checkCronAliasReadiness() {
       DATABASE_URL_UNPOOLED: "",
       USER_KEY_VAULT_SECRET: STRONG_SECRET,
       SESSION_COOKIE_SECRET: STRONG_SECRET,
+      AUTH_APP_URL: "https://renewal.example.invalid",
+      AUTH_MAIL_FROM: "sender@example.invalid",
+      AUTH_MAIL_TRANSPORT: "http",
+      AUTH_MAIL_API_URL: "https://mail.example.invalid/send",
+      AUTH_MAIL_API_KEY: "placeholder-mail-test-key",
       PROACTIVE_CRON_SECRET: "",
       CRON_SECRET: STRONG_SECRET,
       LLM_PROVIDER: "compatible",

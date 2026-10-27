@@ -2,7 +2,19 @@
 
 ## 可重复执行命令
 
+2026-10-26 主控已确认 lint/typecheck/build、E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端与 SMTP 33 项通过；16.4.3 升级后 audit 为 0 vulnerabilities。完整 memory smoke 修正 zh-CN→zh fixture 后复验待结果。真实 PostgreSQL 集成在 CREATE SCHEMA 因 database_unreachable 失败，未创建 schema、未执行迁移；严格 readiness 缺新认证邮件配置，真实邮件与目标迁移待验证。
+
 核心 smoke：
+
+本轮三个新增自动门禁已进入 verify-local 和 CI：
+
+```bash
+npm run qa:auth
+npm run qa:voice-language
+npm run qa:proactive-scheduler
+```
+
+可选 `npm run qa:auth:postgres` 仅在显式 `AUTH_DATABASE_QA=1` 后运行，不进默认 CI；当前因外部数据库不可达尚未执行迁移，恢复后重跑。QQ 邮箱授权码及 PowerShell 配置示例见 [AUTH.md](AUTH.md)。
 
 ```bash
 npm run smoke
@@ -135,11 +147,11 @@ npm run db:smoke
 
 ## 浏览器 E2E 覆盖范围
 
-当前脚本位于 `tests/e2e/relationship-flow.spec.ts`、`tests/e2e/settings-privacy.spec.ts` 与 `tests/e2e/byok-provider-flow.spec.ts`，覆盖一条可演示主链路、设置/隐私关键链路和 BYOK fake-compatible 浏览器闭环：
+当前六个 spec 位于 `tests/e2e/relationship-flow.spec.ts`、`tests/e2e/settings-privacy.spec.ts`、`tests/e2e/byok-provider-flow.spec.ts`、`tests/e2e/memory-isolation.spec.ts`、`tests/e2e/conversation-isolation.spec.ts` 与 `tests/e2e/password-auth.spec.ts`，覆盖演示主链路、设置/隐私、BYOK fake-compatible、用户/会话隔离及密码认证 UI；10 月全量 E2E 32 项已由主控确认通过：
 
 | 链路 | 覆盖点 | 自动校验 |
 | --- | --- | --- |
-| 登录 | `/login` email session | 填写邮箱/昵称后进入首页，避免登录页 hydration 状态误判 |
+| 登录 | `/login` 默认邮箱/密码；显式测试夹具可用 `AUTH_MODE=local-email` | 默认需已验证账号；旧账号走原邮箱恢复；邮箱/昵称演示登录仅为非生产测试 |
 | 关系创建 | 创建关系对象表单 | 自定义关系对象创建后进入对应聊天页 |
 | 聊天 | 消息输入与发送 | 用户消息保存，AI 回复或保存状态可见，provider/model 标识可见 |
 | 记忆确认 | 记忆管理视图 | pending 记忆可确认，确认后出现 `active` 状态 |
@@ -156,7 +168,22 @@ npm run db:smoke
 | 工作台错误脱敏 | 调用看板错误态 | 后端错误夹带 Bearer、API key、Base URL、prompt、rawPayload、stack 时，工作台只显示脱敏占位，不展示敏感原文 |
 | 语音 fallback 展示脱敏 | 朗读最近回复 | 语音合成成功但回退到 mock/provider fallback 时，页面展示的 fallback reason 先脱敏；Bearer、API key、Base URL、rawPayload 和 stack 不展示原文 |
 
-当前基线：`npm run e2e` 已通过 15 tests。
+M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；本轮新增会话隔离和认证 UI 测试须另跑，源码数量不等于通过数量。
+
+2026-10-26 当前基线：Playwright 已通过 32 tests、6 个 spec（原 15 + 会话隔离 1 + 密码认证 UI 16）；文档计数已使用 Playwright `--list` JSON，正确展开参数化用例。认证 UI 使用拦截响应，不能代替真实数据库和邮件收件验收。
+
+### 10 月增量验收
+
+| 候选 | 必验行为 | 结果 |
+| --- | --- | --- |
+| M136 会话隔离 | 关系切换后草稿独立，延迟历史/回复不覆盖当前关系，切回原关系能读到所属回复 | 已验证：全量 E2E 32 项通过 |
+| M137 转写语言 | `zh-CN` 作为 `zh` 送往 compatible STT；fake-provider 回归与真实供应商结果分列 | 已验证：本地语音语言 16 项通过；真实供应商另验 |
+| M138 调度公平 | 超过单批 limit 时分批续扫，跨新进程读取 DB checkpoint；maxDrafts 早停、禁用/未到期对象、游标对象被删/停用和末尾回绕；dry-run 不推进 checkpoint | 已验证：本地调度 20 项通过；目标迁移待验证 |
+| M139 密码认证 | 新注册验证前不能登录；邮箱/密码错误统一提示；旧 email-only 用户通过原邮箱重置后保留数据；令牌过期/复用拒绝；重置后旧 cookie 失效；生产拒绝 local-email | 本地后端与 UI 已通过；真实 PostgreSQL 集成因数据库不可达待重跑 |
+| M139 邮件与页面 | 验证/重置 fragment token 通过请求体提交；SMTP 465 TLS/587 STARTTLS、HTTP 网关失败处理；fake transport 与真实收件分别记录 | 本地 SMTP 33 项与 UI 回归通过；真实 QQ SMTP/HTTP 收件待验证 |
+| M140 依赖安全 | 更新依赖后重跑 high severity audit、typecheck、构建、smoke 与浏览器回归 | audit 零漏洞、lint/typecheck/build/E2E 通过；完整 memory smoke 待结果 |
+
+默认 mock/memory 测试需显式非生产 `AUTH_MODE=local-email`；它只能证明演示夹具链路。密码认证测试须覆盖凭证/令牌持久化与会话撤销；真实邮件收件、目标新增迁移须另验。
 
 默认浏览器 E2E 不覆盖真实数据库、真实 LLM provider 和完整视觉回归；这些仍由 smoke、db smoke、targeted existing-server E2E、人工 QA 或后续用例补齐。需要真实供应商联调时，结论按“用户是否能在设置页保存 key、读取或手动填写模型、完成连接测试并得到一次聊天/语音/主动回响结果”记录，不和 `npm run e2e` 的 mock/local 基线混用。
 

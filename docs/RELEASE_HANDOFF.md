@@ -99,11 +99,26 @@
 - M133 scope: `npm run qa:providers` hermetically covers Anthropic, Gemini, and OpenAI Responses adapter auth headers, payload shapes, default official base URLs avoiding compatible `LLM_BASE_URL`, and sanitized provider failure diagnostics.
 - M134 scope: proactive all-user scheduling pushes normalized scan limits into repository/Prisma queries, caches repeated user profile reads, and stops scanning once `maxDrafts` is reached; smoke covers the early-stop path.
 - M135 scope: settings model-list failure diagnostic text is redacted again on the client, with E2E coverage for Bearer, API key, Base URL, prompt, rawPayload and stack leakage attempts.
+- M136 scope: per-conversation draft, delayed-history and in-flight reply isolation; main verified the 32-case E2E suite on Next.js 16.4.3.
+- M137 scope: normalize transcription locale zh-CN to zh; 16 local language checks passed, with live-provider validation separate.
+- M138 scope: durable checkpoint and keyset cursor resume all-user scans across cold starts; 20 local checks passed, target migration pending.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
 
 ## Latest Pre-push Verification
+
+2026-10-26 验证范围（M136–M138 已集成本地回归；M139、M140 仍有待验项）：
+
+| 候选 | 范围 | 验证状态 |
+| --- | --- | --- |
+| M136 | Conversation switching: isolate per-conversation drafts, delayed history and in-flight replies | 已验证：全量 E2E 32 项通过 |
+| M137 | Normalize transcription locale `zh-CN` to `zh` | 已验证：本地语音语言 16 项通过；真实供应商另验 |
+| M138 | Durable DB checkpoint and keyset cursor prevent all-user scan starvation across serverless cold starts | 已验证：本地调度 20 项通过；目标迁移待验证 |
+| M139 | Default self-hosted password login, verified registration, mailbox recovery for legacy email-only users, fragment tokens, expiring/revocable v2 password sessions; SMTP or HTTP mail | 本地后端、SMTP 33 项与 UI 通过；真实 PostgreSQL 集成 database_unreachable，未创建 schema/执行迁移；真实投递与目标迁移待验证 |
+| M140 | Next.js/eslint-config-next and transitive dependency security refresh | 16.4.3 升级后 audit 零漏洞、lint/typecheck/build/E2E 通过；完整 memory smoke 待结果 |
+
+本轮 lint/typecheck/build 与上述本地回归已通过；严格 readiness 仍缺 AUTH_MAIL 认证邮件配置，真实 QQ SMTP/HTTP 邮件、目标迁移未验证，认证 PostgreSQL 集成须待数据库可达后重跑。完整 memory smoke 正在修正语音 fixture 并复跑。下列 2026-08-23 结果为历史记录，不替代本轮结果。
 
 Last updated: 2026-08-23
 
@@ -128,7 +143,7 @@ Last updated: 2026-08-23
 - `npm run prisma:validate`: passed.
 - `npm run db:smoke`: passed against the real Neon/PostgreSQL configuration.
 - `npm run build`: passed.
-- `npm run e2e`: passed, 15 tests.
+- M135 historical `npm run e2e`: passed, 15 tests (2026-08-23).
 - `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
 - `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
 - M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
@@ -192,6 +207,9 @@ npm run qa:logging
 npm run qa:response
 npm run qa:providers
 npm run qa:voice
+npm run qa:voice-language
+npm run qa:auth
+npm run qa:proactive-scheduler
 npm run qa:proactive-cron
 npm run qa:real-provider:fake
 npm run env:readiness
@@ -207,6 +225,10 @@ CI intentionally does not require real `DATABASE_URL`, real LLM key, E2E browser
 Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, the proactive cron contract gate, Prisma validation, and DB smoke, so local success does not replace target-environment verification.
 
 ## Production Configuration To Mirror
+
+- Auth: default email/password; registration requires email verification. Legacy email-only accounts must recover through their mailbox; `AUTH_MODE=local-email` is permitted only for explicit nonproduction tests.
+- Mail: `AUTH_APP_URL`, `AUTH_MAIL_FROM`, `AUTH_MAIL_TRANSPORT=smtp` and `AUTH_SMTP_HOST/PORT/USER/PASSWORD`; personal mailbox app-password tests need no owned domain. Optional HTTP uses `AUTH_MAIL_TRANSPORT=http` and `AUTH_MAIL_API_URL/KEY`. Live SMTP/HTTP inbox delivery and public-user deliverability remain unverified.
+- Apply the new auth and scheduler checkpoint migrations in the target database before deploy verification. v2 password sessions must expire server-side and be revoked after password reset; verification/reset links carry tokens in URL fragments.
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.

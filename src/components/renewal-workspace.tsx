@@ -271,6 +271,9 @@ export function RenewalWorkspace() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const activeConversationRef = useRef<string | null>(null);
+  const messageRevisionRef = useRef(0);
+  const draftsByConversationRef = useRef(new Map<string, string>());
 
   const activeCompanion = useMemo(
     () => companions.find((companion) => companion.id === activeId) ?? companions[0],
@@ -280,6 +283,7 @@ export function RenewalWorkspace() {
     () => [...messages].reverse().find((message) => message.role === "assistant"),
     [messages]
   );
+  const activeConversationId = activeCompanion?.conversationId;
   const proactiveDraftStats = useMemo(
     () =>
       proactiveDrafts.reduce<Record<ProactiveDraftFilter, number>>(
@@ -332,6 +336,7 @@ export function RenewalWorkspace() {
         setCompanions(payload.companions);
         setPersistenceNotice(databaseStatus?.status === "missing" ? databaseStatus : null);
         const first = payload.companions[0];
+        activeConversationRef.current = first?.conversationId ?? null;
         setActiveId(first?.id ?? null);
         setForm(first ? toForm(first) : null);
         setStatus(
@@ -357,20 +362,22 @@ export function RenewalWorkspace() {
 
   useEffect(() => {
     let mounted = true;
-    if (!activeCompanion) return;
+    if (!activeConversationId) return;
+    const conversationId = activeConversationId;
+    const revision = messageRevisionRef.current;
 
     async function loadMessages() {
       try {
-        const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
+        const response = await fetch(`/api/conversations/${conversationId}/messages`, {
           cache: "no-store"
         });
         if (!response.ok) {
           throw new Error(await readResponseError(response, "消息加载失败。"));
         }
         const payload = (await response.json()) as { messages: MessageRecord[] };
-        if (mounted) setMessages(payload.messages);
+        if (mounted && revision === messageRevisionRef.current) setMessages(payload.messages);
       } catch (loadError) {
-        if (mounted) {
+        if (mounted && revision === messageRevisionRef.current) {
           setError(toSafeWorkspaceError(loadError, "消息加载失败。"));
         }
       }
@@ -380,7 +387,7 @@ export function RenewalWorkspace() {
     return () => {
       mounted = false;
     };
-  }, [activeCompanion]);
+  }, [activeConversationId]);
 
   useEffect(() => {
     const companionId = activeCompanion?.id;
@@ -484,6 +491,18 @@ export function RenewalWorkspace() {
   ]);
 
   function selectCompanion(companion: CompanionProfile) {
+    if (activeConversationRef.current === companion.conversationId) return;
+    if (activeConversationRef.current) {
+      draftsByConversationRef.current.set(activeConversationRef.current, draft);
+    }
+    activeConversationRef.current = companion.conversationId;
+    messageRevisionRef.current += 1;
+    setMessages([]);
+    setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
+    setProactiveDrafts([]);
+    setProactiveSafety(null);
+    setProactivePersistence(null);
+    setVoicePreview(null);
     setActiveId(companion.id);
     setForm(toForm(companion));
     setInspectorMode("profile");
@@ -565,12 +584,20 @@ export function RenewalWorkspace() {
       }
       const payload = (await response.json()) as { companion: CompanionProfile };
       setCompanions((current) => [payload.companion, ...current]);
+      if (activeConversationRef.current) {
+        draftsByConversationRef.current.set(activeConversationRef.current, draft);
+      }
+      activeConversationRef.current = payload.companion.conversationId;
+      messageRevisionRef.current += 1;
       setActiveId(payload.companion.id);
       setForm(toForm(payload.companion));
       setCreateForm(createRelationshipObjectDraft("CUSTOM"));
       setInspectorMode("profile");
       setMessages([]);
       setDraft("");
+      setProactiveDrafts([]);
+      setProactiveAutoCheck(null);
+      setVoicePreview(null);
       setStatus("新关系对象已创建，可以开始聊天");
     } catch (createError) {
       const message = toSafeWorkspaceError(createError, "新建关系失败。");
@@ -606,6 +633,8 @@ export function RenewalWorkspace() {
       setCompanions((current) => {
         const nextCompanions = current.filter((companion) => companion.id !== activeCompanion.id);
         const nextActive = nextCompanions[0] ?? null;
+        activeConversationRef.current = nextActive?.conversationId ?? null;
+        messageRevisionRef.current += 1;
         setActiveId(nextActive?.id ?? null);
         setForm(nextActive ? toForm(nextActive) : null);
         return nextCompanions;
@@ -629,6 +658,7 @@ export function RenewalWorkspace() {
     event.preventDefault();
     const content = draft.trim();
     if (!content || !activeCompanion || isSending) return;
+    const conversationId = activeCompanion.conversationId;
 
     setIsSending(true);
     setError(null);
@@ -651,11 +681,6 @@ export function RenewalWorkspace() {
         assistantError?: { message: string; provider?: string; model?: string; status?: number };
       };
 
-      setMessages((current) => [
-        ...current,
-        payload.userMessage,
-        ...(payload.assistantMessage ? [payload.assistantMessage] : [])
-      ]);
       setCompanions((current) =>
         current.map((companion) =>
           companion.id === activeCompanion.id
@@ -669,6 +694,14 @@ export function RenewalWorkspace() {
             : companion
         )
       );
+      draftsByConversationRef.current.delete(conversationId);
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
+      setMessages((current) => {
+        const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
+        const incomingIds = new Set(incoming.map((message) => message.id));
+        return [...current.filter((message) => !incomingIds.has(message.id)), ...incoming];
+      });
       setDraft("");
       setStatus(
         payload.completion
@@ -679,7 +712,9 @@ export function RenewalWorkspace() {
         setError(`回复生成失败：${redactWorkspaceError(payload.assistantError.message)}`);
       }
     } catch (sendError) {
-      setError(toSafeWorkspaceError(sendError, "消息发送失败。"));
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(sendError, "消息发送失败。"));
+      }
     } finally {
       setIsSending(false);
     }
@@ -687,6 +722,7 @@ export function RenewalWorkspace() {
 
   async function regenerateMessage(messageId?: string) {
     if (!activeCompanion || !messageId || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
 
     setBusyMessageId(messageId);
     setError(null);
@@ -707,6 +743,8 @@ export function RenewalWorkspace() {
         throw new Error(payload.error ?? "重新生成失败。");
       }
 
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
       setMessages((current) =>
         current.map((message) =>
           message.id === payload.assistantMessage?.id ? payload.assistantMessage : message
@@ -718,7 +756,9 @@ export function RenewalWorkspace() {
           : "已重新生成"
       );
     } catch (regenerateError) {
-      setError(toSafeWorkspaceError(regenerateError, "重新生成失败。"));
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(regenerateError, "重新生成失败。"));
+      }
     } finally {
       setBusyMessageId(null);
     }
@@ -726,6 +766,7 @@ export function RenewalWorkspace() {
 
   async function deleteMessage(messageId: string) {
     if (!activeCompanion || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
 
     setBusyMessageId(messageId);
     setError(null);
@@ -743,10 +784,14 @@ export function RenewalWorkspace() {
         throw new Error(payload.error ?? "删除消息失败。");
       }
 
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
       setMessages((current) => current.filter((message) => message.id !== messageId));
       setStatus("消息已删除");
     } catch (deleteError) {
-      setError(toSafeWorkspaceError(deleteError, "删除消息失败。"));
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(deleteError, "删除消息失败。"));
+      }
     } finally {
       setBusyMessageId(null);
     }
@@ -754,6 +799,7 @@ export function RenewalWorkspace() {
 
   async function toggleMessageImportant(message: MessageRecord) {
     if (!activeCompanion || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
 
     setBusyMessageId(message.id);
     setError(null);
@@ -774,12 +820,16 @@ export function RenewalWorkspace() {
         throw new Error(payload.error ?? "重要消息更新失败。");
       }
 
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
       setMessages((current) =>
         current.map((item) => (item.id === payload.message?.id ? payload.message : item))
       );
       setStatus(isMessageImportant(payload.message) ? "已标记为重要消息" : "已取消重要标记");
     } catch (importantError) {
-      setError(toSafeWorkspaceError(importantError, "重要消息更新失败。"));
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(importantError, "重要消息更新失败。"));
+      }
     } finally {
       setBusyMessageId(null);
     }
@@ -925,6 +975,7 @@ export function RenewalWorkspace() {
 
   async function generateProactiveDrafts() {
     if (!activeCompanion) return;
+    const conversationId = activeCompanion.conversationId;
 
     setIsLoadingDrafts(true);
     setError(null);
@@ -956,6 +1007,7 @@ export function RenewalWorkspace() {
         throw new Error(payload.error ?? "主动回响生成失败。");
       }
 
+      if (activeConversationRef.current !== conversationId) return;
       setProactiveDrafts(payload.data ?? []);
       setProactiveDraftFilter("draft");
       setProactivePersistence(payload.persistence ?? "persisted");
@@ -970,6 +1022,7 @@ export function RenewalWorkspace() {
       );
       setStatus(payload.data?.length ? "主动回响草稿已生成" : "暂无可发送的主动回响草稿");
     } catch (draftError) {
+      if (activeConversationRef.current !== conversationId) return;
       const message = toSafeWorkspaceError(draftError, "主动回响生成失败。");
       setProactiveError(message);
       setProactiveAutoCheck(createProactiveAutoCheckStatus(`手动生成失败：${message}`));

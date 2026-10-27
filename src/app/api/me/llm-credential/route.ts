@@ -40,9 +40,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const session = await getCurrentSession();
-
   try {
+    const session = await getCurrentSession();
     const body = (await readJsonObject(request)) as CredentialRequest;
     const credential = await saveLlmCredential(session.userId, parseCredentialRequest(body));
     return privateJson({ credential });

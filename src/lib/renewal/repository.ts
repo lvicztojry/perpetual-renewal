@@ -41,10 +41,24 @@ class FallbackRenewalRepository implements RenewalRepository {
     );
   }
 
-  listCompanionsForProactive(userId?: string, limit?: number) {
+  listCompanionsForProactive(userId?: string, limit?: number, afterId?: string) {
     return this.run(
-      () => this.primary.listCompanionsForProactive(userId, limit),
-      () => this.fallback.listCompanionsForProactive(userId, limit)
+      () => this.primary.listCompanionsForProactive(userId, limit, afterId),
+      () => this.fallback.listCompanionsForProactive(userId, limit, afterId)
+    );
+  }
+
+  getProactiveSchedulerCheckpoint(scope: string) {
+    return this.run(
+      () => this.primary.getProactiveSchedulerCheckpoint!(scope),
+      () => this.fallback.getProactiveSchedulerCheckpoint!(scope)
+    );
+  }
+
+  setProactiveSchedulerCheckpoint(scope: string, cursor: string | null, expectedCursor: string | null) {
+    return this.run(
+      () => this.primary.setProactiveSchedulerCheckpoint!(scope, cursor, expectedCursor),
+      () => this.fallback.setProactiveSchedulerCheckpoint!(scope, cursor, expectedCursor)
     );
   }
 

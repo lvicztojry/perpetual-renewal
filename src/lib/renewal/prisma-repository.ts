@@ -52,6 +52,23 @@ type MessageUpdateInput = Parameters<RenewalRepository["updateMessage"]>[2];
 export class PrismaRenewalRepository implements RenewalRepository {
   readonly persistence = "prisma" as const;
 
+  async getProactiveSchedulerCheckpoint(scope: string) {
+    const rows = await prisma.$queryRaw<Array<{ cursor: string | null }>>`
+      SELECT "cursor" FROM "ProactiveSchedulerCheckpoint" WHERE "scope" = ${scope}
+    `;
+    return rows[0]?.cursor ?? null;
+  }
+
+  async setProactiveSchedulerCheckpoint(scope: string, cursor: string | null, expectedCursor: string | null) {
+    await prisma.$executeRaw`
+      INSERT INTO "ProactiveSchedulerCheckpoint" ("scope", "cursor", "updatedAt")
+      VALUES (${scope}, ${cursor}, CURRENT_TIMESTAMP)
+      ON CONFLICT ("scope") DO UPDATE
+      SET "cursor" = EXCLUDED."cursor", "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "ProactiveSchedulerCheckpoint"."cursor" IS NOT DISTINCT FROM ${expectedCursor}
+    `;
+  }
+
   async listCompanions(userId: string) {
     await ensureUser(userId);
 
@@ -64,17 +81,14 @@ export class PrismaRenewalRepository implements RenewalRepository {
     return companions.map(toCompanionProfile);
   }
 
-  async listCompanionsForProactive(userId?: string, limit?: number) {
-    if (userId) {
-      await ensureUser(userId);
-    }
-
+  async listCompanionsForProactive(userId?: string, limit?: number, afterId?: string) {
     const companions = await prisma.companion.findMany({
       where: {
         proactiveMessagesEnabled: true,
-        ...(userId ? { userId } : {})
+        ...(userId ? { userId } : {}),
+        ...(afterId !== undefined ? { id: { gt: afterId } } : {})
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { id: "asc" },
       ...(limit ? { take: limit } : {}),
       include: companionProfileInclude
     });

@@ -11,6 +11,7 @@ const child = spawn(
   {
     env: {
       ...process.env,
+      AUTH_MODE: "local-email",
       LLM_PROVIDER: "compatible",
       LLM_API_KEY: "",
       LLM_BASE_URL: "",

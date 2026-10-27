@@ -90,6 +90,48 @@ model User {
   safetyEvents             SafetyEvent[]
   modelUsageLogs           ModelUsageLog[]
   providerCredentials      ProviderCredential[]
+  authCredential           AuthCredential?
+  authRecoveryTokens       AuthRecoveryToken[]
+}
+
+model AuthCredential {
+  userId          String   @id
+  passwordHash    String
+  sessionVersion  String
+  emailVerifiedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Pending registration has no User until email proof. Reset also supports legacy users.
+model AuthRecoveryToken {
+  tokenHash    String   @id
+  purpose      String
+  userId       String?
+  email        String
+  nickname     String?
+  passwordHash String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([email, purpose])
+}
+
+model AuthRateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model ProactiveSchedulerCheckpoint {
+  scope     String   @id
+  cursor    String?
+  updatedAt DateTime @updatedAt
 }
 
 model Companion {

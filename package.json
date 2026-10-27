@@ -16,6 +16,11 @@
     "qa:response": "node tests/response-safety-smoke.mjs",
     "qa:providers": "node tests/provider-adapters-smoke.mjs",
     "qa:voice": "node tests/voice-shared-llm-smoke.mjs",
+    "qa:voice-language": "node tests/voice-transcription-language.mjs",
+    "qa:auth": "node tests/auth-backend.mjs && node tests/auth-smtp.mjs",
+    "qa:auth:postgres": "node tests/auth-postgres.mjs",
+    "qa:auth-access": "node tests/auth-access.mjs",
+    "qa:proactive-scheduler": "node tests/proactive-scheduler-pagination.mjs",
     "qa:proactive-cron": "node tests/proactive-cron-contract.mjs",
     "qa:real-provider": "node tests/qa-real-provider.mjs",
     "qa:real-provider:fake": "node tests/qa-real-provider-fake.mjs",
@@ -44,7 +49,8 @@
   "dependencies": {
     "@prisma/client": "6.12.0",
     "lucide-react": "1.33.0",
-    "next": "16.3.1",
+    "next": "16.4.3",
+    "nodemailer": "10.2.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -54,7 +60,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.4.3",
     "prisma": "6.12.0",
     "typescript": "6.0.3"
   }

@@ -3,12 +3,15 @@
 ## 快速入口
 
 - 本地启动：在仓库根目录运行 `npm ci`，再运行 `npm run dev`；本机真实体验可打开 `http://127.0.0.1:3000`。
+- 账号与邮件：默认自托管邮箱/密码，注册验证邮箱，旧 email-only 账号通过原邮箱恢复；个人邮箱 SMTP 授权码测试无需自有域名，也支持 HTTP 网关。配置见 [DEPLOYMENT.md 的认证与邮件](DEPLOYMENT.md#认证与邮件)。`AUTH_MODE=local-email` 仅限显式非生产测试；10 月新增认证、真实投递与目标迁移状态以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
 - 真实配置：优先看 [DEPLOYMENT.md](DEPLOYMENT.md)，根 README 也列出 Neon/PostgreSQL `DATABASE_URL`、TryAnotherOne compatible LLM、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 和 `VOICE_PROVIDER=shared-llm` 的最小配置。
 - 网站内配置：进入设置页保存当前登录用户自己的 API key、读取模型列表、测试连接，并查看只读配置状态；读取模型列表失败时可手动填模型名再测试连接。
 - 本地主动回响：工作台打开时会每分钟检查当前关系对象；生产 all-user 自动调度需要 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
 - 发布候选验收：先跑根 README 的验收命令，其中包含 `npm run docs:check` 的发布口径自动检查和 `npm run git:boundary` 的文件边界检查；再按 [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) 做 20 分钟人工演示。
 
 ## 阅读顺序
+
+账号与 QQ 邮箱专项配置见 [AUTH.md](AUTH.md)：个人 SMTP 授权码、本机 localhost 示例、生产 HTTPS 地址与认证验证边界。
 
 1. [PRD.md](PRD.md)：产品定位、用户场景、MVP 范围、功能需求与边界。
 2. [TASKBOOK.md](TASKBOOK.md)：总任务拆解、依赖关系、验收标准与阶段规划。

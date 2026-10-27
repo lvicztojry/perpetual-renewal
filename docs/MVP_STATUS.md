@@ -1,21 +1,27 @@
 # MVP Status
 
-更新日期：2026-08-23
+更新日期：2026-10-26（8 月历史验收与本轮候选分列）
 
 本文件是主控施工状态面板，用于快速判断当前第一版 MVP 是否可演示、可继续开发、可进入真实环境联调。
 
 ## 当前结论
 
+2026-10-26 主控确认 M136 会话切换隔离、M137 语音 locale、M138 持久化调度续扫的本地回归通过，已追加集成记录。M139 默认自托管邮箱/密码、注册验证、旧账号邮箱恢复、v2 session 与邮件代码已通过本地后端/SMTP 和 UI 回归；真实数据库认证集成、QQ SMTP/HTTP 投递与目标新增迁移仍待验证。M140 安全刷新剩余门禁待确认。`AUTH_MODE=local-email` 仅限显式非生产测试。
+
+本轮 audit 初查为 6 vulnerabilities（5 high、1 critical）；Next.js/eslint-config-next 16.4.3 与传递依赖修复后主控确认 0 vulnerabilities，lint、typecheck、build、全量 E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过。完整 memory smoke 正在修正 zh-CN→zh fixture 并复跑，尚不能标为通过。8 月历史 readiness/DB smoke 不代表本轮结果。
+
+本轮 Playwright 实际展开并通过 32 个用例、6 个 spec；主控已用 Playwright `--list` JSON 修正文档计数。真实隔离 PostgreSQL 集成在 CREATE SCHEMA 阶段返回 `database_unreachable`，提权重试亦失败；没有创建 schema、没有执行迁移。可选 `qa:auth:postgres` 待数据库可达后重跑；严格 readiness 仍缺新认证邮件配置（AUTH_MAIL），真实邮件和目标迁移待验证。候选 M139、M140 依次继续验收。
+
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、回复格式清洗、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、签名 session cookie、私有 no-store API 响应边界、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
-当前发布候选分支为 `codex/mvp-release-candidate`；当前同步点以 `git status --short --branch` 和 `git log -1 --oneline` 的实时结果为准；首个 baseline 提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。当前没有代码级阻塞项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。本机真实配置已补齐并通过严格 readiness 与真实 Neon/PostgreSQL smoke；部署目标仍需在目标环境设置同等 secret/env 后复跑 `npm run verify:deploy`。个人真实试用优先走设置页用户 vault；服务端 LLM key/model 只是 fallback。
+当前发布候选分支为 `codex/mvp-release-candidate`；当前同步点以 `git status --short --branch` 和 `git log -1 --oneline` 的实时结果为准；首个 baseline 提交为 `ef4939e feat: build relationship ai mvp baseline`。M56 Taskbook 状态门禁实现提交为 `d7a72f2 docs: sync taskbook status gates`，M66 发布门禁与隔离补强提交为 `fd6778a test: isolate memory fallback and derive release gates`。10 月新增模块与依赖修复尚有待验收项。远端目标分支为 `origin/codex/mvp-release-candidate`，是否 ahead 或已推送以 `git status --short --branch` 的实时结果为准；PR 创建页为 https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate ，PR 正文草稿为 [docs/PR_DRAFT.md](PR_DRAFT.md)。8 月本机曾通过严格 readiness 与真实 Neon/PostgreSQL smoke；部署目标仍需在目标环境设置同等 secret/env 后复跑 `npm run verify:deploy`。个人真实试用优先走设置页用户 vault；服务端 LLM key/model 只是 fallback。
 
 ## 已集成能力
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| 账号与资料 | integrated | 本地 email session、资料设置、登出 |
-| Session 安全 | integrated | 登录 cookie 使用 HMAC 签名，不暴露裸 userId；登出和账号删除用同属性过期 cookie |
+| 账号与资料 | candidate | 资料设置/登出沿用；默认邮箱/密码、注册验证、旧账号邮箱恢复为 M139 待验收增量 |
+| Session 安全 | candidate | HMAC 签名延续；密码 v2 到期校验与重置撤销为 M139 待验收增量 |
 | API 缓存边界 | integrated | 用户数据、聊天、记忆、导出、用量、语音、主动回响和配置状态 API 返回 private no-store 响应头 |
 | 全关系对象 | integrated | 恋人、朋友、家人、师友、现实替代、逝者纪念、前任、公众人物想象、虚构、原创、自定义 |
 | 聊天闭环 | integrated | 消息持久化、失败恢复、重新生成、删除、标记重要 |
@@ -36,9 +42,9 @@
 | 数据导出 | integrated | 当前用户 JSON 快照，排除 key/baseUrl/vault 密文和 deleted 记忆 |
 | 响应式/PWA 体验 | integrated | 390px 移动端 E2E 覆盖无横向溢出；manifest、图标、离线页和安全 service worker 已接入 |
 
-## 最近主控验收
+## 2026-08-23 历史主控验收
 
-本轮主控已通过：
+以下为 8 月历史记录；10 月新增候选、测试与依赖升级须重新验收：
 
 ```bash
 npm run typecheck
@@ -70,7 +76,10 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `smoke`：94 checks passed。
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
-- `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
+- M135 历史 `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
+- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，主控确认全量 E2E 32 项通过。
+- M137 语音 locale 兼容：zh-CN 归一为 zh，本地语音语言 16 项通过；真实供应商另验。
+- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，本地调度 20 项通过；目标迁移待验证。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -89,12 +98,13 @@ npm --cache .\.npm-cache audit --audit-level=high
 
 ## 真实配置与部署复核
 
-本机 `.env.local` 已补齐真实配置并通过严格 readiness、真实 DB smoke 与 `verify:deploy`。真实值仍只允许放在 `.env.local`、部署平台 secret 或网站设置页用户 vault，不写入仓库；部署到新目标环境时按下表逐项同步并复跑验证。
+8 月本机 `.env.local` 曾通过严格 readiness、真实 DB smoke 与 `verify:deploy`。10 月认证邮件与新增迁移尚未完成目标验证；真实值仍只允许放在 `.env.local`、部署平台 secret 或网站设置页用户 vault，不写入仓库。部署到新目标环境时按下表逐项同步并复跑验证。
 
 | 项 | 建议 |
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL，连接串只放 `.env.local` 或部署平台 secret |
 | `DATABASE_URL_UNPOOLED` | 可选 Neon direct 连接串，供 Prisma 迁移使用；只放 `.env.local` 或部署平台 secret |
+| 认证邮件 | `AUTH_APP_URL`、`AUTH_MAIL_FROM`、`AUTH_MAIL_TRANSPORT=smtp` 配合 `AUTH_SMTP_HOST/PORT/USER/PASSWORD`；个人邮箱授权码测试无需自有域名。可选 `http` 配合 `AUTH_MAIL_API_URL/KEY`；真实投递待验证 |
 | `USER_KEY_VAULT_SECRET` | 生产专用强随机值，至少 32 bytes，不复用开发值 |
 | `SESSION_COOKIE_SECRET` | 可选独立 session 签名 secret，至少 32 bytes；为空时复用强 vault secret |
 | `PROACTIVE_CRON_SECRET` | 另一段强随机值，不能和 vault secret 或数据库密码相同 |
@@ -143,7 +153,7 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M45 Git 文件边界自动检查：已新增 `npm run git:boundary` 并接入 CI 与本地 verify，自动确认项目不在 C 盘，且 `.env.local`、构建目录、npm cache、`node_modules`、测试结果、日志和 tsbuildinfo 等不进入 Git scope。
 - M46 Post-baseline 状态回写：已把 M36 的分支、提交 hash 和当前剩余阻塞同步回主控状态文档。
 - M47 PR/发布候选交接材料：已新增 `.github/pull_request_template.md` 与 `docs/RELEASE_HANDOFF.md`，记录 PR 模板、push 前命令、CI 预期、目标环境配置复核和后续动作。
-- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当前发布候选的最新 E2E 结果为 15 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
+- M48 Pre-push 发布验证：当时已重新执行 E2E 与 high severity audit；当时 E2E 结果为 15 tests passed，`npm --cache .\.npm-cache audit --audit-level=high` 为 0 vulnerabilities，并回写到 `docs/RELEASE_HANDOFF.md`。
 - M49 Next typed routes 稳定化：已新增 `npm run next:typegen`，`npm run typecheck` 会先生成 Next route types；E2E 结束后也会重新 typegen，避免 `next-env.d.ts` 在 `.next/dev/types` 与 `.next/types` 之间留下脏工作树。
 - M50 发布门禁增强：`npm run git:boundary` 已新增 `next-env.d.ts` 检查，若残留 `.next/dev/types` 引用会提示先运行 `npm run next:typegen`。
 - M51 导入候选去重体验：导入规划会跳过同批重复内容，导入 API 会跳过当前关系已有非 deleted 记忆，工作台展示“本次重复/已存在”摘要。
@@ -178,12 +188,12 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M80 主动回响重复生成门禁：smoke 覆盖调度器保存站内草稿后，在同一 `now` 再次执行不会立刻重复生成或保存草稿，并以已保存草稿作为下一次候选时间锚点。
 - M81 手动记忆输入边界补强：smoke 覆盖手动创建记忆保留 `sourceMessageId` 链接，未知 `sourceMessageId` 与空白 `content` 返回稳定 400，且不写入悬挂/空 pending 记忆。
 - M82 记忆编辑空内容护栏：`PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；smoke 覆盖拒绝后保留原记忆内容，不把 active/pending 记忆覆盖为空。
-- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案和 diagnostic 前端脱敏稳定，且页面不回显完整 key、Base URL、Bearer、prompt、rawPayload 或 stack；当前 E2E 基线 15 tests。
+- M83 设置页模型列表 E2E 隐私覆盖：E2E 覆盖保存用户 API key 后读取兼容中转站模型列表、点击模型回填输入框、失败文案和 diagnostic 前端脱敏稳定，且页面不回显完整 key、Base URL、Bearer、prompt、rawPayload 或 stack；当时 E2E 数量 15 tests。
 - M84 聊天消息输入错误边界：`POST /api/conversations/:id/messages` 空白内容返回稳定 400；`regenerate` 拒绝用户消息并返回稳定文案，不透传异常对象。
 - M85 导入错误恢复 E2E 覆盖：主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复，确认友好错误、导入按钮不可用，并可重新选择有效 `.jsonl` 文件继续导入候选。
 - M86 关系对象校验错误边界：`POST/PATCH /api/companions` 对空名称、空语气、非法关系类型返回稳定白名单 400；非法关系不会创建记录，失败编辑不会部分写入其他字段。
 - M87 用量看板查询范围边界：`GET /api/usage/model-calls` 只接受 1-90 天有限 `rangeDays`；非法 query 返回稳定 400，不回显 key、Base URL、prompt 或 raw payload。
-- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当前 E2E 基线 15 tests。
+- M88 关系表单失败恢复 E2E：创建/编辑关系失败时前端展示服务端稳定文案，状态栏提示重试，表单草稿保留且按钮恢复可用；当时 E2E 数量 15 tests。
 - M89 运营反馈机制暂缓口径：PRD、Taskbook 和部署清单明确内容审核后台、反馈问卷、内测邀请机制不进入第一版，后续恢复时单独设计运营反馈模块。
 - M90 用户模型端点类型校验：`PUT /api/me/llm-credential` 对非字符串 `baseUrl` 返回稳定 400，不静默忽略异常类型，也不回显用户 API key 或端点字段。
 - M91 导出常见外部 token 脱敏：用户误把 GitHub PAT/`ghp_` 等常见外部 token 写入记忆时，导出快照会替换为 `[REDACTED_KEY]`，不把 token 原文带出。
@@ -230,7 +240,10 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M132 生产调度部署门禁复核：新增 `npm run qa:proactive-cron`，复核 `vercel.json` 每分钟 GET cron、Bearer/`CRON_SECRET` alias、GET 默认 `dryRun:false`、`limit`/`maxDrafts` 护栏和部署文档；`verify:deploy` 现在会在目标环境同时跑严格 readiness、cron 合同、Prisma validate 和 DB smoke。
 - M133 非 compatible provider hermetic 覆盖：新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload、默认官方 base URL 不误用 compatible `LLM_BASE_URL`，以及供应商错误诊断脱敏；进入 verify-local 与 CI。
 - M134 主动回响调度性能护栏：all-user scheduler 将规范化 `limit` 下推到 repository/Prisma `take`，同一用户 profile 读取复用缓存，达到 `maxDrafts` 后停止继续扫描；smoke 新增早停覆盖，真实 DB 下原 100 对象 clamp 路径从约 61 秒降到约 2.3 秒。
-- M135 设置页模型列表 diagnostic 前端脱敏：模型列表失败时前端会对 diagnostic 再执行本地脱敏；E2E 覆盖异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 和 stack 时页面只显示安全占位；当前全量 E2E 基线 15 tests。
+- M135 设置页模型列表 diagnostic 前端脱敏：模型列表失败时前端会对 diagnostic 再执行本地脱敏；E2E 覆盖异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 和 stack 时页面只显示安全占位；当时全量 E2E 数量 15 tests。
+- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，主控确认全量 E2E 32 项通过。
+- M137 语音 locale 兼容：zh-CN 归一为 zh，本地语音语言 16 项通过；真实供应商另验。
+- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，本地调度 20 项通过；目标迁移待验证。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 

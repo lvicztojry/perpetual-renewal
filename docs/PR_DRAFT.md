@@ -13,6 +13,8 @@ PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex
 
 Included capabilities:
 
+October 26 scope: M136 conversation switching isolation, M137 STT locale normalization, M138 durable scheduler checkpoint/keyset fairness, M139 self-hosted email/password authentication and SMTP/HTTP mail, M140 dependency security refresh. M136–M138 local regressions passed; M139 has passed backend, local SMTP and UI checks, but real PostgreSQL integration and live delivery remain pending. Registration requires email verification; legacy email-only users recover via their mailbox. v2 password sessions expire server-side and are revoked after reset; mail links carry fragment tokens. `AUTH_MODE=local-email` is only for explicit nonproduction tests. Live mail delivery and target migrations remain unverified.
+
 - Full relationship object creation across romantic, family, friend, mentor, substitute, memorial, ex, public-figure-imagined, fictional, original, and custom kinds.
 - Chat loop with persistence, regeneration, deletion, important marks, memory extraction, and relationship state updates.
 - Provider-neutral LLM adapters, user-level encrypted API key vault, model list/test flow, and shared-LLM voice fallback.
@@ -24,7 +26,9 @@ Included capabilities:
 
 ## Verification
 
-Latest local verification on 2026-08-23:
+Historical local verification on 2026-08-23 (does not verify October changes):
+
+October audit initially reported 6 vulnerabilities (5 high, 1 critical); main confirmed zero after Next.js/eslint-config-next 16.4.3 and transitive upgrades. Lint/typecheck/build, 32 E2E cases, 20 local scheduler checks, 16 voice-language checks and backend/local SMTP checks passed. Full memory smoke is pending the locale-fixture correction. PostgreSQL auth integration failed with database_unreachable at CREATE SCHEMA; no schema or migration ran. Strict readiness lacks new AUTH_MAIL configuration; live mail and target migrations remain unverified.
 
 - `npm run typecheck`
 - `npm run lint`
@@ -41,18 +45,23 @@ Latest local verification on 2026-08-23:
 - `npm run qa:response`
 - `npm run qa:providers`
 - `npm run qa:voice`
+- `npm run qa:voice-language`
+- `npm run qa:auth`
+- `npm run qa:proactive-scheduler`
 - `npm run qa:proactive-cron`
 - `npm run qa:real-provider:fake`
 - `npm run env:readiness -- --strict` -> missing=0, warning=3
 - `npm run pwa:check`
 - `npm run prisma:validate`
 - `npm run db:smoke` -> passed against real Neon/PostgreSQL
-- `npm run e2e` -> 15 tests
+- M135 historical `npm run e2e` -> 15 tests (2026-08-23)
 - `npm --cache .\.npm-cache audit --audit-level=high` -> 0 vulnerabilities
 
 Before creating or updating the PR, use the current wrapper sequence `npm run verify:local -- --skip-e2e`, `npm run e2e`, and `npm run verify:release`, then re-check live branch state with `git status --short --branch` and push with `git push origin codex/mvp-release-candidate` if needed. Do not hard-code ahead/pushed status in the PR body.
 
 ## Production Config To Mirror
+
+- Auth mail: `AUTH_APP_URL`, `AUTH_MAIL_FROM`, `AUTH_MAIL_TRANSPORT=smtp`, `AUTH_SMTP_HOST/PORT/USER/PASSWORD`; personal mailbox app-password tests require no owned domain. Optional HTTP uses `AUTH_MAIL_TRANSPORT=http` and `AUTH_MAIL_API_URL/KEY`. Verify live inbox delivery and target auth/checkpoint migrations separately.
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
 - `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.

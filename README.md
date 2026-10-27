@@ -9,7 +9,9 @@ npm ci
 npm run dev
 ```
 
-默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。没有真实数据库或模型配置时，项目会使用本地 memory/mock 路线，方便先跑通体验；一旦配置了 `DATABASE_URL`，数据库连接或写入失败会直接暴露，不会静默保存到 memory。
+默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。默认认证路线为自托管邮箱/密码：需要 PostgreSQL、认证迁移及邮件配置；注册须验证邮箱，已有 email-only 账号须通过原邮箱“忘记密码”设置密码。缺少模型配置时仍可使用 mock 回复；一旦配置了 `DATABASE_URL`，数据库连接或写入失败会直接暴露，不会静默保存到 memory。
+
+只有显式非生产测试可设置 `AUTH_MODE=local-email` 使用旧邮箱演示登录和 memory/mock 路线；它不是默认登录方式，生产环境不允许启用。2026-10-26 密码认证与 SMTP 支持仍待主控集成验收，真实邮件投递和目标数据库迁移尚未验证，见 [认证与邮件部署](docs/DEPLOYMENT.md#认证与邮件)。
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
 可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
@@ -39,6 +41,13 @@ SESSION_COOKIE_SECRET=""
 PROACTIVE_CRON_SECRET="random-cron-secret"
 CRON_SECRET=""
 VOICE_PROVIDER="shared-llm"
+AUTH_APP_URL="http://127.0.0.1:3000"
+AUTH_MAIL_TRANSPORT="smtp"
+AUTH_MAIL_FROM="your-mailbox@example.com"
+AUTH_SMTP_HOST="smtp.example.com"
+AUTH_SMTP_PORT="465"
+AUTH_SMTP_USER="your-mailbox@example.com"
+AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 ```
 
 - 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查，部署目标还必须在 mirror env/secrets 后运行 `npm run verify:deploy`。
@@ -48,6 +57,8 @@ VOICE_PROVIDER="shared-llm"
 - fake-compatible 自测：`npm run qa:real-provider:fake` 使用本地假供应商验证真实联调脚本逻辑，不需要真实 key，不代表真实供应商联调通过。
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
+- 认证：新账号验证邮箱后才能用密码登录；密码 session 使用带服务端到期时间的 v2 签名 cookie，重置密码撤销旧 session。旧 email-only 用户走原邮箱恢复，不能仅凭邮箱认领账号。
+- 邮件：个人邮箱可用 SMTP 授权码测试，无需自有域名；`465` 使用 TLS，`587` 使用 STARTTLS。可改为 `AUTH_MAIL_TRANSPORT=http` 并设置 `AUTH_MAIL_API_URL`、`AUTH_MAIL_API_KEY`；两条路线共用 `AUTH_APP_URL`、`AUTH_MAIL_FROM`。真实 SMTP/HTTP 投递与公开注册的送达率仍待验证。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口；Vercel Cron 可用 `CRON_SECRET` 作为同用途 alias。
 - 本地主动回响：打开工作台时，当前关系对象会按 1 分钟节奏做前台检查；关闭页面后本地不会有常驻后台调度器。生产 all-user 自动调度由 Vercel Cron 或外部 cron 调用受保护入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
@@ -106,6 +117,9 @@ npm run qa:logging
 npm run qa:response
 npm run qa:providers
 npm run qa:voice
+npm run qa:voice-language
+npm run qa:auth
+npm run qa:proactive-scheduler
 npm run qa:proactive-cron
 npm run qa:real-provider:fake
 npm run pwa:check
@@ -124,6 +138,7 @@ REAL_PROVIDER_QA=1 REAL_LLM_API_KEY="..." REAL_LLM_BASE_URL="..." REAL_LLM_MODEL
 
 ## 文档入口
 
+- [AUTH：默认密码认证与 QQ 邮箱 SMTP](docs/AUTH.md)
 - [PRD](docs/PRD.md)
 - [TASKBOOK](docs/TASKBOOK.md)
 - [MVP_STATUS](docs/MVP_STATUS.md)

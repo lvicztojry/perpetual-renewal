@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 import process from "node:process";
@@ -814,16 +814,22 @@ function readE2eMetrics() {
     return { testCount: 0 };
   }
 
-  const testCount = readdirSync(dir)
-    .filter((file) => file.endsWith(".spec.ts"))
-    .map((file) => readText(join(dir, file)) ?? "")
-    .reduce(
-      (count, content) =>
-        count + [...content.matchAll(/^\s*test(?:\.(?:only|skip|fixme))?\s*\(/gm)].length,
-      0
-    );
-
-  return { testCount };
+  // Playwright expands parameterized tests and projects; source regexes cannot count them.
+  const result = spawnSync(process.execPath, [
+    "node_modules/@playwright/test/cli.js", "test", "--list", "--reporter=json"
+  ], { encoding: "utf8", windowsHide: true, timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
+  try {
+    if (result.status !== 0) throw new Error();
+    const report = JSON.parse(result.stdout);
+    if (report.errors?.length) throw new Error();
+    const countSuite = (suite) =>
+      (suite.specs ?? []).reduce((count, spec) => count + spec.tests.length, 0) +
+      (suite.suites ?? []).reduce((count, child) => count + countSuite(child), 0);
+    return { testCount: report.suites.reduce((count, suite) => count + countSuite(suite), 0) };
+  } catch {
+    findings.push("Unable to derive E2E count from Playwright's JSON test list.");
+    return { testCount: 0 };
+  }
 }
 
 function readTaskbookMilestones() {

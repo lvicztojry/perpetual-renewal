@@ -1,4 +1,5 @@
 import { privateJson } from "./private-response";
+import { AuthenticationRequiredError } from "@/lib/auth/errors";
 
 const databaseUnavailableCodes = new Set([
   "P1000",
@@ -48,6 +49,12 @@ export function persistenceUnavailableResponse(
   error: unknown,
   context: PersistenceErrorContext
 ): Response | null {
+  if (error instanceof AuthenticationRequiredError) {
+    return privateJson(
+      { error: "请先登录。", errorType: "authentication_required", retryable: false },
+      { status: 401 }
+    );
+  }
   if (!isConfiguredDatabaseUnavailable(error)) return null;
 
   return privateJson(

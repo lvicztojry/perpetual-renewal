@@ -33,6 +33,8 @@
 
 ## 本地启动
 
+默认认证采用自托管邮箱/密码，需要数据库、认证迁移和邮件配置；注册先验证邮箱，旧 email-only 用户通过原邮箱恢复。个人邮箱 SMTP 授权码可测试，无需自有域名；也支持 HTTP 邮件网关，见 [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件)。仅显式非生产测试设置 `AUTH_MODE=local-email` 以运行演示登录/memory 夹具。2026-10-26 增量、真实邮件与新增目标迁移仍待主控验收。
+
 在仓库根目录运行：
 
 ```bash
@@ -42,7 +44,7 @@ npm run dev
 
 默认地址是 `http://localhost:3000`。没有真实数据库或模型配置时，项目应保持可开发：
 
-- 未配置 `DATABASE_URL`：使用本地 memory fallback，`npm run db:smoke` 会安全跳过。
+- 未配置 `DATABASE_URL`：领域 repository 可使用 memory fallback，`npm run db:smoke` 会安全跳过；演示登录还须显式非生产 `AUTH_MODE=local-email`。默认密码认证需要数据库。
 - 未配置 LLM key/model/baseUrl：聊天和语音链路可以走 mock fallback，方便先验证 UI 和业务流。
 - 语音默认可用 mock STT/TTS；真实语音供应商按当前决策与 LLM 共用中转站，使用 `VOICE_PROVIDER=shared-llm`。
 - 设置页的“配置状态”和 `npm run env:readiness` 只显示就绪状态和下一步，不显示真实值。

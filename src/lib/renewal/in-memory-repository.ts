@@ -21,6 +21,7 @@ type InMemoryStore = {
   memories: MemoryRecord[];
   proactiveMessages: ProactiveMessageRecord[];
   relationshipStates: RelationshipStateRecord[];
+  proactiveSchedulerCheckpoints?: Map<string, string | null>;
 };
 
 declare global {
@@ -205,6 +206,20 @@ function toProfile(store: InMemoryStore, companion: CompanionRecord): CompanionP
 export class InMemoryRenewalRepository implements RenewalRepository {
   readonly persistence = "memory" as const;
 
+  async getProactiveSchedulerCheckpoint(scope: string) {
+    return getStore().proactiveSchedulerCheckpoints?.get(scope) ?? null;
+  }
+
+  async setProactiveSchedulerCheckpoint(scope: string, cursor: string | null, expectedCursor: string | null) {
+    const store = getStore();
+    if (
+      store.proactiveSchedulerCheckpoints?.has(scope) &&
+      store.proactiveSchedulerCheckpoints.get(scope) !== expectedCursor
+    ) return;
+    store.proactiveSchedulerCheckpoints ??= new Map();
+    store.proactiveSchedulerCheckpoints.set(scope, cursor);
+  }
+
   async listCompanions(userId: string) {
     const store = getStore();
     return store.companions
@@ -212,13 +227,16 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       .map((companion) => toProfile(store, companion));
   }
 
-  async listCompanionsForProactive(userId?: string, limit?: number) {
+  async listCompanionsForProactive(userId?: string, limit?: number, afterId?: string) {
     const store = getStore();
     return store.companions
       .filter(
         (companion) =>
-          companion.proactiveMessagesEnabled && (!userId || companion.userId === userId)
+          companion.proactiveMessagesEnabled &&
+          (!userId || companion.userId === userId) &&
+          (afterId === undefined || companion.id > afterId)
       )
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
       .slice(0, limit)
       .map((companion) => toProfile(store, companion));
   }

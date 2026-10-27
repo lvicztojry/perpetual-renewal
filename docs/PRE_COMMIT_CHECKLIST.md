@@ -17,6 +17,7 @@
 - 真实 `DATABASE_URL`。
 - 真实 `LLM_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GEMINI_API_KEY`、`GOOGLE_API_KEY`。
 - 真实 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 或 `PROACTIVE_CRON_SECRET`。
+- 真实 `AUTH_SMTP_PASSWORD`、`AUTH_MAIL_API_KEY`、验证/恢复令牌和密码 hash；邮箱授权码只放本地/部署 secret。
 - Bearer token、JWT、vault 密文、数据库密码、供应商 raw payload。
 
 推送前必跑：

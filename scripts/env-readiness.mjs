@@ -17,6 +17,7 @@ const checks = [
   secretCheck("USER_KEY_VAULT_SECRET", "用户 API key vault 加密主密钥"),
   sessionCookieSecretCheck(),
   proactiveCronSecretCheck(),
+  authMailCheck(),
   llmProviderCheck(),
   llmCredentialCheck(),
   llmModelCheck(),
@@ -63,6 +64,34 @@ function databaseCheck() {
     next: configured
       ? "Run npm run db:smoke against the target database before release."
       : "Set a Neon/PostgreSQL DATABASE_URL in .env.local or deployment secrets."
+  };
+}
+
+function authMailCheck() {
+  const transport = process.env.AUTH_MAIL_TRANSPORT || (process.env.AUTH_MAIL_API_URL ? "http" : "smtp");
+  let configured = false;
+  try {
+    const app = new URL(process.env.AUTH_APP_URL || "");
+    const isSafeUrl = (url) => url.protocol === "https:" && !url.username && !url.password;
+    const from = process.env.AUTH_MAIL_FROM?.trim();
+    const port = Number(process.env.AUTH_SMTP_PORT || "465");
+    const host = process.env.AUTH_SMTP_HOST?.trim();
+    configured = Boolean(isSafeUrl(app) && from && !/[\r\n]/.test(from) && (
+      transport === "smtp"
+        ? host && !/[\s/@?#:]/.test(host) && Number.isInteger(port) && port >= 1 && port <= 65535 &&
+          process.env.AUTH_SMTP_USER?.trim() && process.env.AUTH_SMTP_PASSWORD?.trim()
+        : transport === "http" && isSafeUrl(new URL(process.env.AUTH_MAIL_API_URL || "")) && process.env.AUTH_MAIL_API_KEY?.trim()
+    ));
+  } catch { /* Only readiness status is exposed. */ }
+  return {
+    label: "AUTH_MAIL",
+    status: configured ? "ready" : "missing",
+    required: true,
+    strictWarning: false,
+    detail: configured
+      ? "Password auth mail transport and HTTPS application URL are configured."
+      : "Registration and password recovery need a configured mail transport and HTTPS application URL.",
+    next: "Set AUTH_APP_URL, AUTH_MAIL_FROM and SMTP app-password settings or an HTTP mail gateway in local/deployment secrets."
   };
 }
 

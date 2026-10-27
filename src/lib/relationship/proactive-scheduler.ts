@@ -17,6 +17,8 @@ export type ProactiveSchedulerInput = {
   limit?: number;
   maxDrafts?: number;
   now?: Date;
+  // Omit to resume the scan; null explicitly starts a new sweep.
+  cursor?: string | null;
 };
 
 export type ProactiveSchedulerResult = {
@@ -29,6 +31,8 @@ export type ProactiveSchedulerResult = {
   savedCount: number;
   skippedCount: number;
   maxDrafts: number;
+  // The next position; all-user live runs also persist this automatically.
+  nextCursor: string | null;
   results: Array<{
     companionId: string;
     companionName: string;
@@ -44,6 +48,10 @@ const DEFAULT_SCHEDULER_LIMIT = 20;
 const MAX_SCHEDULER_LIMIT = 100;
 const DEFAULT_SCHEDULER_MAX_DRAFTS = 50;
 const MAX_SCHEDULER_MAX_DRAFTS = 200;
+const MAX_CACHED_SCAN_SCOPES = 1000;
+const ALL_USER_CHECKPOINT_SCOPE = "all";
+// Current-user scans may use a warm-process cache; cron scans use the repository.
+const scanCursorByScope = new Map<string, string>();
 
 export async function runProactiveScheduler(
   input: ProactiveSchedulerInput = {}
@@ -53,7 +61,23 @@ export async function runProactiveScheduler(
   const dryRun = input.dryRun ?? true;
   const limit = normalizeLimit(input.limit);
   const maxDrafts = normalizeMaxDrafts(input.maxDrafts);
-  const companions = await repository.listCompanionsForProactive(input.userId, limit);
+  const scopeKey = JSON.stringify([repository.persistence, input.userId ?? null]);
+  if (
+    !input.userId &&
+    (!repository.getProactiveSchedulerCheckpoint || !repository.setProactiveSchedulerCheckpoint)
+  ) {
+    throw new Error("All-user proactive scans require durable checkpoint support.");
+  }
+  const storedCursor = input.userId
+    ? scanCursorByScope.get(scopeKey)
+    : await repository.getProactiveSchedulerCheckpoint!(ALL_USER_CHECKPOINT_SCOPE);
+  const cursor = (input.cursor === undefined ? storedCursor : input.cursor) ?? undefined;
+  let companions = await repository.listCompanionsForProactive(input.userId, limit, cursor);
+  // An exact-sized last page or a deleted/disabled cursor may leave an empty tail.
+  // Wrap only after an empty query, keeping at most limit hydrated companions.
+  if (!companions.length && cursor !== undefined) {
+    companions = await repository.listCompanionsForProactive(input.userId, limit);
+  }
   const results: ProactiveSchedulerResult["results"] = [];
   const profileByUserId = new Map<string, Promise<UserProfile>>();
   let generatedCount = 0;
@@ -162,6 +186,23 @@ export async function runProactiveScheduler(
     });
   }
 
+  const lastScanned = results.at(-1);
+  const reachedEnd = results.length === companions.length && companions.length < limit;
+  // Include examined disabled/not-due rows, but leave unexamined rows for next run.
+  const nextCursor = reachedEnd ? null : lastScanned?.companionId ?? null;
+  if (!dryRun && !input.userId) {
+    // A slower overlapping run must not overwrite a newer scan's position.
+    await repository.setProactiveSchedulerCheckpoint!(ALL_USER_CHECKPOINT_SCOPE, nextCursor, storedCursor ?? null);
+  } else if (!dryRun) {
+    scanCursorByScope.delete(scopeKey);
+    if (nextCursor !== null) {
+      scanCursorByScope.set(scopeKey, nextCursor);
+      if (scanCursorByScope.size > MAX_CACHED_SCAN_SCOPES) {
+        scanCursorByScope.delete(scanCursorByScope.keys().next().value!);
+      }
+    }
+  }
+
   return {
     dryRun,
     scope: input.userId ? "current-user" : "all",
@@ -172,6 +213,7 @@ export async function runProactiveScheduler(
     savedCount,
     skippedCount: results.length - eligibleCount,
     maxDrafts,
+    nextCursor,
     results
   };
 }

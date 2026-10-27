@@ -56,6 +56,9 @@ jobs:
       - name: Config vault QA
         run: npm run qa:vault
 
+      - name: Password authentication QA
+        run: npm run qa:auth
+
       - name: Logging sanitize QA
         run: npm run qa:logging
 
@@ -67,6 +70,12 @@ jobs:
 
       - name: Voice shared-LLM QA
         run: npm run qa:voice
+
+      - name: Voice language QA
+        run: npm run qa:voice-language
+
+      - name: Proactive scheduler QA
+        run: npm run qa:proactive-scheduler
 
       - name: Proactive cron contract QA
         run: npm run qa:proactive-cron
@@ -91,3 +100,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Production auth access
+        run: npm run qa:auth-access

@@ -5,13 +5,16 @@ import { shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
+import { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
+
+export { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
 
 export const SESSION_COOKIE_NAME = "perpetual_renewal_session";
 
 export type AppSession = {
   userId: string;
   email: string;
-  provider: "mock-dev" | "local-email";
+  provider: "mock-dev" | "local-email" | "password";
 };
 
 const cookieMaxAgeSeconds = 60 * 60 * 24 * 30;
@@ -28,74 +31,64 @@ declare global {
 }
 
 export async function getCurrentSession(): Promise<AppSession> {
+  const current = await getOptionalSession();
+  if (current) return current;
+  if (!isLocalEmailAuthEnabled()) throw new AuthenticationRequiredError();
   const cookieStore = await cookies();
-  const sessionUserId = readSessionCookie(cookieStore.get(SESSION_COOKIE_NAME)?.value);
 
   if (shouldUseFallbackSession()) {
-    if (!sessionUserId) {
-      setSessionCookie(cookieStore, DEMO_USER_ID);
-      ensureFallbackSessionRecord(
-        DEMO_USER_ID,
-        process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
-        process.env.DEV_MOCK_USER_NICKNAME ?? "开发用户"
-      );
-      return getFallbackSession(DEMO_USER_ID);
-    }
-
-    return getFallbackSession(sessionUserId);
+    setSessionCookie(cookieStore, DEMO_USER_ID);
+    ensureFallbackSessionRecord(
+      DEMO_USER_ID,
+      process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
+      process.env.DEV_MOCK_USER_NICKNAME ?? "开发用户"
+    );
+    return getFallbackSession(DEMO_USER_ID);
   }
+  const session = await createEmailSession({
+    email: process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local",
+    nickname: process.env.DEV_MOCK_USER_NICKNAME ?? "开发用户"
+  });
+  return { ...session, provider: "mock-dev" };
+}
 
-  try {
-    if (sessionUserId) {
-      const user = await prisma.user.findUnique({
-        where: { id: sessionUserId },
-        select: { id: true, email: true }
-      });
-
-      if (user) {
-        return {
-          userId: user.id,
-          email: user.email,
-          provider: "local-email"
-        };
-      }
-    }
-
-    const email = process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local";
-    const nickname = process.env.DEV_MOCK_USER_NICKNAME ?? "开发用户";
-
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: {
-        email,
-        nickname,
-        timezone: process.env.DEV_MOCK_USER_TIMEZONE ?? "Asia/Shanghai",
-        language: process.env.DEV_MOCK_USER_LANGUAGE ?? "zh-CN"
-      },
-      select: { id: true, email: true }
+// Read only: safe for server components. Never creates demo users or writes cookies.
+export async function getOptionalSession(): Promise<AppSession | null> {
+  const cookieStore = await cookies();
+  const value = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const payload = readV2SessionCookie(value);
+  if (payload?.provider === "password") {
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, email: true, authCredential: { select: { sessionVersion: true } } }
     });
-
-    setSessionCookie(cookieStore, user.id);
-
-    return {
-      userId: user.id,
-      email: user.email,
-      provider: "mock-dev"
-    };
-  } catch (error) {
-    if (!shouldUseFallbackSession()) {
-      throw error;
-    }
-
-    return getFallbackSession(sessionUserId ?? DEMO_USER_ID);
+    return user?.authCredential && user.authCredential.sessionVersion === payload.sessionVersion
+      ? { userId: user.id, email: user.email, provider: "password" } : null;
   }
+  if (!isLocalEmailAuthEnabled()) return null;
+  const userId = payload?.provider === "local-email" ? payload.userId : readSessionCookie(value);
+  if (!userId) return null;
+  if (shouldUseFallbackSession()) {
+    return getFallbackSessionStore().has(userId) ? getFallbackSession(userId) : null;
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId }, select: { id: true, email: true, authCredential: { select: { userId: true } } }
+  });
+  // Even explicit local mode cannot use a passwordless cookie for a password-auth user.
+  return user && !user.authCredential ? { userId: user.id, email: user.email, provider: "local-email" } : null;
+}
+
+export async function createPasswordSession(input: { userId: string; email: string; sessionVersion: string }): Promise<AppSession> {
+  const cookieStore = await cookies();
+  setV2SessionCookie(cookieStore, input.userId, "password", input.sessionVersion);
+  return { userId: input.userId, email: input.email, provider: "password" };
 }
 
 export async function createEmailSession(input: {
   email: string;
   nickname?: string;
 }): Promise<AppSession> {
+  if (!isLocalEmailAuthEnabled()) throw new AuthenticationRequiredError();
   const cookieStore = await cookies();
   const email = normalizeEmail(input.email);
   const nickname = input.nickname?.trim() || email.split("@")[0] || "用户";
@@ -108,9 +101,13 @@ export async function createEmailSession(input: {
   }
 
   try {
+    const existing = await prisma.user.findUnique({
+      where: { email }, select: { authCredential: { select: { userId: true } } }
+    });
+    if (existing?.authCredential) throw new AuthenticationRequiredError();
     const user = await prisma.user.upsert({
       where: { email },
-      update: { nickname },
+      update: {},
       create: {
         email,
         nickname,
@@ -140,7 +137,7 @@ export async function createEmailSession(input: {
 }
 
 function shouldUseFallbackSession() {
-  return shouldUseMemoryFallback();
+  return isLocalEmailAuthEnabled() && shouldUseMemoryFallback();
 }
 
 export async function clearCurrentSession() {
@@ -191,7 +188,21 @@ function getFallbackSessionStore() {
 }
 
 function setSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, userId: string) {
-  cookieStore.set(SESSION_COOKIE_NAME, signSessionUserId(userId), {
+  setV2SessionCookie(cookieStore, userId, "local-email");
+}
+
+type SessionPayload = {
+  userId: string;
+  provider: "password" | "local-email";
+  expiresAt: number;
+  sessionVersion?: string;
+};
+
+function setV2SessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, userId: string, provider: SessionPayload["provider"], sessionVersion?: string) {
+  const payload: SessionPayload = { userId, provider, sessionVersion, expiresAt: Date.now() + cookieMaxAgeSeconds * 1000 };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = signSessionPayload(`v2.${encoded}`);
+  cookieStore.set(SESSION_COOKIE_NAME, `v2.${encoded}.${signature}`, {
     httpOnly: true,
     maxAge: cookieMaxAgeSeconds,
     path: "/",
@@ -200,7 +211,24 @@ function setSessionCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, user
   });
 }
 
+function readV2SessionCookie(value?: string): SessionPayload | undefined {
+  if (!value || value.length > 2048) return undefined;
+  const [version, encoded, signature, extra] = value.split(".");
+  if (version !== "v2" || !encoded || !signature || extra !== undefined) return undefined;
+  if (!safeEqual(signature, signSessionPayload(`v2.${encoded}`))) return undefined;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as SessionPayload;
+    if (typeof payload.userId !== "string" || !payload.userId || payload.userId.length > 128 ||
+        !Number.isFinite(payload.expiresAt) || payload.expiresAt <= Date.now() ||
+        payload.expiresAt > Date.now() + cookieMaxAgeSeconds * 1000 ||
+        (payload.provider !== "password" && payload.provider !== "local-email") ||
+        (payload.provider === "password" && (typeof payload.sessionVersion !== "string" || !payload.sessionVersion))) return undefined;
+    return payload;
+  } catch { return undefined; }
+}
+
 function readSessionCookie(value?: string) {
+  if (!isLocalEmailAuthEnabled()) return undefined;
   if (!value) return undefined;
 
   const parts = value.split(".");
@@ -221,11 +249,6 @@ function readSessionCookie(value?: string) {
   } catch {
     return undefined;
   }
-}
-
-function signSessionUserId(userId: string) {
-  const encodedUserId = Buffer.from(userId, "utf8").toString("base64url");
-  return `${sessionCookieVersion}.${encodedUserId}.${signSessionPayload(encodedUserId)}`;
 }
 
 function signSessionPayload(encodedUserId: string) {

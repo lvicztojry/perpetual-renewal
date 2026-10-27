@@ -208,7 +208,15 @@ export type RegenerateMessageResult = {
 export type RenewalRepository = {
   persistence: RepositoryPersistence;
   listCompanions(userId: string): Promise<CompanionProfile[]>;
-  listCompanionsForProactive(userId?: string, limit?: number): Promise<CompanionProfile[]>;
+  // Stable ID order; afterId is exclusive and need not reference an existing row.
+  listCompanionsForProactive(userId?: string, limit?: number, afterId?: string): Promise<CompanionProfile[]>;
+  getProactiveSchedulerCheckpoint?(scope: string): Promise<string | null>;
+  // Ignore stale writes when another scan has already advanced this scope.
+  setProactiveSchedulerCheckpoint?(
+    scope: string,
+    cursor: string | null,
+    expectedCursor: string | null
+  ): Promise<void>;
   getCompanion(userId: string, companionId: string): Promise<CompanionProfile | null>;
   createCompanion(userId: string, input: CreateCompanionInput): Promise<CompanionProfile>;
   updateCompanion(

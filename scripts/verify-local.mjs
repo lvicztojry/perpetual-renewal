@@ -18,10 +18,13 @@ const steps = [
   ["Prompt QA", ["run", "qa:prompt"]],
   ["Structured import QA", ["run", "qa:imports"]],
   ["Config/vault QA", ["run", "qa:vault"]],
+  ["Password auth QA", ["run", "qa:auth"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],
   ["Response safety QA", ["run", "qa:response"]],
   ["Provider adapters QA", ["run", "qa:providers"]],
   ["Voice shared-LLM QA", ["run", "qa:voice"]],
+  ["Voice language QA", ["run", "qa:voice-language"]],
+  ["Proactive scheduler QA", ["run", "qa:proactive-scheduler"]],
   ["Proactive cron contract QA", ["run", "qa:proactive-cron"]],
   ["Real provider QA fake", ["run", "qa:real-provider:fake"]],
   ["PWA check", ["run", "pwa:check"]],
@@ -29,7 +32,8 @@ const steps = [
   ["Prisma validate", ["run", "prisma:validate"]],
   ["DB smoke", ["run", "db:smoke"]],
   ["Smoke", ["run", "smoke"]],
-  ["Build", ["run", "build"]]
+  ["Build", ["run", "build"]],
+  ["Production auth access", ["run", "qa:auth-access"]]
 ];
 
 if (!skipE2e) {

@@ -315,6 +315,7 @@ function startDevServer(port) {
     cwd: ROOT_DIR,
     env: {
       ...process.env,
+      AUTH_MODE: "local-email",
       NEXT_TELEMETRY_DISABLED: "1",
       LLM_API_KEY: "",
       OPENAI_API_KEY: "",

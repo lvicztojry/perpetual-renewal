@@ -17,8 +17,7 @@ export async function GET() {
 
     return privateJson({
       session: {
-        provider: session.provider,
-        replaceWith: "Auth.js or another production session provider"
+        provider: session.provider
       },
       user
     });

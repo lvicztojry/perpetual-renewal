@@ -49,11 +49,49 @@ npm run env:secrets
 
 ## Environment Variables
 
+### 认证与邮件
+
+个人 QQ 邮箱的精确本机配置与授权码说明见 [AUTH.md](AUTH.md)；无需自有域名，生产邮件中的链接须使用公开可访问的 HTTPS 站点地址。
+
+2026-10-26 选择自托管邮箱/密码认证；实现正在集成，真实 SMTP/HTTP 邮件投递与目标数据库新增迁移均待验证。下列是本轮配置契约，不能把 8 月的 readiness/DB smoke 通过记录视为本轮通过。
+
+默认使用邮箱与密码登录。注册邮件验证成功后才创建可登录账号；历史 email-only 用户通过原邮箱“忘记密码”设置密码，沿用原账号资料和关系。密码须为 12–128 个字符。验证与重置邮件链接分别为 `/verify-email#token=…`、`/reset-password#token=…`，令牌 30 分钟内单次有效；页面读取 fragment 后通过请求体提交，避免令牌进入 URL query 与访问日志。密码 v2 session 在服务端检查到期时间（30 天）和凭证版本；密码重置后旧 session 失效。
+
+个人邮箱测试无需自有域名。先在邮箱服务中开启 SMTP 并申请授权码，放入本地或部署 secret；公开注册的投递配额、域名信誉和送达率仍需单独验证。
+
+| 变量 | 用途 |
+| --- | --- |
+| `AUTH_APP_URL` | 用户可访问的站点地址，用于验证/重置链接；本地地址须与实际访问地址一致，生产使用 HTTPS |
+| `AUTH_MAIL_TRANSPORT` | `smtp` 或 `http`；未指定时，有 `AUTH_MAIL_API_URL` 则选 HTTP，否则选 SMTP，建议显式选择 |
+| `AUTH_MAIL_FROM` | 发件人地址；个人 SMTP 测试按邮箱供应商要求与授权邮箱保持一致 |
+| `AUTH_SMTP_HOST` | SMTP 服务器地址 |
+| `AUTH_SMTP_PORT` | 默认 `465`，使用 TLS；`587` 使用 STARTTLS |
+| `AUTH_SMTP_USER` | SMTP 登录邮箱/用户名 |
+| `AUTH_SMTP_PASSWORD` | 邮箱 SMTP 授权码；仅存本地/部署 secret |
+| `AUTH_MAIL_API_URL` | 仅 HTTP 路线需要，邮件网关 POST 地址；生产使用 HTTPS |
+| `AUTH_MAIL_API_KEY` | 仅 HTTP 路线需要，作为网关 Bearer 凭证 |
+
+HTTP 网关接收 JSON `{from,to,subject,text}`，2xx 只表示网关受理，不证明邮件到达收件箱。SMTP 路线同样需要真实收件验证；不得把 fake transport 成功标为真实投递成功。
+
+M138 调度增量在数据库保存 all-user 扫描 checkpoint，并使用按 id 排序的 keyset cursor 跨 serverless 冷启动续扫；到达 `limit` 或 `maxDrafts` 后下一轮从已检查位置继续，避免固定扫描首批对象导致后续对象饥饿。`dryRun` 不推进持久化 checkpoint；当前用户前台检查不能证明 all-user 冷启动续扫已通过，仍须应用目标迁移后验证。
+
+部署时先在目标数据库运行 `npm run prisma:migrate:deploy`，确认密码认证与 scheduler checkpoint 的新增迁移已落地，再运行 `npm run verify:deploy` 并实际完成注册验证、登录、忘记密码、旧账号恢复与旧 session 撤销。这些目标迁移和真实邮件步骤当前待验证。
+
+`AUTH_MODE=local-email` 仅允许显式非生产测试，用于旧演示登录及 memory/mock 测试夹具；未配置该值即走密码认证，生产不能使用它。默认 mock/memory E2E 的通过也不能证明密码认证或真实邮件已通过。
+
 本地真实测试建议创建 `.env.local`：
 
 ```text
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
 DATABASE_URL_UNPOOLED=""
+
+AUTH_APP_URL="http://127.0.0.1:3000"
+AUTH_MAIL_TRANSPORT="smtp"
+AUTH_MAIL_FROM="your-mailbox@example.com"
+AUTH_SMTP_HOST="smtp.example.com"
+AUTH_SMTP_PORT="465"
+AUTH_SMTP_USER="your-mailbox@example.com"
+AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 
 LLM_PROVIDER="compatible"
 LLM_API_KEY=""
@@ -74,7 +112,7 @@ VOICE_DEFAULT_VOICE="warm"
 VOICE_CREDENTIAL_SOURCE="server-env"
 ```
 
-最小真实试用不要把所有变量都混在一起理解：数据库连接串和三类 secret 放 `.env.local`；当前用户自己的 LLM key、模型名和连接测试优先在网站设置页完成。`LLM_API_KEY`/`LLM_MODEL` 只有在你需要部署方提供服务端 fallback 时才必须写入服务端环境变量；纯 BYOK 试用可以保持为空。
+最小真实试用不要把所有变量都混在一起理解：数据库连接串、三类 secret 与认证邮件配置 放 `.env.local`；当前用户自己的 LLM key、模型名和连接测试优先在网站设置页完成。`LLM_API_KEY`/`LLM_MODEL` 只有在你需要部署方提供服务端 fallback 时才必须写入服务端环境变量；纯 BYOK 试用可以保持为空。
 
 说明：
 
@@ -404,6 +442,9 @@ npm run qa:logging
 npm run qa:response
 npm run qa:providers
 npm run qa:voice
+npm run qa:voice-language
+npm run qa:auth
+npm run qa:proactive-scheduler
 npm run qa:proactive-cron
 npm run qa:real-provider:fake
 npm run pwa:check
@@ -479,6 +520,9 @@ npm run qa:logging
 npm run qa:response
 npm run qa:providers
 npm run qa:voice
+npm run qa:voice-language
+npm run qa:auth
+npm run qa:proactive-scheduler
 npm run qa:proactive-cron
 npm run pwa:check
 npm run env:readiness

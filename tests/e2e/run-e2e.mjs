@@ -22,6 +22,7 @@ printRunMode();
 
 const baseServerEnv = {
   ...process.env,
+  AUTH_MODE: process.env.E2E_AUTH_MODE ?? "local-email",
   SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
   E2E_SESSION_COOKIE_SECRET: e2eSessionCookieSecret,
   NEXT_TELEMETRY_DISABLED: "1",

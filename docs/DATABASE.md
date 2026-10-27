@@ -21,6 +21,10 @@ Covered Prisma-backed records:
 
 ## Migration
 
+October 26 candidates M138/M139 add durable `ProactiveSchedulerCheckpoint` and authentication records (`AuthCredential`, `AuthRecoveryToken`, `AuthRateLimit`). Password authentication requires PostgreSQL; the memory repository is a separate explicit nonproduction test path. Auth verification/recovery tokens are stored as hashes, and password session validation checks the credential version. All-user scheduler keyset scans resume from a database checkpoint across serverless instances.
+
+Apply the new migrations with `npm run prisma:migrate:deploy` in the target environment before authentication/scheduler validation. Target application of these new migrations is pending; August DB smoke results do not verify them. Mail configuration and live-delivery verification are described in [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件).
+
 Initial migration:
 
 ```text
@@ -113,5 +117,5 @@ RENEWAL_REPOSITORY="memory"
 ## Current Limits
 
 - DB smoke validates direct Prisma persistence, not the full HTTP app running against PostgreSQL.
-- Renewal API routes use `getCurrentSession()` and are scoped by the current session userId. Local development supports email sessions plus a fallback demo user when no explicit login exists.
+- Renewal API routes use `getCurrentSession()` and are scoped by the current session userId. Default password authentication requires a valid session; email-only sessions and a fallback demo user are restricted to explicit nonproduction `AUTH_MODE=local-email` tests.
 - The relationship-state API is repository-backed: reads and writes use the same configured repository as the main renewal workspace, with Prisma active whenever `DATABASE_URL` is configured.

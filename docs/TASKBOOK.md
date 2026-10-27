@@ -165,7 +165,7 @@
 
 交付物：
 
-- 本地 email session 登录/登出。
+- 默认邮箱/密码、注册邮件验证与忘记密码恢复；旧 email-only 用户经原邮箱设置密码，v2 session 到期与重置撤销作为 M139 候选待主控验收。原演示登录仅用于显式非生产 `AUTH_MODE=local-email` 测试。
 - 用户资料页。
 - 资料持久化。
 
@@ -813,7 +813,7 @@
 | M62 密钥与发布门禁加固 | integrated | 主控 + 安全/QA 模块审计 | `src/lib/credentials/vault.ts`、`src/lib/export/snapshot.ts`、`scripts/check-env-leaks.mjs`、`scripts/pwa-check.mjs`、`scripts/db-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`docs/*` | vault 指纹改为 HMAC，生产 vault secret 强制 32 bytes；导出 scrub 更保守；secret scan 覆盖通用敏感 env/vault 密文字段；DB smoke 覆盖 ProviderCredential；新增 `pwa:check`、`verify:pr`、`verify:deploy` |
 | M63 文档命令/链接门禁 | integrated | 主控 + 文档门禁模块审计 | `scripts/docs-consistency.mjs`、`.github/pull_request_template.md`、`docs/PR_DRAFT.md`、`docs/RELEASE_HANDOFF.md` | `docs:check` 纳入 PR 模板、本地 Markdown 链接存在性和文档 `npm run` 脚本存在性检查；PR/交接清单同步 `qa:imports`、`qa:vault` 与 `pwa:check` |
 | M64 结构化导入与 vault QA | integrated | 主控 + 导入/语音/安全模块审计 | `tests/structured-import-smoke.mjs`、`tests/config-vault-security.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`src/lib/import/structured-client-import.ts` | 新增 `qa:imports` 覆盖 HEIC/M4A 空 MIME、CSV/JSON/vCard 通讯录归一化和脱敏；新增 `qa:vault` 覆盖生产 vault secret 强度、HMAC fingerprint 和 config readiness provider/baseUrl 矩阵 |
-| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当前 smoke 基线 94 checks、E2E 基线 15 tests |
+| M65 导出隐私、DB credential 和设置页 E2E 硬化 | integrated | 主控 + 安全/DB/E2E/文档模块审计 | `src/lib/export/snapshot.ts`、`scripts/db-smoke.mjs`、`tests/db-smoke.mjs`、`tests/smoke.mjs`、`tests/e2e/settings-privacy.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 导出层对误写入业务内容的 token、Bearer、JWT、PostgreSQL URL 和 provider endpoint 做占位脱敏；DB smoke 覆盖 ProviderCredential 读写、唯一约束与级联清理；E2E 扩展到设置页密钥、模型列表读取与选择、连接失败态、导出下载、账号删除确认和 320px/768px 响应式；当时 smoke 数量 94 checks、E2E 数量 15 tests |
 | M66 本地 session 隔离、cron 边界和文档指标派生门禁 | integrated | 主控 + session/cron/文档模块审计 | `src/lib/auth/session.ts`、`src/lib/users/profile.ts`、`src/lib/users/delete-account.ts`、`src/lib/renewal/in-memory-repository.ts`、`tests/smoke.mjs`、`tests/e2e/memory-isolation.spec.ts`、`scripts/docs-consistency.mjs`、`docs/*` | 无数据库 memory fallback 登录按邮箱派生本地 userId，并同步 fallback profile/删除清理，避免并行 E2E 共享 demo user；memory repository 关系详情按 userId 过滤 conversation/memory；主动回响 all-user cron 覆盖无密钥、错密钥、Bearer/header secret、limit/maxDrafts clamp 和 dry-run 不保存；docs check 自动派生当前 smoke checks、E2E tests、QA 数字和最新 M milestone |
 | M67 主动回响调度文档与交接门禁 | integrated | 主控 + 架构/交接文档模块审计 | `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md`、`docs/MVP_STATUS.md`、`docs/RELEASE_HANDOFF.md`、`docs/PR_DRAFT.md`、`scripts/docs-consistency.mjs` | 架构与部署文档移除“应用内定时任务起步/后续迁移队列”旧说法，明确第一版应用进程内不常驻调度器，生产由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护的 `POST /api/proactive/run`；`docs:check` 拦截主动回响调度边界回流；交接材料同步 M66 后候选状态、PR 草稿路径、生产 `verify:deploy` 前置配置口径 |
 | M68 关系状态 API 持久化收束 | integrated | 主控 | `src/app/api/companions/[companionId]/relationship-state/route.ts`、`src/lib/renewal/*`、`tests/smoke.mjs`、`docs/*` | `/api/companions/:id/relationship-state` 从早期 mock 收束为 session-scoped repository 入口；GET 返回当前用户持久化状态，POST 不再信任客户端 `current`，而是基于当前 companion 状态经共享关系状态演进逻辑更新并写回 Prisma/memory fallback；smoke 覆盖读取状态、不返回 DEV-9/mock 元数据和更新时间线 |
@@ -831,7 +831,7 @@
 | M80 主动回响重复生成门禁 | integrated | 主控 | `tests/smoke.mjs`、`docs/*` | `POST /api/proactive/run` 保存草稿后，同一 `now` 再跑不会立刻重复生成/保存；已保存草稿会成为下一次候选时间锚点，降低重复站内消息和成本风险 |
 | M81 手动记忆输入边界补强 | integrated | 主控 + QA 模块 | `src/app/api/companions/[companionId]/memories/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 手动创建记忆 smoke 确认 `sourceMessageId` 链接被保留；未知 `sourceMessageId` 与空白 `content` 返回稳定 400，避免写入悬挂/空 pending 记忆 |
 | M82 记忆编辑空内容护栏 | integrated | 主控 | `src/app/api/memories/[memoryId]/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | `PATCH /api/memories/:id` 拒绝空白 `content` 并返回稳定 400；拒绝后保留原记忆内容，避免把 active/pending 记忆覆盖为空 |
-| M83 设置页模型列表 E2E 隐私覆盖 | integrated | E2E 模块 + 主控 | `tests/e2e/settings-privacy.spec.ts`、`docs/*` | 设置页读取模型列表成功后清空 API Key 输入框并展示可选模型；点击模型回填输入框；失败文案和 diagnostic 前端脱敏，不回显用户 key、Base URL、Bearer、prompt、rawPayload 或 stack；当前 E2E 基线 15 tests |
+| M83 设置页模型列表 E2E 隐私覆盖 | integrated | E2E 模块 + 主控 | `tests/e2e/settings-privacy.spec.ts`、`docs/*` | 设置页读取模型列表成功后清空 API Key 输入框并展示可选模型；点击模型回填输入框；失败文案和 diagnostic 前端脱敏，不回显用户 key、Base URL、Bearer、prompt、rawPayload 或 stack；当时 E2E 数量 15 tests |
 | M84 聊天消息输入错误边界 | integrated | 主控 | `src/app/api/conversations/[conversationId]/messages/route.ts`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 空白聊天消息返回稳定 400 `Message content is required.`；对用户消息执行 `regenerate` 返回稳定 400，避免泛化错误或透传异常对象 |
 | M85 导入错误恢复 E2E 覆盖 | integrated | E2E 模块 | `tests/e2e/relationship-flow.spec.ts`、`docs/QA.md`、`docs/TASKBOOK.md` | 主链路 E2E 覆盖坏 `.json` 文件解析失败后的前端恢复：友好错误可见、导入按钮保持不可用、不读取为已选文件，随后重新选择有效 `.jsonl` 文件可回填并继续导入候选 |
 | M86 关系对象校验错误边界 | integrated | 主控 | `src/app/api/companions/*`、`src/lib/renewal/service.ts`、`tests/smoke.mjs`、`docs/*` | 关系对象创建/编辑对空名称、空语气、非法关系类型返回稳定白名单 400；非法类型不创建记录，空名称编辑不会部分写入 `speakingStyle` 等其他字段 |
@@ -883,10 +883,20 @@
 | M132 生产调度部署门禁复核 | integrated | 生产调度/部署门禁模块 + 主控 | `tests/proactive-cron-contract.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`docs/*` | 新增 `npm run qa:proactive-cron`，静态复核 `vercel.json` 每分钟 GET `/api/proactive/run?limit=20&maxDrafts=50`、Bearer/`CRON_SECRET` alias、GET 默认 `dryRun:false`、`limit`/`maxDrafts` clamp 和部署文档；接入 `verify:deploy`、verify-local 与 CI |
 | M133 非 compatible provider hermetic 覆盖 | integrated | LLM provider 适配器 QA 模块 + 主控 | `tests/provider-adapters-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`docs/*` | 新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload 形态、默认官方 base URL 不误用 compatible `LLM_BASE_URL`、以及供应商错误诊断脱敏；不访问真实网络或真实 key |
 | M134 主动回响调度性能护栏 | integrated | 主动回响调度性能模块 + 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/lib/renewal/*`、`tests/proactive-cron-contract.mjs`、`tests/smoke.mjs`、`docs/*` | all-user scheduler 将规范化后的 `limit` 下推到 repository/Prisma `take`，同一用户 profile 读取复用缓存，达到 `maxDrafts` 后停止继续扫描后续关系对象；smoke 新增早停用例，真实 DB 下原 100 对象 clamp 路径从约 61 秒降到约 2.3 秒 |
-| M135 设置页模型列表 diagnostic 前端脱敏 | integrated | 设置页隐私/E2E 模块 + 主控 | `src/components/user-settings.tsx`、`tests/e2e/settings-privacy.spec.ts`、`docs/*` | 模型列表失败时，前端对服务端 diagnostic 再执行本地脱敏，避免异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 或 stack 时展示原文；设置页 E2E 扩展 diagnostic 回归，全量 E2E 基线 15 tests |
+| M135 设置页模型列表 diagnostic 前端脱敏 | integrated | 设置页隐私/E2E 模块 + 主控 | `src/components/user-settings.tsx`、`tests/e2e/settings-privacy.spec.ts`、`docs/*` | 模型列表失败时，前端对服务端 diagnostic 再执行本地脱敏，避免异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 或 stack 时展示原文；设置页 E2E 扩展 diagnostic 回归，当时全量 E2E 数量 15 tests |
+| M136 会话切换隔离 | integrated | 工作台 + 浏览器测试 + 主控 | `src/components/renewal-workspace.tsx`、`tests/e2e/conversation-isolation.spec.ts`、`docs/*` | 会话草稿、延迟历史和进行中回复隔离；Next.js 16.4.3 下全量 E2E 32 项通过 |
+| M137 语音 locale 兼容 | integrated | 语音 + 主控 | `src/lib/voice/compatible-provider.ts`、`tests/voice-transcription-language.mjs`、`docs/*` | compatible 转写将 zh-CN 归一为 zh；本地语音语言 16 项通过，真实供应商另验 |
+| M138 主动调度公平续扫 | integrated | 主动回响 + 数据层 + 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/lib/renewal/*`、`prisma/*`、`tests/proactive-scheduler-pagination.mjs`、`docs/*` | 数据库 checkpoint 与 keyset cursor 跨冷启动续扫；本地调度 20 项通过，dry-run 不推进、早停不跳过未扫描对象；目标迁移待验证 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 支持无数据库本地/CI 占位检查；配置真实 `DATABASE_URL` 时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据；当前本机真实 Neon/PostgreSQL 已通过 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
+
+2026-10-26 剩余候选（已集成序列截至 M138；认证数据库集成和完整 smoke 等剩余门禁尚未完成）：
+
+| 里程碑 | 状态 | 模块 | 验收范围 |
+| --- | --- | --- | --- |
+| M139 自托管密码认证 | candidate | 认证后端 + 认证 UI + 主控 | 默认邮箱/密码、注册邮箱验证、旧账号邮箱恢复、fragment token、v2 session 到期与重置撤销；QQ SMTP 授权码或可选 HTTP 网关；本地认证后端/SMTP 33 项及认证 UI 已通过，真实 PostgreSQL 集成在 CREATE SCHEMA 因 database_unreachable 失败，未创建 schema/执行迁移；严格 readiness 缺认证邮件配置，真实邮件与目标迁移待验证 |
+| M140 依赖安全刷新 | candidate | 主控 | Next.js/eslint-config-next 16.4.3 与传递依赖升级后 audit 从 6 降为 0 vulnerabilities；lint/typecheck/build/E2E 通过，完整 memory smoke 修正语音 fixture 后复验待结果 |
 
 暂不进入第一版：付费订阅/额度系统、内容审核后台、用户反馈问卷、内测邀请机制。移动端 PWA、账号删除和媒体/通讯录结构化导入已按用户最新授权进入第一版。
 
@@ -1075,7 +1085,7 @@ M34 当前落点：
 
 | 风险 | 说明 | 初步应对 |
 | --- | --- | --- |
-| 依赖漏洞 | npm audit 曾报告 Prisma 链路 3 个 high 漏洞 | 已将 prisma 与 @prisma/client 固定到 6.12.0，npm audit 确认 0 vulnerabilities |
+| 依赖漏洞 | npm audit 曾报告 Prisma 链路 3 个 high 漏洞 | 已将 prisma 与 @prisma/client 固定到 6.12.0，8 月 audit 为 0 vulnerabilities；10 月初查 6 vulnerabilities（5 high、1 critical），M140 修复后 audit 为 0 vulnerabilities，完整 memory smoke 待结果 |
 | 情感依赖 | 关系型 AI 可能强化用户对虚拟关系的依赖 | 允许沉浸和撒娇，但限制威胁、控诉、冷暴力和情感勒索 |
 | 现实人物替代 | 用户可能希望复刻现实中的某个人 | 支持手动设定和情感替代；素材导入走本地整理/脱敏摘要，不上传原文件；用户可通过账号删除清理当前账号数据 |
 | 角色失真 | 模型可能偏离设定或忘记关系 | Prompt builder、记忆层、评估集共同约束 |

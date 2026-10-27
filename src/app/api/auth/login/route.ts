@@ -1,46 +1,19 @@
-import { privateJson } from "@/lib/http/private-response";
-import { createEmailSession, normalizeEmail } from "@/lib/auth/session";
-import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
-import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
+import { authPost } from "@/lib/auth/http";
+import { authenticatePassword, normalizeEmail } from "@/lib/auth/service";
+import { createEmailSession, createPasswordSession } from "@/lib/auth/session";
+import { isLocalEmailAuthEnabled } from "@/lib/auth/errors";
 import { getUserProfile } from "@/lib/users/profile";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-
-  try {
-    body = await readJsonObject(request);
-  } catch (error) {
-    return privateJson(
-      { error: jsonErrorMessage(error, "Failed to login.") },
-      { status: 400 }
-    );
-  }
-
-  try {
-    if (typeof body.email !== "string") {
-      return privateJson({ error: "email is required." }, { status: 400 });
-    }
-
+  return authPost(request, async (body) => {
     const email = normalizeEmail(body.email);
-    const nickname = typeof body.nickname === "string" ? body.nickname.trim() : undefined;
-    const session = await createEmailSession({ email, nickname });
+    const session = isLocalEmailAuthEnabled() && body.password === undefined
+      ? await createEmailSession({ email, nickname: typeof body.nickname === "string" ? body.nickname : undefined })
+      : await createPasswordSession(await authenticatePassword(email, body.password));
     const user = await getUserProfile(session.userId);
-
-    return privateJson({ session, user });
-  } catch (error) {
-    const persistenceError = persistenceUnavailableResponse(error, "auth");
-    if (persistenceError) return persistenceError;
-
-    return privateJson({ error: safeLoginErrorMessage(error) }, { status: 400 });
-  }
-}
-
-function safeLoginErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message === "请输入有效的邮箱地址。") {
-    return "请输入有效的邮箱地址。";
-  }
-
-  return "Failed to login.";
+    return { session, user };
+  });
 }

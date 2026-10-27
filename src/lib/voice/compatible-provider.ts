@@ -78,7 +78,8 @@ export class CompatibleVoiceProvider implements VoiceProvider {
     formData.append("model", model);
 
     if (options.language?.trim()) {
-      formData.append("language", options.language.trim());
+      // Browsers use locale tags (zh-CN); transcription APIs expect language codes (zh).
+      formData.append("language", options.language.trim().split("-")[0].toLowerCase());
     }
 
     let response: Response;

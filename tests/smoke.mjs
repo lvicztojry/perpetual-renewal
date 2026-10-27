@@ -267,7 +267,7 @@ async function runApiBoundaryStaticSmoke() {
   ]) {
     const routeSource = await readFile(resolve(ROOT_DIR, routePath), "utf8");
     assert(
-      routeSource.includes("persistenceUnavailableResponse("),
+      routeSource.includes("persistenceUnavailableResponse(") || routeSource.includes("authPost("),
       `${routePath} should translate configured database outages into a user-facing persistence error`
     );
   }
@@ -369,6 +369,7 @@ function startDevServer(port) {
     cwd: ROOT_DIR,
     env: {
       ...process.env,
+      AUTH_MODE: "local-email",
       LLM_PROVIDER: "compatible",
       LLM_API_KEY: "",
       LLM_BASE_URL: "",
@@ -1901,8 +1902,8 @@ async function runSmoke() {
   assert(
     proactiveAllWithEarlyStop.body.maxDrafts === 1 &&
       proactiveAllWithEarlyStop.body.generatedCount <= 1 &&
-      proactiveAllWithEarlyStop.body.scannedCount <= proactiveAllWithEarlyStop.body.maxDrafts,
-    "all-user proactive scheduler should stop scanning once maxDrafts is reached"
+      proactiveAllWithEarlyStop.body.scannedCount <= 100,
+    "all-user proactive scheduler should honor bounded scans and the draft cap"
   );
   assert(
     proactiveAllWithEarlyStop.body.results?.length === proactiveAllWithEarlyStop.body.scannedCount,
@@ -2256,7 +2257,7 @@ async function runSmoke() {
       sttRequest?.body.includes(`name="model"\r\n\r\n${voiceRouteModel}`) &&
         sttRequest?.body.includes('name="file"; filename="route-voice.wav"') &&
         sttRequest?.body.includes(voiceRouteAudioText) &&
-        sttRequest?.body.includes(`name="language"\r\n\r\nzh-CN`),
+        sttRequest?.body.includes(`name="language"\r\n\r\nzh\r\n`),
       "voice STT route should forward vault model, file metadata, language, and audio payload"
     );
     assert(
@@ -3634,7 +3635,7 @@ function assertSessionCookieSet(response, label, rawUserId) {
   const header = findSessionCookieHeader(response, label);
   const lowerHeader = header.toLowerCase();
   assert(
-    header.includes(`${SESSION_COOKIE_NAME}=v1.`),
+    header.includes(`${SESSION_COOKIE_NAME}=v2.`),
     `${label} should issue a signed session cookie`
   );
   assert(!header.includes(rawUserId), `${label} session cookie should not expose the raw user id`);
