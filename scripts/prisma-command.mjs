@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import process from "node:process";
 import { loadLocalEnv } from "./load-local-env.mjs";
+import { migrationDatabaseUrl } from "./database-url.mjs";
 
 const args = process.argv.slice(2);
 
@@ -12,8 +13,9 @@ if (args.length === 0) {
 
 loadLocalEnv();
 
-if (usesMigrationCommand(args) && process.env.DATABASE_URL_UNPOOLED?.trim()) {
-  process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED.trim();
+if (usesMigrationCommand(args)) {
+  const migrationUrl = migrationDatabaseUrl();
+  if (migrationUrl) process.env.DATABASE_URL = migrationUrl;
 }
 
 const prismaCli = join(process.cwd(), "node_modules", "prisma", "build", "index.js");

@@ -102,6 +102,10 @@ For deployment readiness, mirror the local env/secrets into the target environme
 
 When `DATABASE_URL_UNPOOLED` is configured, `npm run prisma:migrate` and `npm run prisma:migrate:deploy` temporarily use it for the Prisma CLI. App runtime queries and `db:smoke` continue to use `DATABASE_URL`.
 
+For Neon URLs, migration commands now remove the `-pooler` hostname suffix for the same compute and default the connection timeout to 30 seconds when none is specified. This transformation is process-local; it does not overwrite `.env.local` or change app query pooling. Other database providers retain their original URL. `npm run qa:database-url` verifies this routing.
+
+If a migration times out with P1002, inspect advisory locks before retrying. Do not disable migration locks or terminate arbitrary sessions. A previous isolated QA run left a confirmed idle test connection holding Prisma's advisory lock; it was released only after checking the PID, current database/user, no active transaction, and the test-schema query.
+
 ## Fallback Behavior
 
 If `DATABASE_URL` is missing, the renewal service uses the in-memory demo repository directly.

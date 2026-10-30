@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import * as ts from "typescript";
 import { loadLocalEnv } from "../scripts/load-local-env.mjs";
+import { migrationDatabaseUrl } from "../scripts/database-url.mjs";
 
 if (process.env.AUTH_DATABASE_QA !== "1") {
   console.log("Isolated PostgreSQL QA skipped: set AUTH_DATABASE_QA=1 to opt in.");
@@ -20,7 +21,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 const schema = `renewal_qa_${randomUUID().replaceAll("-", "")}`;
 assert.match(schema, /^renewal_qa_[a-f0-9]{32}$/);
-const url = new URL(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL);
+const url = new URL(migrationDatabaseUrl());
 const bootstrap = new PrismaClient({ datasources: { db: { url: url.toString() } }, log: [] });
 url.searchParams.set("schema", schema);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } }, log: [] });
@@ -42,6 +43,10 @@ try {
     cwd: root, encoding: "utf8", windowsHide: true,
     env: { ...process.env, DATABASE_URL: url.toString() }, timeout: 120_000
   });
+  if (migration.status !== 0) {
+    const code = `${migration.stdout || ""}\n${migration.stderr || ""}`.match(/\bP\d{4}\b/)?.[0] || "unknown";
+    console.error(`Isolated migration error: code=${code}; signal=${migration.signal || "none"}`);
+  }
   assert.equal(migration.status, 0, "Isolated migration failed.");
   console.log("ok - versioned migrations apply in isolated schema");
   await new Promise((resolve) => mailServer.listen(0, "127.0.0.1", resolve));
@@ -53,6 +58,9 @@ try {
   });
   const modules = new Map();
   function load(path) {
+    if (!existsSync(path) && path.endsWith(".ts")) {
+      path = resolve(path.slice(0, -3), "index.ts");
+    }
     if (modules.has(path)) return modules.get(path).exports;
     const loaded = { exports: {} };
     modules.set(path, loaded);
@@ -135,7 +143,7 @@ try {
 } catch (error) {
   const code = error?.code || error?.errorCode || "none";
   const reason = /can't reach database server/i.test(error?.message || "") ? "database_unreachable" : "check_failed";
-  console.error(`Isolated PostgreSQL QA failed during: ${step}; type=${error?.name || "Error"}; code=${code}; reason=${reason}`);
+  console.error(`Isolated PostgreSQL QA failed during: ${step}; type=${error?.name || "Error"}; code=${code}; databaseCode=${error?.meta?.code || "none"}; reason=${reason}`);
   process.exitCode = 1;
 } finally {
   await prisma.$disconnect();

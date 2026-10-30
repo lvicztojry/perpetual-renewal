@@ -53,20 +53,24 @@ export class PrismaRenewalRepository implements RenewalRepository {
   readonly persistence = "prisma" as const;
 
   async getProactiveSchedulerCheckpoint(scope: string) {
-    const rows = await prisma.$queryRaw<Array<{ cursor: string | null }>>`
-      SELECT "cursor" FROM "ProactiveSchedulerCheckpoint" WHERE "scope" = ${scope}
-    `;
-    return rows[0]?.cursor ?? null;
+    const checkpoint = await prisma.proactiveSchedulerCheckpoint.findUnique({
+      where: { scope },
+      select: { cursor: true }
+    });
+    return checkpoint?.cursor ?? null;
   }
 
   async setProactiveSchedulerCheckpoint(scope: string, cursor: string | null, expectedCursor: string | null) {
-    await prisma.$executeRaw`
-      INSERT INTO "ProactiveSchedulerCheckpoint" ("scope", "cursor", "updatedAt")
-      VALUES (${scope}, ${cursor}, CURRENT_TIMESTAMP)
-      ON CONFLICT ("scope") DO UPDATE
-      SET "cursor" = EXCLUDED."cursor", "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "ProactiveSchedulerCheckpoint"."cursor" IS NOT DISTINCT FROM ${expectedCursor}
-    `;
+    await prisma.$transaction([
+      prisma.proactiveSchedulerCheckpoint.createMany({
+        data: [{ scope, cursor: expectedCursor }],
+        skipDuplicates: true
+      }),
+      prisma.proactiveSchedulerCheckpoint.updateMany({
+        where: { scope, cursor: expectedCursor },
+        data: { cursor }
+      })
+    ]);
   }
 
   async listCompanions(userId: string) {

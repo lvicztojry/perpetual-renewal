@@ -34,9 +34,11 @@ AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 
 2026-10-26 主控已确认 Next.js 16.4.3 下全量 E2E 32 项、lint、typecheck、build 通过；主动调度本地 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过；依赖升级后的 audit 为 0 vulnerabilities。这些结果包含认证 UI 的拦截响应及本地邮件测试，不能代替真实数据库的注册/恢复事务与邮件投递验证。
 
-真实隔离 PostgreSQL 集成在 `CREATE SCHEMA` 阶段因 `database_unreachable` 失败，即使提权重试仍不可达；没有创建 schema，也没有执行迁移。`auth-postgres` 测试须待数据库可达后重跑；目标认证/checkpoint 迁移、真实 QQ SMTP/HTTP 收件均待验证。完整 memory smoke 仍待主控结果。
+数据库已恢复，两份认证/检查点迁移已应用到当前数据库，真实 DB smoke 通过。完整隔离 PostgreSQL 集成已验证注册、密码登录、重置撤销旧会话、旧账号恢复、限流、检查点 CAS 和级联清理；测试 schema 已移除。最近完整 memory smoke 已通过 94 checks。
 
-严格 readiness 仍缺新认证邮件配置（AUTH_MAIL）；文档中的占位示例不表示本机或部署 secret 已补齐。
+本机 QQ SMTP 的 TLS 连接与账号认证已通过，未在自检中发送邮件。真实注册邮件送达与点击验证需在网站完成。生产仍需 HTTPS `AUTH_APP_URL` 和独立部署环境验证；文档占位示例不表示部署 secret 已补齐。
+
+QQ 授权码的生成步骤见 [QQ 邮箱官方帮助](https://help.mail.qq.com/detail/106/985)。取得后只在本机 `.env.local` 填入 `AUTH_SMTP_PASSWORD`。先运行 `npm run env:mail` 检查配置，再运行 `npm run env:mail -- --verify` 验证 SMTP 连接和认证；这两个命令都不发送邮件，也不输出授权码。生产环境的 `AUTH_APP_URL` 必须改为 HTTPS。
 
 三个新增自动门禁已进入 verify-local 与 CI：
 

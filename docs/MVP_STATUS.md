@@ -1,16 +1,16 @@
 # MVP Status
 
-更新日期：2026-10-26（8 月历史验收与本轮候选分列）
+更新说明：已补充本轮真实数据库恢复、迁移和 QQ SMTP 认证验证；历史验收保留原日期。
 
 本文件是主控施工状态面板，用于快速判断当前第一版 MVP 是否可演示、可继续开发、可进入真实环境联调。
 
 ## 当前结论
 
-2026-10-26 主控确认 M136 会话切换隔离、M137 语音 locale、M138 持久化调度续扫的本地回归通过，已追加集成记录。M139 默认自托管邮箱/密码、注册验证、旧账号邮箱恢复、v2 session 与邮件代码已通过本地后端/SMTP 和 UI 回归；真实数据库认证集成、QQ SMTP/HTTP 投递与目标新增迁移仍待验证。M140 安全刷新剩余门禁待确认。`AUTH_MODE=local-email` 仅限显式非生产测试。
+M136 会话切换隔离、M137 语音 locale、M138 持久化调度续扫已通过本地回归。M139 已通过完整真实隔离 PostgreSQL 验证，覆盖注册、密码登录、重置撤销、旧账号恢复、限流和检查点 CAS；两份新增迁移已应用到当前数据库，真实 DB smoke 通过。QQ SMTP 的 TLS 连接和账号认证已通过；真实注册邮件送达、点击验证及网站登录仍待用户完成。`AUTH_MODE=local-email` 仅限显式非生产测试。
 
-本轮 audit 初查为 6 vulnerabilities（5 high、1 critical）；Next.js/eslint-config-next 16.4.3 与传递依赖修复后主控确认 0 vulnerabilities，lint、typecheck、build、全量 E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过。完整 memory smoke 正在修正 zh-CN→zh fixture 并复跑，尚不能标为通过。8 月历史 readiness/DB smoke 不代表本轮结果。
+此前 audit 初查为 6 vulnerabilities（5 high、1 critical）；Next.js/eslint-config-next 16.4.3 与传递依赖修复后确认 0 vulnerabilities，lint、typecheck、build、全量 E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项、完整 memory smoke 94 checks 已通过。本轮另通过邮件诊断 14 项、迁移 URL 路由 3 项及真实隔离数据库集成。
 
-本轮 Playwright 实际展开并通过 32 个用例、6 个 spec；主控已用 Playwright `--list` JSON 修正文档计数。真实隔离 PostgreSQL 集成在 CREATE SCHEMA 阶段返回 `database_unreachable`，提权重试亦失败；没有创建 schema、没有执行迁移。可选 `qa:auth:postgres` 待数据库可达后重跑；严格 readiness 仍缺新认证邮件配置（AUTH_MAIL），真实邮件和目标迁移待验证。候选 M139、M140 依次继续验收。
+Playwright 实际展开并通过 32 个用例、6 个 spec，文档计数使用 `--list` JSON。本轮先恢复数据库连接，再清理确认属于隔离测试的空闲迁移锁，迁移统一使用同一 Neon compute 的直连地址。真实集成发现检查点原始 SQL 的 schema 兼容问题，现改为 Prisma 模型 API 和事务 CAS，并已通过真实 schema 验证；测试 schema 均已清理。当前仍待真实邮件收件、网站登录、真实 LLM 与部署环境验收。本机 HTTP 回调适合本机测试，生产严格 readiness 需要 HTTPS 回调。
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、回复格式清洗、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、签名 session cookie、私有 no-store API 响应边界、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 

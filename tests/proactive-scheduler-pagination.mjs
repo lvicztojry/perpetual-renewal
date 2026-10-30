@@ -66,20 +66,49 @@ function load(db) {
     memories: []
   });
   const prisma = {
-    async $queryRaw(strings, scope) {
-      if (db.checkpointReadError) throw db.checkpointReadError;
-      assert.match(strings.join("?"), /SELECT "cursor" FROM "ProactiveSchedulerCheckpoint"/);
-      return db.checkpoints.has(scope) ? [{ cursor: db.checkpoints.get(scope) }] : [];
+    proactiveSchedulerCheckpoint: {
+      async findUnique({ where, select }) {
+        if (db.checkpointReadError) throw db.checkpointReadError;
+        assert.deepEqual(plain(select), { cursor: true });
+        return db.checkpoints.has(where.scope) ? { cursor: db.checkpoints.get(where.scope) } : null;
+      },
+      createMany({ data, skipDuplicates }) {
+        assert.equal(skipDuplicates, true);
+        assert.equal(data.length, 1);
+        return () => {
+          if (db.checkpointWriteError) throw db.checkpointWriteError;
+          const { scope, cursor } = data[0];
+          if (db.checkpoints.has(scope)) return { count: 0 };
+          db.checkpoints.set(scope, cursor);
+          return { count: 1 };
+        };
+      },
+      updateMany({ where, data }) {
+        const operation = () => {
+          if (db.checkpointUpdateError) throw db.checkpointUpdateError;
+          if (!db.checkpoints.has(where.scope) || db.checkpoints.get(where.scope) !== where.cursor) return { count: 0 };
+          db.checkpointWrites.push({ scope: where.scope, cursor: data.cursor });
+          db.checkpoints.set(where.scope, data.cursor);
+          return { count: 1 };
+        };
+        operation.cursor = data.cursor;
+        return operation;
+      }
     },
-    async $executeRaw(strings, scope, cursor, expectedCursor) {
-      if (db.checkpointWriteError) throw db.checkpointWriteError;
-      await db.beforeCheckpointWrite?.(cursor);
-      assert.match(strings.join("?"), /ON CONFLICT \("scope"\) DO UPDATE/);
-      assert.match(strings.join("?"), /IS NOT DISTINCT FROM/);
-      if (db.checkpoints.has(scope) && db.checkpoints.get(scope) !== expectedCursor) return 0;
-      db.checkpointWrites.push({ scope, cursor });
-      db.checkpoints.set(scope, cursor);
-      return 1;
+    async $transaction(operations) {
+      assert.equal(operations.length, 2);
+      // Delay before acquiring the mock transaction's atomic section so a
+      // competing scan can commit while this writer is waiting.
+      await db.beforeCheckpointWrite?.(operations[1].cursor);
+      const before = new Map(db.checkpoints);
+      const writes = db.checkpointWrites.length;
+      try {
+        return operations.map((operation) => operation());
+      } catch (error) {
+        db.checkpoints = before;
+        db.checkpointWrites.length = writes;
+        throw error;
+      }
     },
     user: { async findUnique({ where }) { return { id: where.id }; } },
     companion: {
@@ -314,6 +343,10 @@ test("checkpoint failures propagate rather than silently using a process cursor"
   assert.equal(db.store.proactiveMessages.length, 2);
   assert.equal(db.checkpoints.size, 0);
   delete db.checkpointWriteError;
+  db.checkpointUpdateError = new Error("checkpoint update unavailable");
+  await assert.rejects(load(db).run({ dryRun: false, limit: 1 }), /checkpoint update unavailable/);
+  assert.equal(db.checkpoints.size, 0, "a failed CAS update rolls back missing-row initialization");
+  delete db.checkpointUpdateError;
   const retry = await load(db).run({ dryRun: false, limit: 1 });
   assert.deepEqual(ids(retry), ["c000"]);
   assert.equal(retry.generatedCount, 0, "saved drafts still suppress duplicates after a failed checkpoint write");
@@ -335,6 +368,20 @@ test("a slower overlapping scan cannot move the durable checkpoint backwards", a
   assert.equal(db.checkpoints.get("all"), "c001");
   delete db.beforeCheckpointWrite;
   assert.deepEqual(ids(await load(db).run({ dryRun: false, limit: 2 })), ["c002", "c003"]);
+
+  const { repository } = load(db);
+  assert.equal(await repository.getProactiveSchedulerCheckpoint("isolated"), null);
+  await repository.setProactiveSchedulerCheckpoint("isolated", "c010", "c009");
+  assert.equal(await repository.getProactiveSchedulerCheckpoint("isolated"), "c010",
+    "a missing row can initialize from a non-null expected cursor");
+  await repository.setProactiveSchedulerCheckpoint("isolated", "stale", "c009");
+  await repository.setProactiveSchedulerCheckpoint("isolated", "stale", null);
+  assert.equal(db.checkpoints.get("isolated"), "c010", "stale writers cannot overwrite an existing cursor");
+  await repository.setProactiveSchedulerCheckpoint("isolated", null, "c010");
+  assert.equal(await repository.getProactiveSchedulerCheckpoint("isolated"), null);
+  await repository.setProactiveSchedulerCheckpoint("isolated", "stale", "c010");
+  assert.equal(db.checkpoints.get("isolated"), null, "stale writers cannot overwrite a wrap to null");
+  assert.equal(db.checkpoints.get("all"), "c003", "CAS writes stay scoped");
 });
 
 test("explicit dry-run continuation survives reloads without mutating the live cursor", async () => {

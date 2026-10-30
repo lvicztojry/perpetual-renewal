@@ -92,6 +92,9 @@ jobs:
       - name: Prisma validate
         run: npm run prisma:validate
 
+      - name: Database migration URL routing
+        run: node tests/database-url.mjs
+
       - name: DB smoke
         run: npm run db:smoke
 

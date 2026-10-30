@@ -179,9 +179,9 @@ M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；本轮新增
 | M136 会话隔离 | 关系切换后草稿独立，延迟历史/回复不覆盖当前关系，切回原关系能读到所属回复 | 已验证：全量 E2E 32 项通过 |
 | M137 转写语言 | `zh-CN` 作为 `zh` 送往 compatible STT；fake-provider 回归与真实供应商结果分列 | 已验证：本地语音语言 16 项通过；真实供应商另验 |
 | M138 调度公平 | 超过单批 limit 时分批续扫，跨新进程读取 DB checkpoint；maxDrafts 早停、禁用/未到期对象、游标对象被删/停用和末尾回绕；dry-run 不推进 checkpoint | 已验证：本地调度 20 项通过；目标迁移待验证 |
-| M139 密码认证 | 新注册验证前不能登录；邮箱/密码错误统一提示；旧 email-only 用户通过原邮箱重置后保留数据；令牌过期/复用拒绝；重置后旧 cookie 失效；生产拒绝 local-email | 本地后端与 UI 已通过；真实 PostgreSQL 集成因数据库不可达待重跑 |
-| M139 邮件与页面 | 验证/重置 fragment token 通过请求体提交；SMTP 465 TLS/587 STARTTLS、HTTP 网关失败处理；fake transport 与真实收件分别记录 | 本地 SMTP 33 项与 UI 回归通过；真实 QQ SMTP/HTTP 收件待验证 |
-| M140 依赖安全 | 更新依赖后重跑 high severity audit、typecheck、构建、smoke 与浏览器回归 | audit 零漏洞、lint/typecheck/build/E2E 通过；完整 memory smoke 待结果 |
+| M139 密码认证 | 新注册验证前不能登录；邮箱/密码错误统一提示；旧 email-only 用户通过原邮箱重置后保留数据；令牌过期/复用拒绝；重置后旧 cookie 失效；生产拒绝 local-email | 本地后端/UI 和完整真实隔离 PostgreSQL 集成通过；当前数据库新增迁移及 DB smoke 通过 |
+| M139 邮件与页面 | 验证/重置 fragment token 通过请求体提交；SMTP 465 TLS/587 STARTTLS、HTTP 网关失败处理；fake transport 与真实收件分别记录 | SMTP 本地 33 项、邮件诊断 14 项与 UI 回归通过；真实 QQ TLS/认证通过，收件与点击验证待用户完成 |
+| M140 依赖安全 | 更新依赖后重跑 high severity audit、typecheck、构建、smoke 与浏览器回归 | 最近 audit 零漏洞、lint/typecheck/build/E2E 与完整 memory smoke 94 checks 通过 |
 
 默认 mock/memory 测试需显式非生产 `AUTH_MODE=local-email`；它只能证明演示夹具链路。密码认证测试须覆盖凭证/令牌持久化与会话撤销；真实邮件收件、目标新增迁移须另验。
 

@@ -4,6 +4,8 @@
 
 ## Current Candidate
 
+Latest recovery verification: complete isolated PostgreSQL auth/checkpoint integration and current database migrations passed; real DB smoke passed. QQ SMTP TLS and authentication passed without sending an email. Actual mailbox receipt, verification-link login and real-provider user flow remain pending. `npm run env:mail -- --verify` checks SMTP only; credentials remain local.
+
 - Branch: `codex/mvp-release-candidate`
 - Remote branch: `origin/codex/mvp-release-candidate`
 - Current branch tip: check `git status --short --branch` and `git log -1 --oneline` immediately before handoff or push.
@@ -151,6 +153,8 @@ Last updated: 2026-08-23
 - M57-M135 follow-up: smoke now covers account deletion, post-delete derived-data isolation, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, Vercel Cron GET auth, proactive scheduler maxDrafts early-stop, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, API response-boundary static guards, automatic quote redaction, 1 minute proactive cadence defaults, assistant reply format normalization, deleted-memory API/export invisibility, compatible model diagnostics, raw-payload response sanitization, concrete relationship-state emotion/event updates, safe configured-database outage responses, single-companion proactive draft truncation/schedule diagnostics, chat-completion connection probes, provider endpoint switch isolation, keyed safety-event hash export, and usage/safety export limit metadata; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, response text sanitization, non-compatible provider adapter hermetic auth/payload/default-endpoint coverage, shared-LLM voice provider behavior, proactive cron deploy contracts, BYOK fake-compatible browser flow, voice fallback display redaction, settings credential-delete failure/model-list diagnostic redaction, real-person-substitute immersion prompt wording, optional real compatible BYOK target flow, and fake-compatible real-provider QA self-test, while release verification normalizes Next route type imports before boundary checks, docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR/deployment materials, `env:secrets` standardizes local secret generation without writing project files, Prisma scripts load local env before migration/deploy commands, optional Neon direct migration URLs are supported, DB smoke retries transient database cleanup connection drops, configured PostgreSQL no longer silently falls back to memory on Prisma connectivity errors, deployment docs now include copyable protected proactive scheduler examples for Vercel Cron and GitHub Actions, and target deployments must mirror env/secrets then run `npm run verify:deploy`.
 
 ## Before Push Or PR Update
+
+Additional production access gate after `npm run build`: `npm run qa:auth-access`.
 
 Run:
 
