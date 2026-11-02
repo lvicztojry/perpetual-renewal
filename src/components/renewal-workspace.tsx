@@ -225,7 +225,7 @@ const structuredImportKindLabels: Record<StructuredImportKind, string> = {
   contact: "通讯录"
 };
 
-export function RenewalWorkspace() {
+export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const [companions, setCompanions] = useState<CompanionProfile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
@@ -1576,10 +1576,17 @@ export function RenewalWorkspace() {
             <Settings size={17} />
             设置
           </a>
-          <a className="text-button" href="/login" title="切换账号">
-            <LogIn size={17} />
-            登录
-          </a>
+          {signedIn ? (
+            <a className="text-button" href="/account" title="我的账号">
+              <UserRound size={17} />
+              我的账号
+            </a>
+          ) : (
+            <a className="text-button" href="/login" title="登录账号">
+              <LogIn size={17} />
+              登录
+            </a>
+          )}
         </div>
       </aside>
 

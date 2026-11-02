@@ -618,6 +618,7 @@ export function UserSettings() {
           <ArrowLeft size={17} />
           返回工作台
         </Link>
+        <Link className="text-button" href="/account">我的账号</Link>
         <div className={`settings-heading ${styles.settingsHeading}`}>
           <div>
             <p className={styles.eyebrow}>生生不息 / 设置</p>
