@@ -437,6 +437,7 @@ function normalizeCreateInput(input: CreateCompanionInput): CreateCompanionInput
     ...input,
     name,
     speakingStyle,
+    initialMemories: normalizeInitialMemories(input.initialMemories),
     personality: normalizePersonality(input.personality),
     immersionEnabled: input.immersionEnabled ?? true,
     proactiveMessagesEnabled: input.proactiveMessagesEnabled ?? true,
@@ -473,6 +474,15 @@ function normalizeUpdateInput(input: UpdateCompanionInput): UpdateCompanionInput
 function normalizePersonality(personality?: string[]) {
   const normalized = personality?.map((item) => item.trim()).filter(Boolean).slice(0, 8);
   return normalized?.length ? normalized : ["真诚", "贴近", "稳定"];
+}
+
+function normalizeInitialMemories(input: CreateCompanionInput["initialMemories"]) {
+  if (input === undefined) return undefined;
+  const allowed: MemoryType[] = ["user_fact", "relationship_event", "companion_profile", "emotional_preference"];
+  if (!Array.isArray(input) || input.length > 12 || input.some((item) => !item || !allowed.includes(item.type) || typeof item.content !== "string" || !item.content.trim() || item.content.length > 500)) {
+    throw new CompanionValidationError("Invalid initial memories.");
+  }
+  return input.map((item) => ({ type: item.type, content: redactSensitiveResponseText(item.content.trim()) ?? "" }));
 }
 
 function assertRelationshipKind(kind: RelationshipKind) {

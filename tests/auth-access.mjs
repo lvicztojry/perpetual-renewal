@@ -36,7 +36,7 @@ try {
   const userId = Buffer.from("legacy-user").toString("base64url");
   const signature = createHmac("sha256", secret).update(userId).digest("base64url");
   for (const cookie of ["", `perpetual_renewal_session=v1.${userId}.${signature}`]) {
-    for (const pathname of ["/", "/settings", "/account"]) {
+    for (const pathname of ["/", "/settings", "/account", "/create-from-chat"]) {
       const response = await fetch(`${base}${pathname}`, { headers: { cookie }, redirect: "manual" });
       assert.equal(response.status, 307, pathname);
       assert.equal(new URL(response.headers.get("location"), base).pathname, "/login");
@@ -48,6 +48,7 @@ try {
       ["GET", "/api/me/llm-credential"], ["GET", "/api/me/llm-models"],
       ["GET", "/api/usage/model-calls"],
       ["POST", "/api/companions", { name: "Unauthorized", relationshipKind: "CUSTOM", speakingStyle: "warm" }],
+      ["POST", "/api/character-import", { action: "analyze" }],
       ["PUT", "/api/me/llm-credential", { provider: "compatible" }],
       ["POST", "/api/me/llm-test", {}],
       ["POST", "/api/proactive/run", { scope: "current-user" }],

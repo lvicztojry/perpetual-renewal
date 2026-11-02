@@ -11,6 +11,7 @@
     "qa:samples": "node tests/qa-samples-smoke.mjs",
     "qa:prompt": "node tests/prompt-builder-smoke.mjs && node tests/memory-retrieval-context.mjs",
     "qa:imports": "node tests/structured-import-smoke.mjs",
+    "qa:character-import": "node tests/transcript-import.mjs && node tests/character-import-service.mjs",
     "qa:vault": "node tests/config-vault-security.mjs",
     "qa:logging": "node tests/logging-sanitize-smoke.mjs",
     "qa:response": "node tests/response-safety-smoke.mjs",

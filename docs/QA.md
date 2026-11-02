@@ -2,6 +2,8 @@
 
 ## 可重复执行命令
 
+新增 `npm run qa:character-import`，覆盖文本记录解析与人物提炼/预览；完整用户流程由 `tests/e2e/chat-character-import.spec.ts` 验证，含假供应商 BYOK、错误重试、创建前零人物、确认后的共同记忆与临时消息不持久化。
+
 当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
 
 截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
@@ -10,7 +12,7 @@
 
 Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 40 项通过（59.7 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 40 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 43 项通过（41.0 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 43 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
 
 核心 smoke：
 
@@ -178,7 +180,7 @@ npm run db:smoke
 
 M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；后续结果按日期分列，源码数量不等于通过数量。
 
-2026-11-02 当前基线：Playwright --list JSON 派生 40 tests，主控完整浏览器回归 40 项通过，涵盖个人账号页的资料保存、密码重置重试、退出与访问保护。2026-10-31 历史全量为 33 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
+2026-11-02 当前基线：Playwright --list JSON 派生 43 tests，主控完整浏览器回归 43 项通过，涵盖聊天记录创建人物以及个人账号页的资料保存、密码重置重试、退出与访问保护。2026-10-31 历史全量为 33 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
 
 ### 10 月增量验收
 

@@ -52,6 +52,8 @@ jobs:
 
       - name: Structured import QA
         run: npm run qa:imports
+      - name: Chat character import QA
+        run: npm run qa:character-import
 
       - name: Config vault QA
         run: npm run qa:vault

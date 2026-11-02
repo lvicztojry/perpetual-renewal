@@ -1572,6 +1572,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
             <Plus size={17} />
             想见谁
           </button>
+          <a className="text-button" href="/create-from-chat" title="从聊天记录创建人物">
+            <Upload size={17} />
+            从聊天记录创建
+          </a>
           <a className="text-button" href="/settings" title="用户设置">
             <Settings size={17} />
             设置

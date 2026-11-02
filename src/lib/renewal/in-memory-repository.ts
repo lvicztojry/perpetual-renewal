@@ -298,6 +298,11 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     store.companions.unshift(companion);
     store.conversations.push(conversation);
     store.relationshipStates.push(relationshipState);
+    for (const memory of input.initialMemories ?? []) {
+      store.memories.push({ id: makeId("memory"), userId, companionId: companion.id,
+        sourceMessageId: null, type: memory.type, status: "active", content: memory.content,
+        confidence: 0.8, createdAt: timestamp, updatedAt: timestamp });
+    }
 
     return toProfile(store, companion);
   }

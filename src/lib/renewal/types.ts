@@ -136,6 +136,7 @@ export type CompanionProfile = CompanionRecord & {
 };
 
 export type CreateCompanionInput = {
+  initialMemories?: Array<{ type: MemoryType; content: string }>;
   name: string;
   relationshipKind: RelationshipKind;
   customKind?: string | null;
@@ -151,7 +152,7 @@ export type CreateCompanionInput = {
   proactiveFrequencyMinutes?: number;
 };
 
-export type UpdateCompanionInput = Partial<CreateCompanionInput>;
+export type UpdateCompanionInput = Partial<Omit<CreateCompanionInput, "initialMemories">>;
 
 export type CreateProactiveMessageInput = {
   deliveryKey?: string | null;

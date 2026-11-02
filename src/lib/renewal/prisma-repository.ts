@@ -131,6 +131,12 @@ export class PrismaRenewalRepository implements RenewalRepository {
         proactiveMessagesEnabled: input.proactiveMessagesEnabled ?? true,
         proactiveFrequencyPreset: input.proactiveFrequencyPreset ?? "1m",
         proactiveFrequencyMinutes: input.proactiveFrequencyMinutes ?? 1,
+        memories: {
+          create: (input.initialMemories ?? []).map((memory) => ({
+            userId, type: toPrismaMemoryType(memory.type),
+            status: PrismaMemoryStatus.ACTIVE, content: memory.content, confidence: 0.8
+          }))
+        },
         conversations: {
           create: {
             userId,

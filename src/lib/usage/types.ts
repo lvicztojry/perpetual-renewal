@@ -8,6 +8,8 @@ export type ModelUsagePurpose =
   | "chat_complete_api"
   | "proactive_draft"
   | "safety_check"
+  | "character_analysis"
+  | "character_preview"
   | "other";
 
 export type ModelUsageLog = {
