@@ -21,9 +21,11 @@ Covered Prisma-backed records:
 
 ## Migration
 
-October 26 candidates M138/M139 add durable `ProactiveSchedulerCheckpoint` and authentication records (`AuthCredential`, `AuthRecoveryToken`, `AuthRateLimit`). Password authentication requires PostgreSQL; the memory repository is a separate explicit nonproduction test path. Auth verification/recovery tokens are stored as hashes, and password session validation checks the credential version. All-user scheduler keyset scans resume from a database checkpoint across serverless instances.
+迁移 URL 优先使用 `DATABASE_URL_UNPOOLED`，否则使用 `DATABASE_URL`；对 Neon 主机从 pooled 地址派生同一 compute 的 direct 地址（移除主机中的 -pooler），并在未显式配置时添加连接超时。无需把未单独填写 unpooled 变量等同于缺少可用迁移连接；应用查询仍使用原 DATABASE_URL，实际连接值不写入文档。
 
-Apply the new migrations with `npm run prisma:migrate:deploy` in the target environment before authentication/scheduler validation. Target application of these new migrations is pending; August DB smoke results do not verify them. Mail configuration and live-delivery verification are described in [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件).
+M138/M139 (introduced October 26) add durable `ProactiveSchedulerCheckpoint` and authentication records (`AuthCredential`, `AuthRecoveryToken`, `AuthRateLimit`). Password authentication requires PostgreSQL; the memory repository is a separate explicit nonproduction test path. Auth verification/recovery tokens are stored as hashes, and password session validation checks the credential version. All-user scheduler keyset scans resume from a database checkpoint across serverless instances.
+
+Apply the new migrations with `npm run prisma:migrate:deploy` in the target environment before authentication/scheduler validation. As of 2026-10-31, auth/checkpoint migrations are applied to the current database; real isolated PostgreSQL auth/checkpoint CAS and DB smoke passed. Checkpoints use schema-aware generated Prisma delegates with transactional CAS. The additive delivery migration passed actual PostgreSQL concurrency/relations checks and is applied to the public schema. New deployment targets require independent verification; August results remain historical. Mail configuration and live-delivery verification are described in [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件).
 
 Initial migration:
 

@@ -84,6 +84,10 @@ export type PromptContextStats = {
   budget: PromptContextBudget;
   protectedSystemChars: number;
   totalPromptChars: number;
+  historicalContext: {
+    selected: number;
+    estimatedChars: number;
+  };
   activeMemories: {
     available: number;
     selected: number;

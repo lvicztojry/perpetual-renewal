@@ -391,9 +391,11 @@ export function RenewalWorkspace() {
 
   useEffect(() => {
     const companionId = activeCompanion?.id;
+    const conversationId = activeCompanion?.conversationId;
     const proactiveEnabled = activeCompanion?.proactiveMessagesEnabled;
     if (
       !companionId ||
+      !conversationId ||
       !proactiveEnabled ||
       isBooting ||
       isSending ||
@@ -430,6 +432,7 @@ export function RenewalWorkspace() {
           safety?: DraftSafety;
           schedule?: ProactiveSchedule;
           draftLimitReached?: boolean;
+          deliveredCount?: number;
         };
 
         if (!response.ok) {
@@ -441,19 +444,30 @@ export function RenewalWorkspace() {
         setProactiveAutoCheck(
           createProactiveAutoCheckStatus(
             payload.data?.length
-              ? `自动检查生成 ${payload.data.length} 条草稿${payload.draftLimitReached ? "，已按上限保留 1 条" : ""}`
+              ? payload.deliveredCount
+                ? `自动回响已送达 ${payload.deliveredCount} 条`
+                : `自动检查生成 ${payload.data.length} 条草稿`
               : `自动检查完成，${payload.schedule?.reason ?? "暂未到候选时间"}`,
             payload.schedule
           )
         );
 
+        const revision = messageRevisionRef.current;
+        const historyResponse = await fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" });
+        if (!historyResponse.ok) throw new Error(await readResponseError(historyResponse, "主动消息同步失败。"));
+        const historyPayload = (await historyResponse.json()) as { messages: MessageRecord[] };
+        if (disposed) return;
+        if (revision === messageRevisionRef.current) {
+          setMessages((current) => mergeConversationMessages(current, historyPayload.messages));
+        }
+
         if (!payload.data?.length) return;
 
         setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
-        setProactiveDraftFilter("draft");
+        setProactiveDraftFilter(payload.deliveredCount ? "sent" : "draft");
         setProactivePersistence(payload.persistence ?? "persisted");
         setProactiveSafety(payload.safety ?? null);
-        setStatus("有新的主动回响草稿");
+        setStatus(payload.deliveredCount ? "收到新的主动回响" : "有新的主动回响草稿");
         if (inspectorMode === "profile" || inspectorMode === "proactive") {
           setInspectorMode("proactive");
         }
@@ -480,6 +494,7 @@ export function RenewalWorkspace() {
     };
   }, [
     activeCompanion?.id,
+    activeCompanion?.conversationId,
     activeCompanion?.proactiveMessagesEnabled,
     inspectorMode,
     isBooting,
@@ -839,7 +854,8 @@ export function RenewalWorkspace() {
     draftId: string,
     status: NonNullable<ProactiveDraft["status"]>
   ) {
-    if (busyMessageId) return;
+    if (busyMessageId || !activeCompanion) return;
+    const conversationId = activeCompanion.conversationId;
 
     setBusyMessageId(draftId);
     setError(null);
@@ -860,6 +876,7 @@ export function RenewalWorkspace() {
         throw new Error(payload.error ?? "主动回响状态更新失败。");
       }
 
+      if (activeConversationRef.current !== conversationId) return;
       setProactiveDrafts((current) =>
         current.map((draft) =>
           draft.id === payload.proactiveMessage?.id
@@ -867,8 +884,17 @@ export function RenewalWorkspace() {
             : draft
         )
       );
-      setStatus(`主动回响已标记为${formatDraftStatus(status, null)}`);
+      if (status === "sent") {
+        const historyResponse = await fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" });
+        if (!historyResponse.ok) throw new Error(await readResponseError(historyResponse, "主动消息同步失败。"));
+        const historyPayload = (await historyResponse.json()) as { messages: MessageRecord[] };
+        if (activeConversationRef.current !== conversationId) return;
+        messageRevisionRef.current += 1;
+        setMessages((current) => mergeConversationMessages(current, historyPayload.messages));
+      }
+      setStatus(status === "sent" ? "主动回响已发送到聊天" : `主动回响已标记为${formatDraftStatus(status, null)}`);
     } catch (draftError) {
+      if (activeConversationRef.current !== conversationId) return;
       const message = toSafeWorkspaceError(draftError, "主动回响状态更新失败。");
       setProactiveError(message);
       setStatus("主动回响状态更新失败，请稍后重试");
@@ -2175,14 +2201,14 @@ export function RenewalWorkspace() {
                           {draft.safety?.reason ? ` · ${draft.safety.reason}` : ""}
                         </div>
                         <div className="memory-actions">
-                          {draft.status !== "sent" ? (
+                          {normalizeDraftStatus(draft.status) === "draft" ? (
                             <button
                               className="text-button"
                               disabled={busyMessageId === draft.id}
                               onClick={() => updateProactiveDraftStatus(draft.id, "sent")}
                               type="button"
                             >
-                              标记已发送
+                              发送到聊天
                             </button>
                           ) : null}
                           {draft.status !== "dismissed" ? (
@@ -2937,6 +2963,14 @@ function mergeProactiveDrafts(current: ProactiveDraft[], incoming: ProactiveDraf
     const rightTime = new Date(right.createdAt ?? right.scheduledAt ?? 0).getTime();
     return rightTime - leftTime;
   });
+}
+
+function mergeConversationMessages(current: MessageRecord[], incoming: MessageRecord[]) {
+  const merged = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) merged.set(message.id, message);
+  return [...merged.values()].sort((left, right) =>
+    new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  );
 }
 
 function formatDraftFilterLabel(filter: ProactiveDraftFilter) {

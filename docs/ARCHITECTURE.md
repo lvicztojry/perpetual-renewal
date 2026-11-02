@@ -18,7 +18,7 @@
 | UI | Tailwind CSS + 轻量组件封装 | 快速构建聊天、表单、设置页，避免早期设计系统过重 |
 | 数据库 | PostgreSQL | 适合消息、记忆、关系状态等结构化数据 |
 | ORM | Prisma | schema 清晰，迁移和类型生成方便 |
-| 认证 | 自托管邮箱/密码、Prisma 凭证及验证/恢复令牌、v2 签名 session | 注册验证邮箱，旧账号通过原邮箱恢复，密码重置撤销旧 session；2026-10-26 增量待主控验收 |
+| 认证 | 自托管邮箱/密码、Prisma 凭证及验证/恢复令牌、v2 签名 session | 注册验证邮箱，旧账号通过原邮箱恢复，密码重置撤销旧 session；截至 2026-10-31 真实隔离 PostgreSQL 与 QQ 用户注册收件/登录已通过 |
 | LLM | Provider Adapter 抽象 | 默认多供应商：兼容协议、Anthropic、Gemini、OpenAI Responses；业务层不绑定具体 SDK |
 | 后台任务 | 第一版应用进程内不常驻调度器；使用受保护的 `/api/proactive/run` 作为主动回响触发入口 | Vercel Cron 走 `GET /api/proactive/run` + `CRON_SECRET` Bearer；GitHub Actions 或外部 cron 可走 `POST /api/proactive/run` + `PROACTIVE_CRON_SECRET`；浏览器工作台打开时只前台检查当前关系对象 |
 | 部署 | 单 Web 服务 + 托管 PostgreSQL | 降低第一版部署复杂度 |
@@ -35,7 +35,7 @@
 
 认证凭证使用带随机盐的 scrypt 密码 hash，验证/恢复令牌只存 hash，令牌 30 分钟内单次有效。密码 v2 session 包含签名的服务端到期时间与 credential sessionVersion，读取时校验数据库版本；密码重置轮换版本并使旧 session 失效。默认不自动创建演示用户；`AUTH_MODE=local-email` 只允许显式非生产测试。邮件通过 SMTP 或 HTTP 网关发送，配置与验证状态见 [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件)。
 
-工作台关系切换增量隔离各会话未发送草稿、延迟历史和进行中的回复，异步结果只能回到所属会话。语音转写将浏览器 locale 的 `zh-CN` 转为供应商语言码 `zh`。all-user 主动回响增量用持久化数据库 checkpoint 和按 id 排序的 keyset cursor 跨 serverless 冷启动续扫；`dryRun` 不推进持久化 checkpoint，触及草稿上限时不跳过未检查对象。M136–M138 已通过主控本地回归；M139 本地后端、SMTP 与认证 UI 已通过，但真实数据库认证集成、邮件投递和目标迁移仍待验证。
+工作台关系切换增量隔离各会话未发送草稿、延迟历史和进行中的回复，异步结果只能回到所属会话。语音转写将浏览器 locale 的 `zh-CN` 转为供应商语言码 `zh`。all-user 主动回响增量用持久化数据库 checkpoint 和按 id 排序的 keyset cursor 跨 serverless 冷启动续扫；`dryRun` 不推进持久化 checkpoint，触及草稿上限时不跳过未检查对象。M136–M138 已通过主控本地回归；M139 真实隔离 PostgreSQL、当前数据库迁移与 QQ 用户注册收件已通过；新部署目标另验。
 
 ### 3.2 关系对象模块
 
@@ -96,6 +96,7 @@
 - 默认提取候选，不直接全部生效。
 - active 记忆才进入 prompt。
 - deleted 记忆不得再用于生成。
+- Priority 4 已实现中英文词面匹配、稳定事实回退与摘录式历史；未实现 embeddings 或模型摘要，完整验证待收束。
 
 ### 3.6 关系状态模块
 
@@ -124,6 +125,7 @@
 - 主动消息可以亲昵、撒娇、轻微表达想念。
 - 不做责备、控诉、冷暴力、威胁或情感勒索。
 - 用户可以随时关闭。
+- Priority 4 已实现模型个性化自动送入聊天与手动同路径投递；每频率周期稳定幂等键、唯一消息关联、Serializable 重试及用户/关系关闭开关控制投递；2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递。
 
 ### 3.8 沉浸边界与安全模块
 

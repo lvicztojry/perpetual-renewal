@@ -165,7 +165,7 @@
 
 交付物：
 
-- 默认邮箱/密码、注册邮件验证与忘记密码恢复；旧 email-only 用户经原邮箱设置密码，v2 session 到期与重置撤销作为 M139 候选待主控验收。原演示登录仅用于显式非生产 `AUTH_MODE=local-email` 测试。
+- 默认邮箱/密码、注册邮件验证与忘记密码恢复；旧 email-only 用户经原邮箱设置密码，M139 v2 session 到期与重置撤销通过真实隔离 PostgreSQL，QQ 用户注册收件/登录通过，新部署目标另验。原演示登录仅用于显式非生产 `AUTH_MODE=local-email` 测试。
 - 用户资料页。
 - 资料持久化。
 
@@ -884,19 +884,20 @@
 | M133 非 compatible provider hermetic 覆盖 | integrated | LLM provider 适配器 QA 模块 + 主控 | `tests/provider-adapters-smoke.mjs`、`package.json`、`.github/workflows/ci.yml`、`scripts/verify-local.mjs`、`scripts/docs-consistency.mjs`、`docs/*` | 新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload 形态、默认官方 base URL 不误用 compatible `LLM_BASE_URL`、以及供应商错误诊断脱敏；不访问真实网络或真实 key |
 | M134 主动回响调度性能护栏 | integrated | 主动回响调度性能模块 + 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/lib/renewal/*`、`tests/proactive-cron-contract.mjs`、`tests/smoke.mjs`、`docs/*` | all-user scheduler 将规范化后的 `limit` 下推到 repository/Prisma `take`，同一用户 profile 读取复用缓存，达到 `maxDrafts` 后停止继续扫描后续关系对象；smoke 新增早停用例，真实 DB 下原 100 对象 clamp 路径从约 61 秒降到约 2.3 秒 |
 | M135 设置页模型列表 diagnostic 前端脱敏 | integrated | 设置页隐私/E2E 模块 + 主控 | `src/components/user-settings.tsx`、`tests/e2e/settings-privacy.spec.ts`、`docs/*` | 模型列表失败时，前端对服务端 diagnostic 再执行本地脱敏，避免异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 或 stack 时展示原文；设置页 E2E 扩展 diagnostic 回归，当时全量 E2E 数量 15 tests |
-| M136 会话切换隔离 | integrated | 工作台 + 浏览器测试 + 主控 | `src/components/renewal-workspace.tsx`、`tests/e2e/conversation-isolation.spec.ts`、`docs/*` | 会话草稿、延迟历史和进行中回复隔离；Next.js 16.4.3 下全量 E2E 32 项通过 |
+| M136 会话切换隔离 | integrated | 工作台 + 浏览器测试 + 主控 | `src/components/renewal-workspace.tsx`、`tests/e2e/conversation-isolation.spec.ts`、`docs/*` | 会话草稿、延迟历史和进行中回复隔离；2026-10-26 历史 Next.js 16.4.3 下全量 E2E 32 项通过 |
 | M137 语音 locale 兼容 | integrated | 语音 + 主控 | `src/lib/voice/compatible-provider.ts`、`tests/voice-transcription-language.mjs`、`docs/*` | compatible 转写将 zh-CN 归一为 zh；本地语音语言 16 项通过，真实供应商另验 |
-| M138 主动调度公平续扫 | integrated | 主动回响 + 数据层 + 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/lib/renewal/*`、`prisma/*`、`tests/proactive-scheduler-pagination.mjs`、`docs/*` | 数据库 checkpoint 与 keyset cursor 跨冷启动续扫；本地调度 20 项通过，dry-run 不推进、早停不跳过未扫描对象；目标迁移待验证 |
+| M138 主动调度公平续扫 | integrated | 主动回响 + 数据层 + 主控 | `src/lib/relationship/proactive-scheduler.ts`、`src/lib/renewal/*`、`prisma/*`、`tests/proactive-scheduler-pagination.mjs`、`docs/*` | 数据库 checkpoint 与 keyset cursor 跨冷启动续扫；本地调度 20 项通过，dry-run 不推进、早停不跳过未扫描对象；当前数据库迁移与真实隔离 checkpoint CAS 通过；新部署另验 |
 | M-SAFETY-LOG 安全事件日志 | integrated | M-SAFETY-LOG | `prisma/schema.prisma`、`src/lib/safety-events`、`src/app/api/safety/check/route.ts`、`tests/smoke.mjs`、`docs/QA.md` | 非 allow 安全检查记录脱敏事件，生产走 Prisma、本地 fallback memory，不保存原文/prompt/key/baseUrl |
 | M-DB-READINESS 真实数据库准备度 | integrated | M-DB-READINESS | `scripts/db-smoke.mjs`、`docs/DATABASE.md`、`docs/DEPLOYMENT.md`、`docs/TASKBOOK.md`、`package.json` | `npm run db:smoke` 支持无数据库本地/CI 占位检查；配置真实 `DATABASE_URL` 时先跑 Prisma generate/validate，再验证核心 PostgreSQL 表关联并清理测试数据；当前本机真实 Neon/PostgreSQL 已通过 |
 | M-RESPONSIVE-POLISH 移动端/工作台可用性 | integrated | M-RESPONSIVE-POLISH | `src/app/globals.css`、`tests/e2e/*`、`docs/QA.md`、`docs/TASKBOOK.md` | 390px 移动视口无横向溢出；rail/main/inspector 不互相挤压；创建、记忆、设置等控件可滚动可点击 |
 
-2026-10-26 剩余候选（已集成序列截至 M138；认证数据库集成和完整 smoke 等剩余门禁尚未完成）：
+2026-10-31 候选验收跟踪（已集成编号序列保留至 M138；真实认证与 memory smoke 已通过，新部署及新增功能完整验证另列）：
 
 | 里程碑 | 状态 | 模块 | 验收范围 |
 | --- | --- | --- | --- |
-| M139 自托管密码认证 | candidate | 认证后端 + 认证 UI + 主控 | 默认邮箱/密码、注册邮箱验证、旧账号邮箱恢复、fragment token、v2 session 到期与重置撤销；QQ SMTP 授权码或可选 HTTP 网关；本地认证后端/SMTP 33 项及认证 UI 已通过，真实 PostgreSQL 集成在 CREATE SCHEMA 因 database_unreachable 失败，未创建 schema/执行迁移；严格 readiness 缺认证邮件配置，真实邮件与目标迁移待验证 |
-| M140 依赖安全刷新 | candidate | 主控 | Next.js/eslint-config-next 16.4.3 与传递依赖升级后 audit 从 6 降为 0 vulnerabilities；lint/typecheck/build/E2E 通过，完整 memory smoke 修正语音 fixture 后复验待结果 |
+| M139 自托管密码认证 | candidate | 认证后端 + 认证 UI + 主控 | 本地后端/SMTP 33 项、UI、真实隔离 PostgreSQL 与当前认证/检查点迁移通过；QQ SMTP verify、用户真实注册/邮件验证/登录通过；新部署目标 verify:deploy 待执行 |
+| M140 依赖安全刷新 | candidate | 主控 | 16.4.3 与传递依赖升级后 audit 从 6 降为 0 vulnerabilities；lint/typecheck/build、memory smoke 94 checks、新增后全量 E2E 33 项及最终 typecheck 通过；新部署另验 |
+| Priority 4 个性化主动投递与记忆上下文 | candidate | 主动回响 + 记忆 + 主控 | 已实现待完整验证：模型个性化自动送入聊天、每频率周期稳定幂等键、唯一消息关联、Serializable 重试与关闭开关，手动同路径投递；中英文词面匹配、稳定事实回退、摘录式历史（无 embeddings/模型摘要）。调度 31、投递 19、模型 24、记忆 17、定向浏览器 7、全量 E2E 33 项及最终 typecheck 通过；真实并发/关系迁移通过且已应用 public；增强 vault 两次 provider_response HTTP 503（上游可用性限制）、清理通过；保留此前真实聊天/持久化及模板 fallback/投递证据，2026-11-02 真实模型主动生成与手动投递通过，自动投递遵守当前全局关闭设置；smoke 94 checks、build、qa:auth-access 通过 |
 
 暂不进入第一版：付费订阅/额度系统、内容审核后台、用户反馈问卷、内测邀请机制。移动端 PWA、账号删除和媒体/通讯录结构化导入已按用户最新授权进入第一版。
 
@@ -1085,7 +1086,7 @@ M34 当前落点：
 
 | 风险 | 说明 | 初步应对 |
 | --- | --- | --- |
-| 依赖漏洞 | npm audit 曾报告 Prisma 链路 3 个 high 漏洞 | 已将 prisma 与 @prisma/client 固定到 6.12.0，8 月 audit 为 0 vulnerabilities；10 月初查 6 vulnerabilities（5 high、1 critical），M140 修复后 audit 为 0 vulnerabilities，完整 memory smoke 待结果 |
+| 依赖漏洞 | npm audit 曾报告 Prisma 链路 3 个 high 漏洞 | 已将 prisma 与 @prisma/client 固定到 6.12.0，8 月 audit 为 0 vulnerabilities；10 月初查 6 vulnerabilities（5 high、1 critical），M140 修复后 audit 为 0 vulnerabilities，完整 memory smoke 94 checks 已通过；2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递 |
 | 情感依赖 | 关系型 AI 可能强化用户对虚拟关系的依赖 | 允许沉浸和撒娇，但限制威胁、控诉、冷暴力和情感勒索 |
 | 现实人物替代 | 用户可能希望复刻现实中的某个人 | 支持手动设定和情感替代；素材导入走本地整理/脱敏摘要，不上传原文件；用户可通过账号删除清理当前账号数据 |
 | 角色失真 | 模型可能偏离设定或忘记关系 | Prompt builder、记忆层、评估集共同约束 |

@@ -12,6 +12,7 @@ try {
   checkVercelCronContract();
   checkProactiveRunRouteContract();
   checkSchedulerGuards();
+  checkAutomaticDeliveryContract();
   checkCronAliasReadiness();
   checkDeploymentDocs();
   printSummary();
@@ -155,6 +156,39 @@ function checkSchedulerGuards() {
   );
 
   pass("proactive scheduler clamps limit/maxDrafts, pushes scan limits down, and stops after draft caps");
+}
+
+function checkAutomaticDeliveryContract() {
+  const scheduler = readText("src/lib/relationship/proactive-scheduler.ts");
+  const liveBlock = sliceBetween(scheduler, "if (!dryRun) {", "savedCount += companionSavedCount");
+  assert(
+    scheduler.includes("drafts.slice(0, Math.min(1, remainingDrafts))"),
+    "automatic cadence should select at most one draft per due companion"
+  );
+  assert(
+    liveBlock.includes("await personalizeProactiveDraft(companion, candidate, messages)"),
+    "live cron delivery should personalize the candidate with actual conversation history"
+  );
+  assert(
+    liveBlock.indexOf("await personalizeProactiveDraft") < liveBlock.indexOf("await repository.createProactiveMessage"),
+    "cron should personalize before saving the delivery record"
+  );
+  assert(
+    liveBlock.includes('createHash("sha256")') && liveBlock.includes("${companion.id}:${plan.schedule.candidateAt}"),
+    "cron should assign a stable per-companion and cadence delivery key"
+  );
+  assert(
+    liveBlock.includes("await repository.deliverProactiveMessage(companion.userId, record.id, { automatic: true })"),
+    "automatic publication should use repository delivery with its transactional opt-out checks"
+  );
+  assert(
+    liveBlock.includes("if (delivered) deliveredCount += 1") && scheduler.includes("    deliveredCount,"),
+    "cron summaries should count successful deliveries separately from saved records"
+  );
+  const schema = readText("prisma/schema.prisma");
+  assert(/deliveryKey\s+String\?\s+@unique/.test(schema), "delivery keys need database uniqueness for overlapping cron runs");
+  assert(/proactiveMessageId\s+String\?\s+@unique/.test(schema), "each proactive record must link to at most one chat message");
+  pass("automatic cron uses one personalized draft per cadence, unique delivery keys and guarded repository publication");
 }
 
 function checkCronAliasReadiness() {

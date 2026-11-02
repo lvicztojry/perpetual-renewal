@@ -43,19 +43,30 @@ function fixture(count = 7, mode = "prisma") {
   }
   return {
     store, mode, checkpoints: new Map(), checkpointWrites: [], queries: [],
-    profiles: new Map(), profileReads: [], failPrimary: false
+    profiles: new Map(), profileReads: [], personalizations: [], failPrimary: false,
+    transactionTail: Promise.resolve(), deliveryTransactions: 0
   };
 }
 
 function load(db) {
+  class FixtureDate extends Date {
+    constructor(value = now) { super(value); }
+    static now() { return now.getTime(); }
+  }
   const context = vm.createContext({
-    console: { warn() {} }, process: { env: {} }, Date, Map, Set,
-    renewalStore: db.store
+    console: { warn() {} }, process: { env: {} }, Date: FixtureDate, Map, Set,
+    renewalStore: db.store, __perpetualRenewalFallbackProfiles: db.profiles
   });
   const cache = new Map();
   const dates = (row) => ({
-    ...row, createdAt: new Date(row.createdAt), updatedAt: new Date(row.updatedAt)
+    ...row, createdAt: new Date(row.createdAt), updatedAt: new Date(row.updatedAt),
+    ...(Object.hasOwn(row, "lastMessageAt") ? { lastMessageAt: row.lastMessageAt && new Date(row.lastMessageAt) } : {})
   });
+  const proactiveRow = (row) => row && ({
+    ...dates(row), status: row.status.toUpperCase(),
+    scheduledAt: row.scheduledAt && new Date(row.scheduledAt)
+  });
+  const messageRow = (row) => row && ({ ...row, role: row.role.toUpperCase(), createdAt: new Date(row.createdAt) });
   const dbProfile = (row) => row && ({
     ...dates(row),
     conversations: db.store.conversations.filter((c) => c.companionId === row.id).map(dates),
@@ -95,22 +106,36 @@ function load(db) {
         return operation;
       }
     },
-    async $transaction(operations) {
-      assert.equal(operations.length, 2);
+    async $transaction(operations, options) {
+      const interactive = typeof operations === "function";
+      if (interactive) {
+        assert.equal(options.isolationLevel, "Serializable");
+        db.deliveryTransactions += 1;
+      } else assert.equal(operations.length, 2);
       // Delay before acquiring the mock transaction's atomic section so a
       // competing scan can commit while this writer is waiting.
-      await db.beforeCheckpointWrite?.(operations[1].cursor);
+      if (!interactive) await db.beforeCheckpointWrite?.(operations[1].cursor);
+      const previous = db.transactionTail;
+      let release;
+      db.transactionTail = new Promise((resolve) => { release = resolve; });
+      await previous;
       const before = new Map(db.checkpoints);
       const writes = db.checkpointWrites.length;
+      const store = plain(db.store);
       try {
-        return operations.map((operation) => operation());
+        return interactive ? await operations(prisma) : operations.map((operation) => operation());
       } catch (error) {
         db.checkpoints = before;
         db.checkpointWrites.length = writes;
+        Object.assign(db.store, store);
         throw error;
+      } finally {
+        release();
       }
     },
-    user: { async findUnique({ where }) { return { id: where.id }; } },
+    user: { async findUnique({ where }) {
+      return { id: where.id, proactiveMessagesEnabled: db.profiles.get(where.id)?.proactiveMessagesEnabled ?? true };
+    } },
     companion: {
       async findMany(query) {
         db.queries.push(plain(query));
@@ -130,28 +155,75 @@ function load(db) {
     },
     conversation: {
       async findFirst({ where }) {
-        const row = db.store.conversations.find((c) => c.id === where.id && c.userId === where.userId);
+        const row = db.store.conversations.filter((c) =>
+          (!where.id || c.id === where.id) && c.userId === where.userId &&
+          (!where.companionId || c.companionId === where.companionId)
+        ).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0];
         return row ? dates(row) : null;
+      },
+      async update({ where, data }) {
+        const row = db.store.conversations.find((c) => c.id === where.id);
+        row.lastMessageAt = data.lastMessageAt.toISOString();
+        row.updatedAt = now.toISOString();
+        return dates(row);
       }
     },
-    message: { async findMany() { return []; } },
+    message: {
+      async findMany({ where }) {
+        return db.store.messages.filter((m) => m.conversationId === where.conversationId).map(messageRow);
+      },
+      async findUnique({ where }) {
+        return messageRow(db.store.messages.find((m) => m.proactiveMessageId === where.proactiveMessageId)) ?? null;
+      },
+      async create({ data }) {
+        assert.ok(!db.store.messages.some((m) => m.proactiveMessageId === data.proactiveMessageId), "unique proactive message link");
+        const row = { ...data, id: `message-${db.store.messages.length}`, role: data.role.toLowerCase(),
+          metadata: null, createdAt: now.toISOString() };
+        db.store.messages.push(row);
+        return messageRow(row);
+      }
+    },
     proactiveMessage: {
       async findMany({ where }) {
         return db.store.proactiveMessages.filter((m) => m.userId === where.userId && m.companionId === where.companionId)
-          .map((m) => ({ ...dates(m), status: m.status.toUpperCase(), scheduledAt: m.scheduledAt && new Date(m.scheduledAt) }));
+          .map(proactiveRow);
+      },
+      async findFirst({ where }) {
+        return proactiveRow(db.store.proactiveMessages.find((m) => m.id === where.id && m.userId === where.userId &&
+          db.store.companions.some((c) => c.id === m.companionId && c.userId === where.companion.userId))) ?? null;
+      },
+      async findUnique({ where }) {
+        return proactiveRow(db.store.proactiveMessages.find((m) => m.deliveryKey === where.deliveryKey)) ?? null;
       },
       async create({ data }) {
+        if (data.deliveryKey && db.store.proactiveMessages.some((m) => m.deliveryKey === data.deliveryKey)) {
+          throw Object.assign(new Error("Unique delivery key"), { code: "P2002" });
+        }
         const row = {
           ...data, id: `draft-${db.store.proactiveMessages.length}`,
           createdAt: now.toISOString(), updatedAt: now.toISOString(),
           scheduledAt: data.scheduledAt?.toISOString() ?? null, status: data.status.toLowerCase()
         };
         db.store.proactiveMessages.push(row);
-        return { ...dates(row), status: data.status, scheduledAt: data.scheduledAt };
+        return proactiveRow(row);
+      },
+      async update({ where, data }) {
+        if (db.deliveryWriteError) throw db.deliveryWriteError;
+        const row = db.store.proactiveMessages.find((m) => m.id === where.id && m.userId === where.userId);
+        Object.assign(row, data, { status: data.status.toLowerCase(), updatedAt: now.toISOString() });
+        return proactiveRow(row);
       }
     }
   };
   const stubs = {
+    "node:crypto": nodeRequire("node:crypto"),
+    "./proactive-model": {
+      async personalizeProactiveDraft(companion, draft, history) {
+        db.personalizations.push({ companionId: companion.id, history: plain(history) });
+        await db.beforePersonalize?.(companion);
+        return { draft: { ...draft, content: `为 ${companion.name} 生成的问候。` }, source: "model" };
+      }
+    },
     "@prisma/client": nodeRequire("@prisma/client"),
     "@/lib/prisma": { prisma },
     "@/lib/users/profile": {
@@ -209,7 +281,8 @@ for (const mode of ["memory", "prisma"]) {
       seen.push(...ids(result));
     }
     assert.deepEqual(seen, Array.from({ length: 7 }, (_, i) => `c00${i}`));
-    assert.equal(db.store.proactiveMessages.length, 10);
+    assert.equal(db.store.proactiveMessages.length, 5);
+    assert.equal(db.store.messages.length, 5);
     assert.equal((await load(db).run({ dryRun: false, limit: 2 })).results[0].companionId, "c000");
   });
 
@@ -221,6 +294,7 @@ for (const mode of ["memory", "prisma"]) {
     const first = await load(db).run({ dryRun: false, limit: 2 });
     assert.equal(first.skippedCount, 2);
     assert.equal(first.savedCount, 0);
+    assert.equal(first.deliveredCount, 0);
     assert.ok(first.results.every((r) => r.reason === "主动回响已关闭。"));
     assert.equal(db.profileReads.length, 1, "profile reads are cached per user within a run");
     assert.deepEqual(ids(await load(db).run({ dryRun: false, limit: 2 })), ["c002", "c003"]);
@@ -233,6 +307,8 @@ for (const mode of ["memory", "prisma"]) {
     const preview = await app.run({ limit: 2 });
     assert.equal(preview.dryRun, true);
     assert.equal(preview.savedCount, 0);
+    assert.equal(preview.deliveredCount, 0);
+    assert.equal(db.personalizations.length, 0, "dry runs must not invoke the model helper");
     assert.equal(preview.nextCursor, "c001");
     assert.equal(JSON.stringify(db.store), before);
     assert.equal(db.checkpointWrites.length, 0);
@@ -252,10 +328,97 @@ for (const mode of ["memory", "prisma"]) {
       assert.equal(result.scannedCount, 1);
       assert.equal(result.generatedCount, 1);
       assert.equal(result.savedCount, 1);
+      assert.equal(result.deliveredCount, 1);
       assert.equal(result.results.length, 1);
       seen.push(...ids(result));
     }
     assert.deepEqual(seen, ["c000", "c001", "c002", "c003", "c004"]);
+  });
+
+  test(`${mode}: due cadence delivers one personalized assistant message and cold retries do not duplicate it`, async () => {
+    const db = fixture(1, mode);
+    const first = await load(db).run({ dryRun: false });
+    assert.equal(first.generatedCount, 1);
+    assert.equal(first.savedCount, 1);
+    assert.equal(first.deliveredCount, 1);
+    assert.equal(db.personalizations.length, 1);
+    const [draft] = db.store.proactiveMessages;
+    const [message] = db.store.messages;
+    assert.equal(draft.status, "sent");
+    assert.match(draft.deliveryKey, /^[a-f0-9]{64}$/);
+    assert.equal(draft.safety.generator, "model");
+    assert.equal(message.role, "assistant");
+    assert.equal(message.proactiveMessageId, draft.id);
+    assert.equal(message.content, "为 Companion 0 生成的问候。");
+    assert.equal(message.content, draft.content);
+    assert.equal(message.conversationId, "conversation-c000");
+    assert.equal(db.store.conversations[0].lastMessageAt, message.createdAt);
+    const before = plain(db.store);
+    const retry = await load(db).run({ dryRun: false });
+    assert.equal(retry.generatedCount, 0);
+    assert.equal(retry.savedCount, 0);
+    assert.equal(retry.deliveredCount, 0);
+    assert.deepEqual(plain(db.store), before);
+    assert.equal(db.personalizations.length, 1);
+
+    const next = await load(db).run({ dryRun: false, now: new Date(now.getTime() + 60_000) });
+    assert.equal(next.deliveredCount, 1, "a new cadence can publish again");
+    assert.equal(db.store.messages.length, 2);
+    assert.equal(new Set(db.store.proactiveMessages.map((m) => m.deliveryKey)).size, 2);
+    assert.equal(db.personalizations[1].history.length, 1, "the helper receives the prior delivered history");
+  });
+
+  test(`${mode}: concurrent repository delivery and delivery-key retries retain one message`, async () => {
+    const db = fixture(1, mode);
+    const left = load(db).repository;
+    const right = load(db).repository;
+    const input = { deliveryKey: "same-cadence-key", kind: "DAILY_GREETING", content: "你好，星星亮了。" };
+    const [a, b] = await Promise.all([
+      left.createProactiveMessage("u1", "c000", input), right.createProactiveMessage("u1", "c000", input)
+    ]);
+    assert.equal(a.id, b.id);
+    assert.equal(db.store.proactiveMessages.length, 1);
+    const delivered = await Promise.all([
+      left.deliverProactiveMessage("u1", a.id, { automatic: true }),
+      right.deliverProactiveMessage("u1", b.id, { automatic: true })
+    ]);
+    assert.ok(delivered.every(Boolean));
+    assert.equal(delivered[0].message.id, delivered[1].message.id);
+    assert.equal(db.store.messages.length, 1);
+    assert.equal(db.store.proactiveMessages[0].status, "sent");
+    assert.equal(await left.deliverProactiveMessage("other-user", a.id, { automatic: true }), null);
+    if (mode === "prisma") assert.ok(db.deliveryTransactions >= 3);
+  });
+
+  for (const optout of ["user", "companion"]) {
+    test(`${mode}: ${optout} opt-out during personalization prevents automatic delivery`, async () => {
+      const db = fixture(1, mode);
+      db.beforePersonalize = () => {
+        if (optout === "user") db.profiles.set("u1", { proactiveMessagesEnabled: false });
+        else db.store.companions[0].proactiveMessagesEnabled = false;
+      };
+      const result = await load(db).run({ dryRun: false });
+      assert.equal(result.generatedCount, 1);
+      assert.equal(result.savedCount, 1);
+      assert.equal(result.deliveredCount, 0);
+      assert.equal(db.store.proactiveMessages[0].status, "draft");
+      assert.equal(db.store.messages.length, 0);
+      assert.equal(db.store.conversations[0].lastMessageAt, null);
+      assert.equal((await load(db).run({ dryRun: false })).deliveredCount, 0);
+      assert.equal(db.personalizations.length, 1, "disabled companions/users are not personalized on later scans");
+    });
+  }
+
+  test(`${mode}: blocked and dismissed records cannot be delivered`, async () => {
+    const db = fixture(1, mode);
+    const { repository } = load(db);
+    for (const status of ["blocked", "dismissed"]) {
+      const draft = await repository.createProactiveMessage("u1", "c000", {
+        kind: "DAILY_GREETING", content: "不应发布的草稿。", status
+      });
+      assert.equal(await repository.deliverProactiveMessage("u1", draft.id, { automatic: true }), null);
+    }
+    assert.equal(db.store.messages.length, 0);
   });
 
   test(`${mode}: deleted cursor, changing updatedAt, new rows and companion opt-outs`, async () => {
@@ -323,10 +486,13 @@ test("default all-user cron scans traverse 45 companions across cold starts", as
   assert.equal(db.checkpoints.get("all"), "c019");
   const second = await load(db).run({ dryRun: false });
   assert.equal(second.scannedCount, 20);
-  assert.equal(second.savedCount, 40);
+  assert.equal(second.savedCount, 20);
+  assert.equal(second.deliveredCount, 20);
   const third = await load(db).run({ dryRun: false });
   assert.equal(third.scannedCount, 5);
-  assert.equal(third.savedCount, 10);
+  assert.equal(third.savedCount, 5);
+  assert.equal(third.deliveredCount, 5);
+  assert.equal(db.store.messages.length, 25);
   assert.equal(db.checkpoints.get("all"), null);
   assert.equal(new Set([...ids(first), ...ids(second), ...ids(third)]).size, 45);
   assert.ok(db.queries.every((query) => query.take === 20));
@@ -340,7 +506,8 @@ test("checkpoint failures propagate rather than silently using a process cursor"
   delete db.checkpointReadError;
   db.checkpointWriteError = new Error("checkpoint write unavailable");
   await assert.rejects(load(db).run({ dryRun: false, limit: 1 }), /checkpoint write unavailable/);
-  assert.equal(db.store.proactiveMessages.length, 2);
+  assert.equal(db.store.proactiveMessages.length, 1);
+  assert.equal(db.store.messages.length, 1);
   assert.equal(db.checkpoints.size, 0);
   delete db.checkpointWriteError;
   db.checkpointUpdateError = new Error("checkpoint update unavailable");
@@ -352,6 +519,24 @@ test("checkpoint failures propagate rather than silently using a process cursor"
   assert.equal(retry.generatedCount, 0, "saved drafts still suppress duplicates after a failed checkpoint write");
   assert.equal(db.checkpoints.get("all"), "c000");
   assert.deepEqual(ids(await load(db).run({ dryRun: false, limit: 1 })), ["c001"]);
+});
+
+test("Prisma delivery failure rolls back message, conversation timestamp and sent status together", async () => {
+  const db = fixture(1);
+  const { repository } = load(db);
+  const draft = await repository.createProactiveMessage("u1", "c000", {
+    kind: "DAILY_GREETING", content: "星星亮了，来打个招呼。", deliveryKey: "atomic-delivery-key"
+  });
+  const before = plain(db.store);
+  db.deliveryWriteError = new Error("sent-status write unavailable");
+  await assert.rejects(repository.deliverProactiveMessage("u1", draft.id, { automatic: true }), /sent-status write unavailable/);
+  assert.deepEqual(plain(db.store), before, "a failed final write must undo the earlier message and timestamp writes");
+  delete db.deliveryWriteError;
+  const retry = await load(db).repository.deliverProactiveMessage("u1", draft.id, { automatic: true });
+  assert.ok(retry);
+  assert.equal(db.store.messages.length, 1);
+  assert.equal(db.store.proactiveMessages[0].status, "sent");
+  assert.equal(db.store.conversations[0].lastMessageAt, retry.message.createdAt);
 });
 
 test("a slower overlapping scan cannot move the durable checkpoint backwards", async () => {

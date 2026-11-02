@@ -410,6 +410,7 @@ export class PrismaRenewalRepository implements RenewalRepository {
     companionId: string,
     input: {
       kind: ProactiveMessageKind;
+      deliveryKey?: string | null;
       content: string;
       reason?: string | null;
       safety?: Record<string, unknown> | null;
@@ -428,18 +429,30 @@ export class PrismaRenewalRepository implements RenewalRepository {
       throw new Error(`Companion ${companionId} was not found.`);
     }
 
-    const message = await prisma.proactiveMessage.create({
-      data: {
-        userId,
-        companionId,
-        kind: toPrismaProactiveMessageKind(input.kind),
-        content: input.content,
-        reason: input.reason ?? null,
-        safety: input.safety ? sanitizeMetadata(input.safety) : undefined,
-        status: toPrismaProactiveMessageStatus(input.status ?? "draft"),
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null
+    const data = {
+      deliveryKey: input.deliveryKey ?? null,
+      userId,
+      companionId,
+      kind: toPrismaProactiveMessageKind(input.kind),
+      content: input.content,
+      reason: input.reason ?? null,
+      safety: input.safety ? sanitizeMetadata(input.safety) : undefined,
+      status: toPrismaProactiveMessageStatus(input.status ?? "draft"),
+      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null
+    };
+    let message;
+    try {
+      message = await prisma.proactiveMessage.create({ data });
+    } catch (error) {
+      if (input.deliveryKey == null || !isPrismaConflict(error, "P2002")) throw error;
+      const existing = await prisma.proactiveMessage.findUnique({
+        where: { deliveryKey: input.deliveryKey }
+      });
+      if (!existing || existing.userId !== userId || existing.companionId !== companionId) {
+        throw new Error("Proactive delivery key is unavailable.");
       }
-    });
+      message = existing;
+    }
 
     return toProactiveMessageRecord(message);
   }
@@ -455,6 +468,9 @@ export class PrismaRenewalRepository implements RenewalRepository {
       scheduledAt?: string | null;
     }
   ) {
+    if (input.status === "sent") {
+      return (await this.deliverProactiveMessageWithInput(userId, proactiveMessageId, input))?.proactiveMessage ?? null;
+    }
     await ensureUser(userId);
 
     const existing = await prisma.proactiveMessage.findFirst({
@@ -482,6 +498,76 @@ export class PrismaRenewalRepository implements RenewalRepository {
     });
 
     return toProactiveMessageRecord(message);
+  }
+
+  async deliverProactiveMessage(userId: string, proactiveMessageId: string, options?: { automatic?: boolean }) {
+    return this.deliverProactiveMessageWithInput(userId, proactiveMessageId, {}, options);
+  }
+
+  private async deliverProactiveMessageWithInput(
+    userId: string,
+    proactiveMessageId: string,
+    input: Parameters<RenewalRepository["updateProactiveMessage"]>[2] = {},
+    options?: { automatic?: boolean }
+  ) {
+    return retryDeliveryTransaction(() => prisma.$transaction(async (tx) => {
+      const proactive = await tx.proactiveMessage.findFirst({
+        where: { id: proactiveMessageId, userId, companion: { userId } }
+      });
+      if (!proactive || proactive.status === "BLOCKED" || proactive.status === "DISMISSED") return null;
+
+      if (options?.automatic) {
+        const companion = await tx.companion.findFirst({
+          where: { id: proactive.companionId, userId }, select: { proactiveMessagesEnabled: true }
+        });
+        const user = await tx.user.findUnique({
+          where: { id: userId }, select: { proactiveMessagesEnabled: true }
+        });
+        if (!companion?.proactiveMessagesEnabled || !user?.proactiveMessagesEnabled) return null;
+      }
+
+      let message = await tx.message.findUnique({ where: { proactiveMessageId } });
+      if (message) {
+        const owned = await tx.conversation.findFirst({
+          where: { id: message.conversationId, userId, companionId: proactive.companionId }
+        });
+        if (!owned) return null;
+        if (proactive.status === "SENT" && Object.keys(input).every((key) => key === "status")) {
+          return { proactiveMessage: toProactiveMessageRecord(proactive), message: toMessageRecord(message) };
+        }
+      } else {
+        const conversation = await tx.conversation.findFirst({
+          where: { userId, companionId: proactive.companionId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+        });
+        if (!conversation) return null;
+        message = await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            proactiveMessageId,
+            role: PrismaMessageRole.ASSISTANT,
+            content: input.content ?? proactive.content
+          }
+        });
+        await tx.conversation.update({
+          where: { id: conversation.id },
+          data: { lastMessageAt: message.createdAt }
+        });
+      }
+      const updated = await tx.proactiveMessage.update({
+        where: { id: proactiveMessageId, userId },
+        data: {
+          status: PrismaProactiveMessageStatus.SENT,
+          ...(input.content !== undefined ? { content: input.content } : {}),
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+          ...(input.safety !== undefined
+            ? { safety: input.safety ? sanitizeMetadata(input.safety) : Prisma.JsonNull } : {}),
+          ...(input.scheduledAt !== undefined
+            ? { scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null } : {})
+        }
+      });
+      return { proactiveMessage: toProactiveMessageRecord(updated), message: toMessageRecord(message) };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
   }
 
   async updateRelationshipState(
@@ -541,6 +627,23 @@ export class PrismaRenewalRepository implements RenewalRepository {
     });
 
     return toRelationshipStateRecord(updated);
+  }
+}
+
+function isPrismaConflict(error: unknown, code: string) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+
+async function retryDeliveryTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      // Unique conflicts may race the initial link lookup; retry the entire
+      // transaction so the committed link and current draft status are reread.
+      if (attempt >= 7 || (!isPrismaConflict(error, "P2034") && !isPrismaConflict(error, "P2002"))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5 * (attempt + 1)));
+    }
   }
 }
 
@@ -656,6 +759,7 @@ function toConversationRecord(
 function toMessageRecord(message: Prisma.MessageGetPayload<Record<string, never>>): MessageRecord {
   return {
     id: message.id,
+    proactiveMessageId: message.proactiveMessageId ?? null,
     conversationId: message.conversationId,
     role: message.role.toLowerCase() as MessageRole,
     content: message.content,
@@ -684,6 +788,7 @@ function toProactiveMessageRecord(
 ): ProactiveMessageRecord {
   return {
     id: message.id,
+    deliveryKey: message.deliveryKey ?? null,
     userId: message.userId,
     companionId: message.companionId,
     kind: message.kind,

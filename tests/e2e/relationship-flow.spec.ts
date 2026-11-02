@@ -109,14 +109,14 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await expect(page.getByRole("button", { name: /^草稿 \d+$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^已发送 \d+$/ })).toBeVisible();
   await expect(page.getByText(/撒娇式/).first()).toBeVisible();
-  await page.getByRole("button", { name: "标记已发送" }).first().click();
-  await expect(page.getByText("主动回响已标记为已发送")).toBeVisible();
+  await page.getByRole("button", { name: "发送到聊天" }).first().click();
+  await expect(page.getByText("主动回响已发送到聊天")).toBeVisible();
   await page.getByRole("button", { name: /^已发送 \d+$/ }).click();
   await expect(page.getByRole("button", { name: "恢复草稿" }).first()).toBeVisible();
   await page.getByRole("button", { name: "恢复草稿" }).first().click();
   await expect(page.getByText("主动回响已标记为草稿")).toBeVisible();
   await page.getByRole("button", { name: /^草稿 \d+$/ }).click();
-  await expect(page.getByRole("button", { name: "标记已发送" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "发送到聊天" }).first()).toBeVisible();
 
   await page.getByRole("link", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "账号与资料" })).toBeVisible();
@@ -156,6 +156,53 @@ test("proactive panel surfaces one-minute check status for local trials", async 
   await expect(page.getByText(/当前节奏 每 1 分钟/)).toBeVisible();
   await expect(page.getByText(/自动检查每 1 分钟/)).toBeVisible();
   await expect(page.getByText(/手动生成 \d+ 条草稿|手动检查完成/)).toBeVisible();
+});
+
+test("automatic proactive delivery appears once in the open chat without sending a user message", async ({ page }) => {
+  const unique = Date.now();
+  const content = "今天也想轻轻陪你一会儿，等你有空再说话。";
+  let conversationId = "";
+  let delivered = false;
+  let checks = 0;
+  await page.clock.install();
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    conversationId = getConversationIdFromRequest(route.request().url());
+    await route.fulfill({ json: { messages: delivered ? [{
+      id: `auto-message-${unique}`, proactiveMessageId: `auto-draft-${unique}`,
+      conversationId, role: "assistant", content, metadata: null,
+      createdAt: new Date().toISOString()
+    }] : [] } });
+  });
+  await page.route("**/api/companions/*/proactive-drafts", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const body = route.request().postDataJSON();
+    expect(body.force).toBe(false);
+    checks += 1;
+    delivered = true;
+    const now = new Date().toISOString();
+    await route.fulfill({ json: {
+      data: [{ id: `auto-draft-${unique}`, kind: "DAILY_GREETING", content,
+        status: "sent", scheduledAt: now, createdAt: now, updatedAt: now }],
+      deliveredCount: 1, persistence: "e2e"
+    } });
+  });
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`auto-delivery-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("主动消息 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await page.getByLabel("名字").fill(`主动消息${unique}`);
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  await expect(page.getByRole("heading", { exact: true, name: `主动消息${unique}` })).toBeVisible();
+  await page.clock.runFor(60_100);
+  await expect(page.locator(".message-bubble").filter({ hasText: content })).toHaveCount(1);
+  expect(checks).toBe(1);
+  await page.clock.runFor(60_100);
+  await expect.poll(() => checks).toBe(2);
+  await expect(page.locator(".message-bubble").filter({ hasText: content })).toHaveCount(1);
+  await expect(page.getByPlaceholder("把想说的话放在这里")).toHaveValue("");
 });
 
 test("mobile workspace keeps panels usable without horizontal overflow", async ({ page }) => {

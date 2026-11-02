@@ -51,9 +51,11 @@ npm run env:secrets
 
 ### 认证与邮件
 
+当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
+
 个人 QQ 邮箱的精确本机配置与授权码说明见 [AUTH.md](AUTH.md)；无需自有域名，生产邮件中的链接须使用公开可访问的 HTTPS 站点地址。
 
-2026-10-26 选择自托管邮箱/密码认证；实现正在集成，真实 SMTP/HTTP 邮件投递与目标数据库新增迁移均待验证。下列是本轮配置契约，不能把 8 月的 readiness/DB smoke 通过记录视为本轮通过。
+截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。 新部署目标须独立验收；8 月结果仅作历史记录。
 
 默认使用邮箱与密码登录。注册邮件验证成功后才创建可登录账号；历史 email-only 用户通过原邮箱“忘记密码”设置密码，沿用原账号资料和关系。密码须为 12–128 个字符。验证与重置邮件链接分别为 `/verify-email#token=…`、`/reset-password#token=…`，令牌 30 分钟内单次有效；页面读取 fragment 后通过请求体提交，避免令牌进入 URL query 与访问日志。密码 v2 session 在服务端检查到期时间（30 天）和凭证版本；密码重置后旧 session 失效。
 
@@ -73,9 +75,9 @@ npm run env:secrets
 
 HTTP 网关接收 JSON `{from,to,subject,text}`，2xx 只表示网关受理，不证明邮件到达收件箱。SMTP 路线同样需要真实收件验证；不得把 fake transport 成功标为真实投递成功。
 
-M138 调度增量在数据库保存 all-user 扫描 checkpoint，并使用按 id 排序的 keyset cursor 跨 serverless 冷启动续扫；到达 `limit` 或 `maxDrafts` 后下一轮从已检查位置继续，避免固定扫描首批对象导致后续对象饥饿。`dryRun` 不推进持久化 checkpoint；当前用户前台检查不能证明 all-user 冷启动续扫已通过，仍须应用目标迁移后验证。
+M138 调度增量在数据库保存 all-user 扫描 checkpoint，并使用按 id 排序的 keyset cursor 跨 serverless 冷启动续扫；到达 `limit` 或 `maxDrafts` 后下一轮从已检查位置继续，避免固定扫描首批对象导致后续对象饥饿。`dryRun` 不推进持久化 checkpoint；当前用户前台检查不能证明 all-user 冷启动续扫已通过，当前数据库迁移及真实隔离 checkpoint CAS 已通过；新部署目标须应用迁移后验证。
 
-部署时先在目标数据库运行 `npm run prisma:migrate:deploy`，确认密码认证与 scheduler checkpoint 的新增迁移已落地，再运行 `npm run verify:deploy` 并实际完成注册验证、登录、忘记密码、旧账号恢复与旧 session 撤销。这些目标迁移和真实邮件步骤当前待验证。
+部署时先在目标数据库运行 `npm run prisma:migrate:deploy`，确认密码认证与 scheduler checkpoint 的新增迁移已落地，再运行 `npm run verify:deploy` 并实际完成注册验证、登录、忘记密码、旧账号恢复与旧 session 撤销。当前迁移、隔离认证恢复/撤销及 QQ 用户注册收件已有通过记录；新部署目标和 HTTP 投递另验。
 
 `AUTH_MODE=local-email` 仅允许显式非生产测试，用于旧演示登录及 memory/mock 测试夹具；未配置该值即走密码认证，生产不能使用它。默认 mock/memory E2E 的通过也不能证明密码认证或真实邮件已通过。
 
@@ -117,7 +119,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 说明：
 
 - `DATABASE_URL` 是应用查询使用的 PostgreSQL 连接串；Neon/Vercel 部署可优先使用 pooled 连接。
-- `DATABASE_URL_UNPOOLED` 是可选的 direct/unpooled 连接串，Prisma 迁移脚本会在 `npm run prisma:migrate` 和 `npm run prisma:migrate:deploy` 时优先使用它；Neon 的迁移、dump、replication 等管理任务更推荐 direct 连接。
+- 迁移 URL 优先使用 `DATABASE_URL_UNPOOLED`，否则使用 `DATABASE_URL`；对 Neon 主机从 pooled 地址派生同一 compute 的 direct 地址（移除主机中的 -pooler），并在未显式配置时添加连接超时。无需把未单独填写 unpooled 变量等同于缺少可用迁移连接；应用查询仍使用原 DATABASE_URL，实际连接值不写入文档。
 - `LLM_PROVIDER=compatible` 是默认真实接入路线，不绑定 OpenAI。
 - `USER_KEY_VAULT_SECRET` 用于用户级 API key vault 加密。生产必须配置强随机值，泄露后应轮换用户密钥。
 - `SESSION_COOKIE_SECRET` 可单独用于 HMAC 签名 session cookie。为空时会复用强 `USER_KEY_VAULT_SECRET`，但生产更推荐单独配置以拆分职责。
@@ -144,7 +146,7 @@ npm run env:readiness -- --strict
 
 该脚本只输出状态、说明和下一步，不打印真实连接串、API key、Base URL 或 secret。默认不强制要求服务端 LLM key，因为第一版支持用户在设置页保存自己的 API key；如部署策略要求服务端兜底 key，可运行 `npm run env:readiness -- --strict --server-llm-required`。
 
-Prisma 相关 npm 脚本也会先读取项目根目录的 `.env.local`/`.env`，再调用本地 Prisma CLI；因此 `npm run prisma:migrate`、`npm run prisma:migrate:deploy`、`npm run prisma:generate` 和 `npm run prisma:seed` 与 `env:readiness` 使用同一套本地配置来源。若配置了 `DATABASE_URL_UNPOOLED`，迁移命令会临时用它替代 `DATABASE_URL`，应用运行时仍保留 `DATABASE_URL`。
+Prisma 相关 npm 脚本也会先读取项目根目录的 `.env.local`/`.env`，再调用本地 Prisma CLI；因此 `npm run prisma:migrate`、`npm run prisma:migrate:deploy`、`npm run prisma:generate` 和 `npm run prisma:seed` 与 `env:readiness` 使用同一套本地配置来源。迁移优先使用显式 DATABASE_URL_UNPOOLED，否则从 DATABASE_URL 派生 Neon direct 主机；仅迁移子进程使用该地址，应用查询保留原 DATABASE_URL。
 
 ## Local PostgreSQL Setup
 
@@ -248,6 +250,10 @@ npm run qa:real-provider:fake
 
 ## Vercel Deployment
 
+2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。
+
+Vercel Hobby cron 最短间隔为每天一次，`* * * * *` 会导致部署失败；每分钟原生 cron 需要 Pro（或 Enterprise），也可选择调用受保护入口的外部调度器。套餐/外部调度方案待用户决定，未假定购买升级。见 [Vercel 官方 Cron Usage & Pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing)（2026-10-31 核对）。
+
 1. 将仓库连接到 Vercel。
 2. 在 Vercel Project Settings 中配置环境变量：
 
@@ -317,7 +323,7 @@ GET /api/proactive/run
 
 第一版应用进程内不常驻调度器，也不依赖后台 worker。Vercel Cron、GitHub Actions scheduled workflow 或外部 cron 可以按固定频率调用这个受保护入口。
 
-本地体验和生产调度要分开看：浏览器工作台打开时，当前关系对象会每分钟做一次前台检查并展示新草稿；页面关闭后，本地开发服务器不会继续替所有用户定时生成草稿。生产 all-user 调度由下面的 GET/POST 入口承担。
+本地体验和生产调度要分开看：浏览器工作台打开时，当前关系对象会每分钟做一次前台检查；Priority 4 已实现自动送入聊天，2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递；页面关闭后，本地开发服务器不会继续替所有用户定时生成草稿。生产 all-user 调度由下面的 GET/POST 入口承担。
 
 Vercel Cron 使用 GET 请求。仓库根目录的 `vercel.json` 已配置每分钟调用：
 
@@ -332,7 +338,7 @@ Vercel Cron 使用 GET 请求。仓库根目录的 `vercel.json` 已配置每分
 }
 ```
 
-GET 入口只支持 all-user 调度，必须携带 Bearer cron secret；成功鉴权后默认 `dryRun:false`，由调度器自身的频率、去重和 `maxDrafts` 护栏控制实际草稿生成量。Vercel Cron 需要在部署平台配置 `CRON_SECRET`，它会作为 Bearer token 发送到 cron 路径。若当前 Vercel 套餐不允许每分钟 cron，可先把 `schedule` 改成平台允许的最低频率；主动回响对象自身仍可配置 1 分钟候选频率。
+GET 入口只支持 all-user 调度，必须携带 Bearer cron secret；成功鉴权后默认 `dryRun:false`，由调度器自身的频率、去重和 `maxDrafts` 护栏控制实际草稿生成量。Vercel Cron 需要在部署平台配置 `CRON_SECRET`，它会作为 Bearer token 发送到 cron 路径。Hobby 不支持此每分钟配置，部署前须由用户决定 Pro/Enterprise 原生 cron 或外部鉴权调度；日级 cron 不提供每分钟送达。对象自身的 1 分钟候选频率不会提升平台调度频率。
 
 `limit` 控制本轮扫描关系对象数量，`maxDrafts` 控制本轮最多生成或保存的草稿数量；调度器会归一化并裁剪过大的值。`npm run qa:proactive-cron` 会静态复核 `vercel.json`、GET 鉴权、`CRON_SECRET` alias、`dryRun` 默认值和这两个护栏参数；`npm run verify:deploy` 已包含该门禁。
 

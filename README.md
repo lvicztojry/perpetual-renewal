@@ -2,6 +2,14 @@
 
 “生生不息”是一个关系型 AI 陪伴项目：当用户想交流却无法真正抵达某个人或某段关系时，用可设定、可记忆、会回响的 AI 关系对象承接亲情、友情、爱情、纪念、替代和自定义陪伴。
 
+截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
+
+Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
+
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 33 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+
+2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。 套餐与调度限制见 [部署文档](docs/DEPLOYMENT.md#vercel-deployment)。
+
 ## 本地启动
 
 ```bash
@@ -11,7 +19,7 @@ npm run dev
 
 默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。默认认证路线为自托管邮箱/密码：需要 PostgreSQL、认证迁移及邮件配置；注册须验证邮箱，已有 email-only 账号须通过原邮箱“忘记密码”设置密码。缺少模型配置时仍可使用 mock 回复；一旦配置了 `DATABASE_URL`，数据库连接或写入失败会直接暴露，不会静默保存到 memory。
 
-只有显式非生产测试可设置 `AUTH_MODE=local-email` 使用旧邮箱演示登录和 memory/mock 路线；它不是默认登录方式，生产环境不允许启用。2026-10-26 密码认证与 SMTP 支持仍待主控集成验收，真实邮件投递和目标数据库迁移尚未验证，见 [认证与邮件部署](docs/DEPLOYMENT.md#认证与邮件)。
+只有显式非生产测试可设置 `AUTH_MODE=local-email` 使用旧邮箱演示登录和 memory/mock 路线；它不是默认登录方式，生产环境不允许启用。截至 2026-10-31，真实隔离 PostgreSQL 认证、当前数据库迁移与用户 QQ 注册收件验证已通过，见 [认证与邮件部署](docs/DEPLOYMENT.md#认证与邮件)。
 
 如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
 可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
@@ -58,7 +66,7 @@ AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 - Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
 - Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
 - 认证：新账号验证邮箱后才能用密码登录；密码 session 使用带服务端到期时间的 v2 签名 cookie，重置密码撤销旧 session。旧 email-only 用户走原邮箱恢复，不能仅凭邮箱认领账号。
-- 邮件：个人邮箱可用 SMTP 授权码测试，无需自有域名；`465` 使用 TLS，`587` 使用 STARTTLS。可改为 `AUTH_MAIL_TRANSPORT=http` 并设置 `AUTH_MAIL_API_URL`、`AUTH_MAIL_API_KEY`；两条路线共用 `AUTH_APP_URL`、`AUTH_MAIL_FROM`。真实 SMTP/HTTP 投递与公开注册的送达率仍待验证。
+- 邮件：个人邮箱可用 SMTP 授权码测试，无需自有域名；`465` 使用 TLS，`587` 使用 STARTTLS。可改为 `AUTH_MAIL_TRANSPORT=http` 并设置 `AUTH_MAIL_API_URL`、`AUTH_MAIL_API_KEY`；两条路线共用 `AUTH_APP_URL`、`AUTH_MAIL_FROM`。QQ SMTP verify 与用户真实注册收件已通过；HTTP 投递、公开注册送达率及新部署目标另验。
 - 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口；Vercel Cron 可用 `CRON_SECRET` 作为同用途 alias。
 - 本地主动回响：打开工作台时，当前关系对象会按 1 分钟节奏做前台检查；关闭页面后本地不会有常驻后台调度器。生产 all-user 自动调度由 Vercel Cron 或外部 cron 调用受保护入口。
 - 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。

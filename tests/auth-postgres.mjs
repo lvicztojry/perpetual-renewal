@@ -140,6 +140,146 @@ try {
   await prisma.user.delete({ where: { id: legacy.id } });
   assert.equal(await prisma.authCredential.count({ where: { userId: legacy.id } }), 0);
   console.log("ok - real database rate limits, checkpoint compare-and-set and credential cascade");
+
+  step = "proactive delivery: isolated fixtures and concurrent keyed creation";
+  const otherUser = await prisma.user.create({
+    data: { email: "proactive-other@example.invalid", nickname: "Other delivery QA" }
+  });
+  const companionInput = { name: "Delivery QA", relationshipKind: "FRIEND", speakingStyle: "gentle" };
+  const companion = await repository.createCompanion(user.id, companionInput);
+  const sibling = await repository.createCompanion(user.id, companionInput);
+  const foreign = await repository.createCompanion(otherUser.id, companionInput);
+  const draftInput = (deliveryKey, extra = {}) => ({
+    kind: "DAILY_GREETING", content: "Isolated proactive hello", reason: "delivery QA",
+    deliveryKey, ...extra
+  });
+  const keyed = await Promise.all(Array.from({ length: 4 }, () =>
+    new PrismaRenewalRepository().createProactiveMessage(user.id, companion.id, draftInput("concurrent-delivery"))
+  ));
+  assert.equal(new Set(keyed.map((record) => record.id)).size, 1);
+  const proactive = keyed[0];
+  assert.equal(proactive.deliveryKey, "concurrent-delivery");
+  assert.equal(await prisma.proactiveMessage.count({ where: { deliveryKey: proactive.deliveryKey } }), 1);
+  assert.deepEqual(
+    await repository.createProactiveMessage(user.id, companion.id, draftInput(proactive.deliveryKey, {
+      content: "must not overwrite draft", reason: "different reason", status: "blocked"
+    })), proactive
+  );
+  console.log("ok - concurrent deliveryKey creation returns one unchanged owned draft");
+
+  step = "proactive delivery: concurrent automatic and manual sends";
+  assert.equal(await prisma.message.count({ where: { proactiveMessageId: proactive.id } }), 0);
+  const deliveries = await Promise.all(Array.from({ length: 4 }, (_, index) => index % 2
+    ? new PrismaRenewalRepository().updateProactiveMessage(user.id, proactive.id, { status: "sent" })
+    : new PrismaRenewalRepository().deliverProactiveMessage(user.id, proactive.id, { automatic: true })
+  ));
+  assert.ok(deliveries.every(Boolean));
+  assert.ok(deliveries.every((result) => (result.proactiveMessage ?? result).status === "sent"));
+  const delivered = await repository.deliverProactiveMessage(user.id, proactive.id);
+  const assistant = await prisma.message.findUniqueOrThrow({ where: { proactiveMessageId: proactive.id } });
+  assert.equal(delivered.message.id, assistant.id);
+  assert.equal(assistant.role, "ASSISTANT");
+  assert.equal(assistant.content, proactive.content);
+  assert.equal(assistant.conversationId, companion.conversationId);
+  assert.equal(await prisma.message.count({ where: { proactiveMessageId: proactive.id } }), 1);
+  assert.equal(await prisma.message.count({ where: { conversationId: companion.conversationId } }), 1);
+  for (const result of deliveries.filter((result) => result.message)) assert.equal(result.message.id, assistant.id);
+  const conversation = await prisma.conversation.findUniqueOrThrow({ where: { id: companion.conversationId } });
+  assert.equal(conversation.lastMessageAt.toISOString(), assistant.createdAt.toISOString());
+  const sentSnapshot = await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: proactive.id } });
+  const sentRetry = await repository.createProactiveMessage(user.id, companion.id, draftInput(proactive.deliveryKey, {
+    content: "must not overwrite sent", status: "draft"
+  }));
+  assert.equal(sentRetry.status, "sent");
+  assert.deepEqual(await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: proactive.id } }), sentSnapshot);
+  console.log("ok - concurrent automatic/manual sends insert exactly one linked assistant and advance lastMessageAt");
+
+  step = "proactive delivery: restore draft and resend";
+  await repository.updateProactiveMessage(user.id, proactive.id, { status: "draft", content: "restored draft edit" });
+  const restored = await Promise.all([
+    repository.deliverProactiveMessage(user.id, proactive.id, { automatic: true }),
+    new PrismaRenewalRepository().deliverProactiveMessage(user.id, proactive.id)
+  ]);
+  assert.ok(restored.every((result) => result?.message.id === assistant.id && result.proactiveMessage.status === "sent"));
+  assert.equal(await prisma.message.count({ where: { proactiveMessageId: proactive.id } }), 1);
+  assert.equal((await prisma.message.findUniqueOrThrow({ where: { id: assistant.id } })).content, proactive.content);
+  assert.equal(
+    (await prisma.conversation.findUniqueOrThrow({ where: { id: companion.conversationId } })).lastMessageAt.toISOString(),
+    assistant.createdAt.toISOString()
+  );
+  console.log("ok - restoring and concurrently resending a draft reuses its original assistant message");
+
+  step = "proactive delivery: blocked/dismissed status preservation and denial";
+  for (const status of ["blocked", "dismissed"]) {
+    const denied = await repository.createProactiveMessage(user.id, companion.id, draftInput(`denied-${status}`, { status }));
+    const before = await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: denied.id } });
+    assert.deepEqual(
+      await repository.createProactiveMessage(user.id, companion.id, draftInput(denied.deliveryKey, { content: "overwrite", status: "draft" })),
+      denied
+    );
+    assert.equal(await repository.deliverProactiveMessage(user.id, denied.id, { automatic: true }), null);
+    assert.equal(await repository.updateProactiveMessage(user.id, denied.id, { status: "sent", content: "unsafe edit" }), null);
+    assert.equal(await prisma.message.count({ where: { proactiveMessageId: denied.id } }), 0);
+    assert.deepEqual(await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: denied.id } }), before);
+  }
+  console.log("ok - duplicate creation preserves blocked/dismissed records; delivery and manual sent are denied");
+
+  step = "proactive delivery: cross-user and cross-companion isolation";
+  const owned = await repository.createProactiveMessage(user.id, companion.id, draftInput("ownership"));
+  const ownedBefore = await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: owned.id } });
+  assert.equal(await repository.deliverProactiveMessage(otherUser.id, owned.id), null);
+  assert.equal(await repository.deliverProactiveMessage(otherUser.id, owned.id, { automatic: true }), null);
+  assert.equal(await repository.updateProactiveMessage(otherUser.id, owned.id, { status: "sent" }), null);
+  await assert.rejects(repository.createProactiveMessage(otherUser.id, companion.id, draftInput("wrong-owner")));
+  await assert.rejects(repository.createProactiveMessage(otherUser.id, foreign.id, draftInput(owned.deliveryKey)));
+  await assert.rejects(repository.createProactiveMessage(user.id, sibling.id, draftInput(owned.deliveryKey)));
+  assert.deepEqual(await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: owned.id } }), ownedBefore);
+  assert.equal(await prisma.message.count({ where: { proactiveMessageId: owned.id } }), 0);
+  assert.equal(await prisma.message.count({ where: { conversationId: foreign.conversationId } }), 0);
+  console.log("ok - delivery and deliveryKey collisions cannot cross user or companion ownership");
+
+  step = "proactive delivery: transaction-time user and companion opt-outs";
+  for (const target of ["user", "companion"]) {
+    const optedOut = await repository.createProactiveMessage(user.id, companion.id, draftInput(`optout-${target}`));
+    const before = await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: optedOut.id } });
+    const lastMessageAt = (await prisma.conversation.findUniqueOrThrow({ where: { id: companion.conversationId } })).lastMessageAt;
+    // Toggle after draft creation, reproducing an opt-out during a slow model call.
+    if (target === "user") await prisma.user.update({ where: { id: user.id }, data: { proactiveMessagesEnabled: false } });
+    else await prisma.companion.update({ where: { id: companion.id }, data: { proactiveMessagesEnabled: false } });
+    assert.equal(await repository.deliverProactiveMessage(user.id, optedOut.id, { automatic: true }), null);
+    assert.equal(await prisma.message.count({ where: { proactiveMessageId: optedOut.id } }), 0);
+    assert.deepEqual(await prisma.proactiveMessage.findUniqueOrThrow({ where: { id: optedOut.id } }), before);
+    assert.deepEqual((await prisma.conversation.findUniqueOrThrow({ where: { id: companion.conversationId } })).lastMessageAt, lastMessageAt);
+    const manual = await repository.updateProactiveMessage(user.id, optedOut.id, { status: "sent" });
+    assert.equal(manual.status, "sent", "explicit sends remain available while automatic delivery is disabled");
+    assert.equal(await prisma.message.count({ where: { proactiveMessageId: optedOut.id } }), 1);
+    if (target === "user") await prisma.user.update({ where: { id: user.id }, data: { proactiveMessagesEnabled: true } });
+    else await prisma.companion.update({ where: { id: companion.id }, data: { proactiveMessagesEnabled: true } });
+  }
+  console.log("ok - automatic delivery rechecks each opt-out after drafting; explicit manual sends still work");
+
+  step = "proactive delivery: migrated nullable uniqueness and delete relations";
+  const unkeyed = await Promise.all([null, undefined].map((key) =>
+    repository.createProactiveMessage(user.id, companion.id, draftInput(key))
+  ));
+  assert.notEqual(unkeyed[0].id, unkeyed[1].id);
+  assert.ok(unkeyed.every((record) => record.deliveryKey === null));
+  await assert.rejects(prisma.message.create({ data: {
+    conversationId: companion.conversationId, proactiveMessageId: proactive.id,
+    role: "ASSISTANT", content: "duplicate must fail"
+  } }), (error) => error.code === "P2002");
+  assert.equal(await prisma.message.count({ where: { proactiveMessageId: proactive.id } }), 1);
+  const toDelete = await repository.createProactiveMessage(user.id, sibling.id, draftInput("delete-proactive"));
+  const detached = await repository.deliverProactiveMessage(user.id, toDelete.id);
+  await prisma.proactiveMessage.delete({ where: { id: toDelete.id } });
+  assert.equal((await prisma.message.findUniqueOrThrow({ where: { id: detached.message.id } })).proactiveMessageId, null);
+  const cascadeDraft = await repository.createProactiveMessage(user.id, sibling.id, draftInput("delete-companion"));
+  const cascadeDelivery = await repository.deliverProactiveMessage(user.id, cascadeDraft.id);
+  assert.equal(await repository.deleteCompanion(user.id, sibling.id), true);
+  assert.equal(await prisma.proactiveMessage.count({ where: { id: cascadeDraft.id } }), 0);
+  assert.equal(await prisma.message.count({ where: { id: { in: [detached.message.id, cascadeDelivery.message.id] } } }), 0);
+  assert.equal(await prisma.conversation.count({ where: { id: sibling.conversationId } }), 0);
+  console.log("ok - migrated unique links reject duplicates; nullable keys, SetNull and companion cascades work");
 } catch (error) {
   const code = error?.code || error?.errorCode || "none";
   const reason = /can't reach database server/i.test(error?.message || "") ? "database_unreachable" : "check_failed";

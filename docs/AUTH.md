@@ -18,7 +18,7 @@ AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 
 还需配置 `DATABASE_URL`、强 `USER_KEY_VAULT_SECRET` 和可选独立 `SESSION_COOKIE_SECRET`，见 [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件)。使用 `npm run dev` 后固定打开 `http://localhost:3000`，保持访问地址与 `AUTH_APP_URL` 一致。`localhost` 只指向访问者自己的电脑；发给其他用户的邮件不能使用这个地址。生产须设置用户可访问的 HTTPS `AUTH_APP_URL`。
 
-默认 SMTP 端口 `465` 使用 TLS；`587` 使用 STARTTLS，须确认所用邮箱服务支持。SMTP 接收邮件并不保证到达收件箱；首次测试应在收件箱/垃圾箱实际完成注册验证和密码恢复。当前真实 QQ SMTP 投递尚未验证，公开新用户的配额、反垃圾策略和送达率仍属外部验证项。
+默认 SMTP 端口 `465` 使用 TLS；`587` 使用 STARTTLS，须确认所用邮箱服务支持。SMTP 接收邮件并不保证到达收件箱；首次测试应在收件箱/垃圾箱实际完成注册验证和密码恢复。截至 2026-10-31，QQ SMTP verify 与用户真实注册/邮件验证/登录通过；公开新用户的配额、反垃圾策略和送达率仍属外部验证项。
 
 ## 可选 HTTP 邮件网关
 
@@ -32,11 +32,13 @@ AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 
 ## 本轮验证与待办
 
-2026-10-26 主控已确认 Next.js 16.4.3 下全量 E2E 32 项、lint、typecheck、build 通过；主动调度本地 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过；依赖升级后的 audit 为 0 vulnerabilities。这些结果包含认证 UI 的拦截响应及本地邮件测试，不能代替真实数据库的注册/恢复事务与邮件投递验证。
+当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
+
+历史记录（2026-10-26）：主控已确认 Next.js 16.4.3 下全量 E2E 32 项、lint、typecheck、build 通过；主动调度本地 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过；依赖升级后的 audit 为 0 vulnerabilities。这些结果包含认证 UI 的拦截响应及本地邮件测试，不能代替真实数据库的注册/恢复事务与邮件投递验证。
 
 数据库已恢复，两份认证/检查点迁移已应用到当前数据库，真实 DB smoke 通过。完整隔离 PostgreSQL 集成已验证注册、密码登录、重置撤销旧会话、旧账号恢复、限流、检查点 CAS 和级联清理；测试 schema 已移除。最近完整 memory smoke 已通过 94 checks。
 
-本机 QQ SMTP 的 TLS 连接与账号认证已通过，未在自检中发送邮件。真实注册邮件送达与点击验证需在网站完成。生产仍需 HTTPS `AUTH_APP_URL` 和独立部署环境验证；文档占位示例不表示部署 secret 已补齐。
+本机 QQ SMTP 的 TLS 连接与账号认证已通过，未在自检中发送邮件。随后用户已完成网站注册、真实邮件验证并登录，数据库已确认邮箱验证成功。生产仍需 HTTPS `AUTH_APP_URL` 和独立部署环境验证；文档占位示例不表示部署 secret 已补齐。
 
 QQ 授权码的生成步骤见 [QQ 邮箱官方帮助](https://help.mail.qq.com/detail/106/985)。取得后只在本机 `.env.local` 填入 `AUTH_SMTP_PASSWORD`。先运行 `npm run env:mail` 检查配置，再运行 `npm run env:mail -- --verify` 验证 SMTP 连接和认证；这两个命令都不发送邮件，也不输出授权码。生产环境的 `AUTH_APP_URL` 必须改为 HTTPS。
 

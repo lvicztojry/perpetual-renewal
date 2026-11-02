@@ -2,6 +2,14 @@
 
 目标：把现有骨架收束成可反复演示的纵切 MVP。
 
+截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
+
+Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
+
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 33 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+
+2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。 套餐与调度限制见 [部署文档](DEPLOYMENT.md#vercel-deployment)。
+
 ## 模块边界
 
 | 模块 | 状态 | 写入范围 | 交付目标 |
@@ -38,7 +46,7 @@ npm run verify:release
 - `npm run typecheck`：通过。
 - `npm run lint`：通过。
 - `npm run build`：通过。
-- M135 历史（2026-08-23）`npm --cache .\.npm-cache audit --audit-level=high`：0 vulnerabilities；10 月初查 6 vulnerabilities（5 high、1 critical），主控确认 16.4.3 升级后 audit 为 0 vulnerabilities，完整 memory smoke 待结果。
+- M135 历史（2026-08-23）`npm --cache .\.npm-cache audit --audit-level=high`：0 vulnerabilities；10 月初查 6 vulnerabilities（5 high、1 critical），主控确认 16.4.3 升级后 audit 为 0 vulnerabilities，完整 memory smoke 94 checks 已通过；2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递。
 - M135 历史（2026-08-23）`npm run e2e`：通过 15 tests；默认自动启动 managed mock/memory 环境，覆盖 login -> create relationship -> chat -> confirm memory -> file import -> proactive draft -> logout、主动回响 1 分钟状态提示、设置页密钥保存/删除/测试连接失败态、模型列表读取与选择、模型列表失败 diagnostic 前端脱敏、BYOK fake-compatible 浏览器闭环、导出脱敏、账号删除确认、memory fallback 用户隔离、工作台错误展示脱敏、设置页删除密钥失败脱敏、语音 fallback reason 前端脱敏，以及 320px/390px/768px 响应式可用性。真实供应商慢响应、超时、429 或模型不可用不计入该门禁，需单独按联调风险记录。
 - M135 历史（2026-08-23）`npm run smoke`：通过 94 checks，覆盖关系、导入、聊天、记忆、关系状态、主动回响、Vercel Cron GET 鉴权、用户 vault、模型连接测试、模型列表兼容响应/失败隐私、语音 fallback 与输入护栏、用量看板、数据导出、账号删除、PWA 静态资源、安全样例、导出脱敏、API 响应边界和密钥扫描自测。
 - 首页、`/api/companions`、`/api/me`、`/api/chat/complete`、`/api/me/llm-test`：已 smoke 通过。
@@ -50,7 +58,7 @@ npm run verify:release
 - 工作台右侧新增记忆管理视图：pending 可确认，active 可归档，archived 可恢复，记忆可软删除。
 - 工作台右侧新增主动回响视图：可按当前关系状态生成站内草稿，并展示安全检查结果。
 - 增加初始 Prisma migration、seed 脚本和 `npm run db:smoke`，用于真实 PostgreSQL 持久化验证。
-- 增加本地 email session 登录/登出：`/login`、`POST /api/auth/login`、`POST /api/auth/logout`。这是 8 月历史路线；10 月默认改为邮箱/密码并验证注册邮箱，原演示登录只限显式非生产 `AUTH_MODE=local-email` 测试（M139 待主控验收）。
+- 增加本地 email session 登录/登出：`/login`、`POST /api/auth/login`、`POST /api/auth/logout`。这是 8 月历史路线；10 月默认改为邮箱/密码并验证注册邮箱，原演示登录只限显式非生产 `AUTH_MODE=local-email` 测试（M139 真实隔离 PostgreSQL 与 QQ 注册收件已通过，新部署目标另验）。
 - 主动回响草稿已从临时 mock 返回升级为 repository 持久化：无数据库时写入内存 fallback，真实数据库配置后写入 `ProactiveMessage`。
 - 前端创建/编辑关系对象增加保存中、失败提示和禁用态；主动回响视图展示来源、状态、时间与安全结果。
 - LLM provider 增加统一错误分类、`retryable` 和 `fallbackReason`，并扩展安全评估覆盖公众人物授权与现实替代承诺。

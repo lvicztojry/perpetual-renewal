@@ -71,6 +71,7 @@ export type ConversationRecord = {
 
 export type MessageRecord = {
   id: string;
+  proactiveMessageId?: string | null;
   conversationId: string;
   role: MessageRole;
   content: string;
@@ -93,6 +94,7 @@ export type MemoryRecord = {
 
 export type ProactiveMessageRecord = {
   id: string;
+  deliveryKey: string | null;
   userId: string;
   companionId: string;
   kind: ProactiveMessageKind;
@@ -152,6 +154,7 @@ export type CreateCompanionInput = {
 export type UpdateCompanionInput = Partial<CreateCompanionInput>;
 
 export type CreateProactiveMessageInput = {
+  deliveryKey?: string | null;
   kind: ProactiveMessageKind;
   content: string;
   reason?: string | null;
@@ -294,6 +297,14 @@ export type RenewalRepository = {
     proactiveMessageId: string,
     input: UpdateProactiveMessageInput
   ): Promise<ProactiveMessageRecord | null>;
+  // Null for missing ownership/conversation, blocked/dismissed records, or
+  // disabled user/companion proactive settings when automatic is true.
+  // A restored draft retains its linked message; retries return that same message.
+  deliverProactiveMessage(
+    userId: string,
+    proactiveMessageId: string,
+    options?: { automatic?: boolean }
+  ): Promise<{ proactiveMessage: ProactiveMessageRecord; message: MessageRecord } | null>;
   updateRelationshipState(
     userId: string,
     companionId: string,

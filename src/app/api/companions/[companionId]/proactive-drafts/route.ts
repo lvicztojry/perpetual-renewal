@@ -1,4 +1,6 @@
 import { privateJson } from "@/lib/http/private-response";
+import { createHash } from "node:crypto";
+import { personalizeProactiveDraft } from "@/lib/relationship/proactive-model";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
@@ -13,6 +15,7 @@ import { createRenewalRepository } from "@/lib/renewal/repository";
 import type {
   CompanionProfile as RenewalCompanionProfile,
   ProactiveMessageRecord,
+  MessageRecord,
   RelationshipStateRecord
 } from "@/lib/renewal/types";
 import { getUserProfile } from "@/lib/users/profile";
@@ -90,12 +93,16 @@ export async function POST(
       return privateJson({ error: "Companion not found." }, { status: 404 });
     }
 
+    const history = await repository.listMessages(session.userId, companion.conversationId);
+    const persistedLastUserMessage = [...history].reverse().find((message) => message.role === "user")?.content;
+    const lastUserMessage = forceGenerate ? body.lastUserMessage ?? persistedLastUserMessage : persistedLastUserMessage;
     const proactiveCompanion = toProactiveCompanion(companion);
+    const snapshot = toRelationshipSnapshot(companion.relationshipState);
     const state = forceGenerate
-      ? toRelationshipSnapshot(companion.relationshipState)
-      : withProactiveDraftAnchor(toRelationshipSnapshot(companion.relationshipState), proactiveMessages);
+      ? snapshot
+      : withProactiveDraftAnchor({ ...snapshot, lastInteractionAt: snapshot.lastInteractionAt ?? companion.createdAt }, proactiveMessages);
     const safety = checkProactiveContextSafety({
-      lastUserMessage: body.lastUserMessage,
+      lastUserMessage,
       companionInstruction: [
         proactiveCompanion.personality.join("，"),
         proactiveCompanion.speakingStyle,
@@ -115,17 +122,15 @@ export async function POST(
     const plan = createProactiveDraftPlan({
       companion: proactiveCompanion,
       state,
-      lastUserMessage: body.lastUserMessage,
-      proactiveMessagesEnabled:
-        body.proactiveMessagesEnabled ??
-        (companion.proactiveMessagesEnabled && profile.proactiveMessagesEnabled),
+      lastUserMessage,
+      proactiveMessagesEnabled: companion.proactiveMessagesEnabled && profile.proactiveMessagesEnabled && body.proactiveMessagesEnabled !== false,
       frequencyPreset,
       frequencyMinutes,
       force: forceGenerate,
       now: new Date()
     });
     const maxDrafts = normalizeMaxDrafts(body.maxDrafts);
-    const drafts = plan.drafts.slice(0, maxDrafts);
+    const drafts = plan.drafts.slice(0, forceGenerate ? maxDrafts : 1);
     const draftLimitReached = plan.drafts.length > drafts.length;
     const frequency = normalizeProactiveFrequency(
       {
@@ -138,23 +143,34 @@ export async function POST(
     );
 
     const records: ProactiveMessageRecord[] = [];
-    for (const draft of drafts) {
-      records.push(
-        await repository.createProactiveMessage(session.userId, companion.id, {
+    const deliveredMessages: MessageRecord[] = [];
+    for (const candidate of drafts) {
+      const generated = forceGenerate ? { draft: candidate, source: "template" } : await personalizeProactiveDraft(companion, candidate, history);
+      const draft = generated.draft;
+      let record = await repository.createProactiveMessage(session.userId, companion.id, {
           kind: draft.kind,
           content: draft.content,
           reason: draft.reason,
           safety: {
             result: draft.safety,
+            generator: generated.source,
             ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
             ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
             ...(draft.frequency ? { frequency: draft.frequency } : {}),
             ...(draft.nextCandidateAt ? { nextCandidateAt: draft.nextCandidateAt } : {})
           },
           status: "draft",
-          scheduledAt: draft.scheduledAt ?? null
-        })
-      );
+          scheduledAt: draft.scheduledAt ?? null,
+          deliveryKey: forceGenerate ? null : createHash("sha256").update(`${companion.id}:${plan.schedule.candidateAt}`).digest("hex")
+        });
+      if (!forceGenerate) {
+        const delivered = await repository.deliverProactiveMessage(session.userId, record.id, { automatic: true });
+        if (delivered) {
+          record = delivered.proactiveMessage;
+          deliveredMessages.push(delivered.message);
+        }
+      }
+      records.push(record);
     }
 
     return privateJson({
@@ -166,7 +182,9 @@ export async function POST(
       skippedReason: plan.skippedReason ?? null,
       maxDrafts,
       draftLimitReached,
-      status: "draft",
+      status: deliveredMessages.length ? "sent" : "draft",
+      deliveredMessages,
+      deliveredCount: deliveredMessages.length,
       generatedCount: plan.drafts.length,
       savedCount: records.length
     });

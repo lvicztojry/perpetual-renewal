@@ -4,7 +4,13 @@
 
 ## Current Candidate
 
-Latest recovery verification: complete isolated PostgreSQL auth/checkpoint integration and current database migrations passed; real DB smoke passed. QQ SMTP TLS and authentication passed without sending an email. Actual mailbox receipt, verification-link login and real-provider user flow remain pending. `npm run env:mail -- --verify` checks SMTP only; credentials remain local.
+截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
+
+Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
+
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 33 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+
+2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。 调度套餐限制见 [DEPLOYMENT.md](DEPLOYMENT.md#vercel-deployment)。
 
 - Branch: `codex/mvp-release-candidate`
 - Remote branch: `origin/codex/mvp-release-candidate`
@@ -101,26 +107,28 @@ Latest recovery verification: complete isolated PostgreSQL auth/checkpoint integ
 - M133 scope: `npm run qa:providers` hermetically covers Anthropic, Gemini, and OpenAI Responses adapter auth headers, payload shapes, default official base URLs avoiding compatible `LLM_BASE_URL`, and sanitized provider failure diagnostics.
 - M134 scope: proactive all-user scheduling pushes normalized scan limits into repository/Prisma queries, caches repeated user profile reads, and stops scanning once `maxDrafts` is reached; smoke covers the early-stop path.
 - M135 scope: settings model-list failure diagnostic text is redacted again on the client, with E2E coverage for Bearer, API key, Base URL, prompt, rawPayload and stack leakage attempts.
-- M136 scope: per-conversation draft, delayed-history and in-flight reply isolation; main verified the 32-case E2E suite on Next.js 16.4.3.
+- M136 scope: per-conversation draft, delayed-history and in-flight reply isolation; main verified the historical 32-case E2E suite (2026-10-26) on Next.js 16.4.3.
 - M137 scope: normalize transcription locale zh-CN to zh; 16 local language checks passed, with live-provider validation separate.
-- M138 scope: durable checkpoint and keyset cursor resume all-user scans across cold starts; 20 local checks passed, target migration pending.
+- M138 scope: durable checkpoint and keyset cursor resume all-user scans across cold starts; 31 scheduler checks, current DB migrations and real isolated checkpoint CAS passed; new deployment targets require independent verification.
 - Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
 - PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
 - PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
 
 ## Latest Pre-push Verification
 
-2026-10-26 验证范围（M136–M138 已集成本地回归；M139、M140 仍有待验项）：
+当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
+
+验证状态更新（2026-10-31）：M136 的 32 项为 2026-10-26 历史全量；新增后全量 E2E 33 项与最终 typecheck 已通过。
 
 | 候选 | 范围 | 验证状态 |
 | --- | --- | --- |
 | M136 | Conversation switching: isolate per-conversation drafts, delayed history and in-flight replies | 已验证：全量 E2E 32 项通过 |
 | M137 | Normalize transcription locale `zh-CN` to `zh` | 已验证：本地语音语言 16 项通过；真实供应商另验 |
-| M138 | Durable DB checkpoint and keyset cursor prevent all-user scan starvation across serverless cold starts | 已验证：本地调度 20 项通过；目标迁移待验证 |
-| M139 | Default self-hosted password login, verified registration, mailbox recovery for legacy email-only users, fragment tokens, expiring/revocable v2 password sessions; SMTP or HTTP mail | 本地后端、SMTP 33 项与 UI 通过；真实 PostgreSQL 集成 database_unreachable，未创建 schema/执行迁移；真实投递与目标迁移待验证 |
-| M140 | Next.js/eslint-config-next and transitive dependency security refresh | 16.4.3 升级后 audit 零漏洞、lint/typecheck/build/E2E 通过；完整 memory smoke 待结果 |
+| M138 | Durable DB checkpoint and keyset cursor prevent all-user scan starvation across serverless cold starts | 已验证：调度 31 项、当前数据库迁移及真实隔离 checkpoint CAS 通过；新部署另验 |
+| M139 | Self-hosted password auth, verified registration, mailbox recovery, fragment tokens and expiring/revocable sessions | 本地后端/SMTP 33 项、UI、真实隔离 PostgreSQL 与当前数据库迁移通过；QQ SMTP verify、用户真实注册/邮件验证/登录通过；新部署另验 |
+| M140 | Dependency security refresh | 16.4.3 升级后 audit 零漏洞、lint/typecheck/build、memory smoke 94 checks 通过；新增后全量 E2E 33 项与最终 typecheck 通过 |
 
-本轮 lint/typecheck/build 与上述本地回归已通过；严格 readiness 仍缺 AUTH_MAIL 认证邮件配置，真实 QQ SMTP/HTTP 邮件、目标迁移未验证，认证 PostgreSQL 集成须待数据库可达后重跑。完整 memory smoke 正在修正语音 fixture 并复跑。下列 2026-08-23 结果为历史记录，不替代本轮结果。
+历史记录（2026-10-26）：早期 PostgreSQL 在 CREATE SCHEMA 遇到 database_unreachable，未创建 schema/执行迁移，当时严格 readiness 缺邮件配置；该阻塞已恢复。最新真实 DB/QQ/聊天结果见上，增强真实主动 QA 和新部署目标 verify:deploy 仍待完成。下列 2026-08-23 为历史结果。
 
 Last updated: 2026-08-23
 
@@ -231,7 +239,7 @@ Production deploy candidates should additionally run `npm run verify:deploy` in 
 ## Production Configuration To Mirror
 
 - Auth: default email/password; registration requires email verification. Legacy email-only accounts must recover through their mailbox; `AUTH_MODE=local-email` is permitted only for explicit nonproduction tests.
-- Mail: `AUTH_APP_URL`, `AUTH_MAIL_FROM`, `AUTH_MAIL_TRANSPORT=smtp` and `AUTH_SMTP_HOST/PORT/USER/PASSWORD`; personal mailbox app-password tests need no owned domain. Optional HTTP uses `AUTH_MAIL_TRANSPORT=http` and `AUTH_MAIL_API_URL/KEY`. Live SMTP/HTTP inbox delivery and public-user deliverability remain unverified.
+- Mail: `AUTH_APP_URL`, `AUTH_MAIL_FROM`, `AUTH_MAIL_TRANSPORT=smtp` and `AUTH_SMTP_HOST/PORT/USER/PASSWORD`; personal mailbox app-password tests need no owned domain. Optional HTTP uses `AUTH_MAIL_TRANSPORT=http` and `AUTH_MAIL_API_URL/KEY`. QQ SMTP verify and user registration inbox verification passed; HTTP delivery, public-user deliverability and new deployments require independent verification.
 - Apply the new auth and scheduler checkpoint migrations in the target database before deploy verification. v2 password sessions must expire server-side and be revoked after password reset; verification/reset links carry tokens in URL fragments.
 
 - `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.

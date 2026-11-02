@@ -1,11 +1,13 @@
 import { getUserProfile, type UserProfile } from "@/lib/users/profile";
+import { createHash } from "node:crypto";
+import { personalizeProactiveDraft } from "./proactive-model";
 import { createRenewalRepository } from "@/lib/renewal/repository";
 import type {
   CompanionProfile as RenewalCompanionProfile,
   ProactiveMessageRecord,
   RelationshipStateRecord
 } from "@/lib/renewal/types";
-import { createProactiveDrafts } from "./proactive";
+import { createProactiveDraftPlan } from "./proactive";
 import type {
   CompanionProfile as ProactiveCompanionProfile,
   RelationshipStateSnapshot
@@ -29,6 +31,7 @@ export type ProactiveSchedulerResult = {
   eligibleCount: number;
   generatedCount: number;
   savedCount: number;
+  deliveredCount: number;
   skippedCount: number;
   maxDrafts: number;
   // The next position; all-user live runs also persist this automatically.
@@ -82,6 +85,7 @@ export async function runProactiveScheduler(
   const profileByUserId = new Map<string, Promise<UserProfile>>();
   let generatedCount = 0;
   let savedCount = 0;
+  let deliveredCount = 0;
   let eligibleCount = 0;
 
   for (const companion of companions) {
@@ -110,11 +114,12 @@ export async function runProactiveScheduler(
       repository.listProactiveMessages(companion.userId, companion.id)
     ]);
     const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
+    const snapshot = toRelationshipSnapshot(companion.relationshipState);
     const state = withSchedulerAnchor(
-      toRelationshipSnapshot(companion.relationshipState),
+      { ...snapshot, lastInteractionAt: snapshot.lastInteractionAt ?? companion.createdAt },
       proactiveMessages
     );
-    const drafts = createProactiveDrafts({
+    const plan = createProactiveDraftPlan({
       companion: toProactiveCompanion(companion),
       state,
       lastUserMessage: lastUserMessage?.content,
@@ -125,7 +130,8 @@ export async function runProactiveScheduler(
       now
     });
 
-    const cappedDrafts = drafts.slice(0, remainingDrafts);
+    const drafts = plan.drafts;
+    const cappedDrafts = drafts.slice(0, Math.min(1, remainingDrafts));
 
     if (!cappedDrafts.length) {
       results.push({
@@ -144,13 +150,16 @@ export async function runProactiveScheduler(
     let companionSavedCount = 0;
 
     if (!dryRun) {
-      for (const draft of cappedDrafts) {
-        await repository.createProactiveMessage(companion.userId, companion.id, {
+      for (const candidate of cappedDrafts) {
+        const generated = await personalizeProactiveDraft(companion, candidate, messages);
+        const draft = generated.draft;
+        const record = await repository.createProactiveMessage(companion.userId, companion.id, {
           kind: draft.kind,
           content: draft.content,
           reason: draft.reason,
           safety: {
             result: draft.safety,
+            generator: generated.source,
             ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
             ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
             ...(draft.frequency ? { frequency: draft.frequency } : {}),
@@ -161,8 +170,11 @@ export async function runProactiveScheduler(
             }
           },
           status: "draft",
-          scheduledAt: draft.scheduledAt ?? null
+          scheduledAt: draft.scheduledAt ?? null,
+          deliveryKey: createHash("sha256").update(`${companion.id}:${plan.schedule.candidateAt}`).digest("hex")
         });
+        const delivered = await repository.deliverProactiveMessage(companion.userId, record.id, { automatic: true });
+        if (delivered) deliveredCount += 1;
         companionSavedCount += 1;
       }
     }
@@ -178,10 +190,10 @@ export async function runProactiveScheduler(
         cappedDrafts.length < drafts.length
           ? dryRun
             ? "到期，但已按本轮上限裁剪；dry-run 未保存草稿。"
-            : "到期，但已按本轮上限裁剪并保存站内草稿。"
+            : "到期，已按本轮上限处理站内回响。"
           : dryRun
             ? "到期，dry-run 未保存草稿。"
-            : "到期，已保存站内草稿。",
+            : "到期，已处理站内回响。",
       nextCandidateAt: cappedDrafts[0]?.nextCandidateAt
     });
   }
@@ -211,6 +223,7 @@ export async function runProactiveScheduler(
     eligibleCount,
     generatedCount,
     savedCount,
+    deliveredCount,
     skippedCount: results.length - eligibleCount,
     maxDrafts,
     nextCursor,

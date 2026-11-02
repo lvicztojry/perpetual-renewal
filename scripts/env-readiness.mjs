@@ -1,5 +1,6 @@
 import process from "node:process";
 import { loadLocalEnv } from "./load-local-env.mjs";
+import { migrationDatabaseUrl } from "./database-url.mjs";
 
 const args = new Set(process.argv.slice(2));
 const strict = args.has("--strict");
@@ -17,6 +18,7 @@ const checks = [
   secretCheck("USER_KEY_VAULT_SECRET", "用户 API key vault 加密主密钥"),
   sessionCookieSecretCheck(),
   proactiveCronSecretCheck(),
+  authAppUrlCheck(),
   authMailCheck(),
   llmProviderCheck(),
   llmCredentialCheck(),
@@ -67,20 +69,41 @@ function databaseCheck() {
   };
 }
 
+function isSafeHttpsUrl(value) {
+  try {
+    const url = new URL(value || "");
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function authAppUrlCheck() {
+  const configured = isSafeHttpsUrl(process.env.AUTH_APP_URL);
+  return {
+    label: "AUTH_APP_URL",
+    status: configured ? "ready" : "missing",
+    required: true,
+    strictWarning: false,
+    detail: configured
+      ? "HTTPS application URL is configured."
+      : "Production registration and password recovery links require an HTTPS application URL without embedded credentials.",
+    next: "Set AUTH_APP_URL to the public HTTPS application URL for production."
+  };
+}
+
 function authMailCheck() {
   const transport = process.env.AUTH_MAIL_TRANSPORT || (process.env.AUTH_MAIL_API_URL ? "http" : "smtp");
   let configured = false;
   try {
-    const app = new URL(process.env.AUTH_APP_URL || "");
-    const isSafeUrl = (url) => url.protocol === "https:" && !url.username && !url.password;
     const from = process.env.AUTH_MAIL_FROM?.trim();
     const port = Number(process.env.AUTH_SMTP_PORT || "465");
     const host = process.env.AUTH_SMTP_HOST?.trim();
-    configured = Boolean(isSafeUrl(app) && from && !/[\r\n]/.test(from) && (
+    configured = Boolean(from && !/[\r\n]/.test(from) && (
       transport === "smtp"
         ? host && !/[\s/@?#:]/.test(host) && Number.isInteger(port) && port >= 1 && port <= 65535 &&
           process.env.AUTH_SMTP_USER?.trim() && process.env.AUTH_SMTP_PASSWORD?.trim()
-        : transport === "http" && isSafeUrl(new URL(process.env.AUTH_MAIL_API_URL || "")) && process.env.AUTH_MAIL_API_KEY?.trim()
+        : transport === "http" && isSafeHttpsUrl(process.env.AUTH_MAIL_API_URL) && process.env.AUTH_MAIL_API_KEY?.trim()
     ));
   } catch { /* Only readiness status is exposed. */ }
   return {
@@ -89,9 +112,9 @@ function authMailCheck() {
     required: true,
     strictWarning: false,
     detail: configured
-      ? "Password auth mail transport and HTTPS application URL are configured."
-      : "Registration and password recovery need a configured mail transport and HTTPS application URL.",
-    next: "Set AUTH_APP_URL, AUTH_MAIL_FROM and SMTP app-password settings or an HTTP mail gateway in local/deployment secrets."
+      ? "Password auth mail transport credentials are configured."
+      : "Registration and password recovery need valid mail transport settings and credentials.",
+    next: "Set AUTH_MAIL_FROM and SMTP host, port, user and app password, or an HTTPS mail gateway URL and API key in local/deployment secrets."
   };
 }
 
@@ -99,7 +122,6 @@ function databaseUnpooledCheck() {
   const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
   const unpooled = process.env.DATABASE_URL_UNPOOLED?.trim();
   const databaseConfigured = Boolean(databaseUrl);
-  const appearsPooled = /-pooler[.\-]/i.test(databaseUrl);
 
   if (!databaseConfigured) {
     return {
@@ -112,28 +134,37 @@ function databaseUnpooledCheck() {
     };
   }
 
-  if (unpooled) {
+  let migrationUrl;
+  try {
+    migrationUrl = new URL(migrationDatabaseUrl());
+  } catch {
     return {
       label: "DATABASE_URL_UNPOOLED",
-      status: "ready",
+      status: "warning",
       required: false,
       strictWarning: false,
-      detail: "A direct database URL is configured for Prisma migrations.",
-      next: "Keep the value out of source control and deployment logs."
+      detail: "Database migration URL configuration is invalid.",
+      next: "Set a valid PostgreSQL DATABASE_URL_UNPOOLED or DATABASE_URL; run npm run db:smoke separately to verify connectivity."
     };
   }
 
+  const derivedDirect = !unpooled && migrationUrl.hostname !== new URL(databaseUrl).hostname;
+  const appearsPooled = !unpooled && /-pooler[.\-]/i.test(migrationUrl.hostname);
   return {
     label: "DATABASE_URL_UNPOOLED",
     status: appearsPooled ? "warning" : "ready",
     required: false,
     strictWarning: false,
-    detail: appearsPooled
+    detail: derivedDirect
+      ? "A direct Neon migration URL is derived from DATABASE_URL by the database URL helper."
+      : appearsPooled
       ? "DATABASE_URL appears to use Neon pooling; migrations are more reliable with a direct URL."
+      : unpooled
+      ? "A direct database URL is configured for Prisma migrations."
       : "DATABASE_URL does not look pooled; migrations can use it directly.",
     next: appearsPooled
       ? "Set DATABASE_URL_UNPOOLED to the Neon direct connection string when available."
-      : "No action needed unless your database provider gives a separate migration URL."
+      : "Run npm run db:smoke separately to verify target database connectivity; readiness only checks configuration."
   };
 }
 

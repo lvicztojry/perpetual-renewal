@@ -36,7 +36,7 @@ const relationshipKinds = new Set();
 for (const sample of samples.relationshipCases ?? []) {
   relationshipKinds.add(sample.relationshipKind);
 
-  const activeMemory = `[prompt-active-${sample.id}] 用户确认过这条 active 记忆。`;
+  const activeMemory = `[prompt-active-${sample.id}] 用户曾说过：${sample.input}`;
   const pendingMemory = `[prompt-pending-${sample.id}] 这条 pending 记忆不应进入 prompt。`;
   const deletedMemory = `[prompt-deleted-${sample.id}] 这条 deleted 记忆不应进入 prompt。`;
   const relationshipLabel = relationshipKindLabels[sample.relationshipKind] ?? sample.relationshipKind;
@@ -210,7 +210,7 @@ assertIncludes(budgetedSystemPrompt, "背景故事：关键设定必须保留", 
 assertIncludes(budgetedSystemPrompt, "[budget-keep-important]", "budget: important memory selected");
 assertIncludes(budgetedSystemPrompt, "[budget-keep-recent]", "budget: recent memory selected");
 assertIncludes(budgetedSystemPrompt, "[budget-truncate]", "budget: long high-confidence memory selected");
-assertIncludes(budgetedSystemPrompt, "[...]", "budget: long memory/message truncated with marker");
+assertIncludes(budgetedSystemPrompt, "用户希望被温柔承接", "budget: relevant excerpt from long memory retained");
 assertNotIncludes(budgetedSystemPrompt, "[budget-pending]", "budget: pending memory excluded");
 assertNotIncludes(budgetedSystemPrompt, "[budget-deleted]", "budget: deleted memory excluded");
 assertNotIncludes(budgetedSystemPrompt, "[budget-drop-old]", "budget: low-priority old memory dropped");

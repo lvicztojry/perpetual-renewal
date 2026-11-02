@@ -183,6 +183,8 @@ model Conversation {
 model Message {
   id             String        @id @default(cuid())
   conversationId String
+  proactiveMessageId String? @unique
+  proactiveMessage ProactiveMessage? @relation(fields: [proactiveMessageId], references: [id], onDelete: SetNull)
   role           MessageRole
   content        String
   metadata       Json?
@@ -233,6 +235,8 @@ model RelationshipState {
 
 model ProactiveMessage {
   id          String                 @id @default(cuid())
+  deliveryKey String?                @unique
+  message     Message?
   userId      String
   companionId String
   kind        ProactiveMessageKind   @default(DAILY_GREETING)

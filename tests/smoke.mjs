@@ -1656,6 +1656,15 @@ async function runSmoke() {
     ),
     "proactive message update"
   );
+  const draftUrl = `/api/proactive-messages/${encodeURIComponent(proactive.body.data[0].id)}`;
+  await request(draftUrl, { method: "PATCH", body: JSON.stringify({ status: "draft" }) });
+  const sentProactive = await request(draftUrl, { method: "PATCH", body: JSON.stringify({ status: "sent" }) });
+  assert(sentProactive.body.proactiveMessage?.status === "sent", "manual proactive send should succeed");
+  await request(draftUrl, { method: "PATCH", body: JSON.stringify({ status: "draft" }) });
+  await request(draftUrl, { method: "PATCH", body: JSON.stringify({ status: "sent" }) });
+  const deliveredHistory = await request(`/api/conversations/${created.body.companion.conversationId}/messages`);
+  assert(deliveredHistory.body.messages?.filter((message) => message.proactiveMessageId === proactive.body.data[0].id).length === 1,
+    "manual send, restore and resend should persist one linked chat message");
   pass("PATCH /api/proactive-messages/:id updates draft status");
 
   const schedulerNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
@@ -1707,6 +1716,7 @@ async function runSmoke() {
     "proactive scheduler dry-run should respect maxDrafts"
   );
   assert(proactiveDryRun.body.savedCount === 0, "proactive scheduler dry-run should not save drafts");
+  assert(proactiveDryRun.body.deliveredCount === 0, "dry-run must never deliver a chat message");
   pass("POST /api/proactive/run dry-run");
 
   const proactiveRun = await request("/api/proactive/run", {
@@ -1719,6 +1729,7 @@ async function runSmoke() {
   });
   assert(proactiveRun.body.dryRun === false, "proactive scheduler run should report dryRun=false");
   assert(proactiveRun.body.savedCount > 0, "proactive scheduler run should save due drafts");
+  assert(proactiveRun.body.deliveredCount === 1, "live scheduler should deliver one automatic chat message per companion cadence");
   assert(
     proactiveRun.body.savedCount <= proactiveRun.body.maxDrafts,
     "proactive scheduler run should not save more than maxDrafts"

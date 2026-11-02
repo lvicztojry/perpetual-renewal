@@ -577,6 +577,7 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     companionId: string,
     input: {
       kind: ProactiveMessageRecord["kind"];
+      deliveryKey?: string | null;
       content: string;
       reason?: string | null;
       safety?: Record<string, unknown> | null;
@@ -593,9 +594,20 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       throw new Error(`Companion ${companionId} was not found.`);
     }
 
+    if (input.deliveryKey != null) {
+      const existing = store.proactiveMessages.find((item) => item.deliveryKey === input.deliveryKey);
+      if (existing) {
+        if (existing.userId !== userId || existing.companionId !== companionId) {
+          throw new Error("Proactive delivery key is unavailable.");
+        }
+        return existing;
+      }
+    }
+
     const timestamp = now();
     const message: ProactiveMessageRecord = {
       id: makeId("proactive"),
+      deliveryKey: input.deliveryKey ?? null,
       userId,
       companionId,
       kind: input.kind,
@@ -623,6 +635,9 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       scheduledAt?: string | null;
     }
   ) {
+    if (input.status === "sent") {
+      return this.deliverProactiveMessageWithInput(userId, proactiveMessageId, input)?.proactiveMessage ?? null;
+    }
     const message = getStore().proactiveMessages.find(
       (item) => item.userId === userId && item.id === proactiveMessageId
     );
@@ -637,6 +652,62 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     message.updatedAt = now();
 
     return message;
+  }
+
+  async deliverProactiveMessage(userId: string, proactiveMessageId: string, options?: { automatic?: boolean }) {
+    return this.deliverProactiveMessageWithInput(userId, proactiveMessageId, {}, options);
+  }
+
+  private deliverProactiveMessageWithInput(
+    userId: string,
+    proactiveMessageId: string,
+    input: Parameters<RenewalRepository["updateProactiveMessage"]>[2] = {},
+    options?: { automatic?: boolean }
+  ) {
+    // No awaits: all validation and publication share one JS critical section,
+    // including calls from different repository instances using this store.
+    const store = getStore();
+    const proactive = store.proactiveMessages.find((item) => item.id === proactiveMessageId && item.userId === userId);
+    if (!proactive || proactive.status === "blocked" || proactive.status === "dismissed") return null;
+    const companion = store.companions.find((item) => item.id === proactive.companionId && item.userId === userId);
+    if (!companion) return null;
+    if (options?.automatic) {
+      // This is the same map used by users/profile.ts in memory mode. Reading it
+      // synchronously keeps opt-out checks inside this store's critical section.
+      const profiles = (globalThis as typeof globalThis & {
+        __perpetualRenewalFallbackProfiles?: Map<string, { proactiveMessagesEnabled: boolean }>;
+      }).__perpetualRenewalFallbackProfiles;
+      if (!companion.proactiveMessagesEnabled || profiles?.get(userId)?.proactiveMessagesEnabled === false) return null;
+    }
+    const linked = store.messages.find((item) => item.proactiveMessageId === proactiveMessageId);
+    const conversation = linked
+      ? store.conversations.find((item) => item.id === linked.conversationId && item.userId === userId && item.companionId === proactive.companionId)
+      : store.conversations.filter((item) => item.userId === userId && item.companionId === proactive.companionId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))[0];
+    if (!conversation) return null;
+    if (linked && proactive.status === "sent" && Object.keys(input).every((key) => key === "status")) {
+      return { proactiveMessage: proactive, message: linked };
+    }
+    const timestamp = now();
+    const message: MessageRecord = linked ?? {
+      id: makeId("message"), conversationId: conversation.id, proactiveMessageId,
+      role: "assistant", content: input.content ?? proactive.content, metadata: null, createdAt: timestamp
+    };
+    const updated: ProactiveMessageRecord = {
+      ...proactive,
+      ...(input.content !== undefined ? { content: input.content } : {}),
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      ...(input.safety !== undefined ? { safety: input.safety } : {}),
+      ...(input.scheduledAt !== undefined ? { scheduledAt: input.scheduledAt } : {}),
+      status: "sent", updatedAt: timestamp
+    };
+    if (!linked) {
+      store.messages.push(message);
+      conversation.lastMessageAt = message.createdAt;
+      conversation.updatedAt = timestamp;
+    }
+    Object.assign(proactive, updated);
+    return { proactiveMessage: proactive, message };
   }
 
   async updateRelationshipState(

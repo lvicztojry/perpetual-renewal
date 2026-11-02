@@ -222,6 +222,13 @@ class FallbackRenewalRepository implements RenewalRepository {
     );
   }
 
+  deliverProactiveMessage(userId: string, proactiveMessageId: string, options?: { automatic?: boolean }) {
+    return this.run(
+      () => this.primary.deliverProactiveMessage(userId, proactiveMessageId, options),
+      () => this.fallback.deliverProactiveMessage(userId, proactiveMessageId, options)
+    );
+  }
+
   updateRelationshipState(
     userId: string,
     companionId: string,

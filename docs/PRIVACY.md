@@ -2,9 +2,9 @@
 
 ## 用户数据导出快照
 
-2026-10-26 密码认证增量待主控验收：密码仅存随机盐 scrypt hash，验证/恢复令牌仅存 hash，30 分钟内单次有效；邮件链接使用 fragment token，通过请求体消费，不应进入访问日志或导出。v2 密码 session 有服务端到期与凭证版本校验，重置密码后旧 session 失效。旧 email-only 账号必须通过原邮箱恢复，不能仅凭邮箱取得登录态。`AUTH_MODE=local-email` 仅允许显式非生产测试。
+截至 2026-10-31，密码认证通过真实隔离 PostgreSQL，用户真实注册/邮件验证/登录已完成：密码仅存随机盐 scrypt hash，验证/恢复令牌仅存 hash，30 分钟内单次有效；邮件链接使用 fragment token，通过请求体消费，不应进入访问日志或导出。v2 密码 session 有服务端到期与凭证版本校验，重置密码后旧 session 失效。旧 email-only 账号必须通过原邮箱恢复，不能仅凭邮箱取得登录态。`AUTH_MODE=local-email` 仅允许显式非生产测试。
 
-认证邮件会将收件邮箱和验证/恢复邮件正文交给所选 SMTP 邮箱服务或 HTTP 网关。`AUTH_SMTP_PASSWORD` 为邮箱授权码，`AUTH_MAIL_API_KEY` 为可选 HTTP 凭证；两者只存本地/部署 secret，不进入仓库、日志或用户导出。个人邮箱测试无需自有域名，真实投递与公开注册的送达率仍待验证。
+认证邮件会将收件邮箱和验证/恢复邮件正文交给所选 SMTP 邮箱服务或 HTTP 网关。`AUTH_SMTP_PASSWORD` 为邮箱授权码，`AUTH_MAIL_API_KEY` 为可选 HTTP 凭证；两者只存本地/部署 secret，不进入仓库、日志或用户导出。个人邮箱测试无需自有域名，QQ SMTP verify 与用户真实注册收件已通过；HTTP 投递、公开注册送达率及新部署目标另验。
 
 `GET /api/me/export` 返回当前 session 用户的 JSON 快照，用于用户查看、备份或迁移自己的项目数据。
 

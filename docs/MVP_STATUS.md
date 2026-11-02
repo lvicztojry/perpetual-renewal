@@ -4,13 +4,21 @@
 
 本文件是主控施工状态面板，用于快速判断当前第一版 MVP 是否可演示、可继续开发、可进入真实环境联调。
 
+截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
+
+Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
+
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 33 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+
+2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。 套餐与调度限制见 [部署文档](DEPLOYMENT.md#vercel-deployment)。
+
 ## 当前结论
 
-M136 会话切换隔离、M137 语音 locale、M138 持久化调度续扫已通过本地回归。M139 已通过完整真实隔离 PostgreSQL 验证，覆盖注册、密码登录、重置撤销、旧账号恢复、限流和检查点 CAS；两份新增迁移已应用到当前数据库，真实 DB smoke 通过。QQ SMTP 的 TLS 连接和账号认证已通过；真实注册邮件送达、点击验证及网站登录仍待用户完成。`AUTH_MODE=local-email` 仅限显式非生产测试。
+M136 会话切换隔离、M137 语音 locale、M138 持久化调度续扫已通过本地回归。M139 已通过完整真实隔离 PostgreSQL 验证，覆盖注册、密码登录、重置撤销、旧账号恢复、限流和检查点 CAS；两份新增迁移已应用到当前数据库，真实 DB smoke 通过。QQ SMTP 的 TLS 连接和账号认证已通过；用户已完成真实注册邮件验证并确认登录，数据库只读复核邮箱验证状态为成功。`AUTH_MODE=local-email` 仅限显式非生产测试。
 
-此前 audit 初查为 6 vulnerabilities（5 high、1 critical）；Next.js/eslint-config-next 16.4.3 与传递依赖修复后确认 0 vulnerabilities，lint、typecheck、build、全量 E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项、完整 memory smoke 94 checks 已通过。本轮另通过邮件诊断 14 项、迁移 URL 路由 3 项及真实隔离数据库集成。
+历史记录（2026-10-26）：audit 初查为 6 vulnerabilities（5 high、1 critical）；Next.js/eslint-config-next 16.4.3 与传递依赖修复后确认 0 vulnerabilities，lint、typecheck、build、全量 E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项、完整 memory smoke 94 checks 已通过。本轮另通过邮件诊断 14 项、迁移 URL 路由 3 项及真实隔离数据库集成。
 
-Playwright 实际展开并通过 32 个用例、6 个 spec，文档计数使用 `--list` JSON。本轮先恢复数据库连接，再清理确认属于隔离测试的空闲迁移锁，迁移统一使用同一 Neon compute 的直连地址。真实集成发现检查点原始 SQL 的 schema 兼容问题，现改为 Prisma 模型 API 和事务 CAS，并已通过真实 schema 验证；测试 schema 均已清理。当前仍待真实邮件收件、网站登录、真实 LLM 与部署环境验收。本机 HTTP 回调适合本机测试，生产严格 readiness 需要 HTTPS 回调。
+当前 Playwright --list JSON 派生 33 个用例、6 个 spec，主控确认全量 33 项通过；2026-10-26 历史全量为 32 项。本轮先恢复数据库连接，再清理确认属于隔离测试的空闲迁移锁，迁移统一使用同一 Neon compute 的直连地址。真实集成发现检查点原始 SQL 的 schema 兼容问题，现改为 Prisma 模型 API 和事务 CAS，并已通过真实 schema 验证；测试 schema 均已清理。用户已保存模型凭据并确认设置页连接测试成功，此前真实聊天/独立持久化通过；增强 vault QA 两次均为 provider_response HTTP 503，属当前上游可用性限制；清理通过，此前真实聊天/持久化与模板 fallback/投递证据保留，2026-11-02 真实模型主动生成与手动投递验证通过；自动投递遵守当前全局关闭设置，公网部署暂缓。本机 HTTP 回调适合本机测试，生产严格 readiness 需要 HTTPS 回调。
 
 当前项目已经完成纵切 MVP：账号、关系对象、聊天、回复格式清洗、记忆、关系状态、主动回响、用户级 LLM key vault、多供应商适配、签名 session cookie、私有 no-store API 响应边界、语音 mock/compatible adapter、模型调用日志、数据导出、账号删除、安全事件日志、响应式/PWA 工作台、结构化素材导入和上线前隐私/安全清单均已集成。
 
@@ -20,8 +28,8 @@ Playwright 实际展开并通过 32 个用例、6 个 spec，文档计数使用 
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| 账号与资料 | candidate | 资料设置/登出沿用；默认邮箱/密码、注册验证、旧账号邮箱恢复为 M139 待验收增量 |
-| Session 安全 | candidate | HMAC 签名延续；密码 v2 到期校验与重置撤销为 M139 待验收增量 |
+| 账号与资料 | integrated | 默认邮箱/密码、注册验证与旧账号恢复通过真实隔离 PostgreSQL；用户 QQ 注册收件/登录通过，新部署目标另验 |
+| Session 安全 | integrated | HMAC 签名、v2 到期校验与重置撤销通过真实隔离 PostgreSQL |
 | API 缓存边界 | integrated | 用户数据、聊天、记忆、导出、用量、语音、主动回响和配置状态 API 返回 private no-store 响应头 |
 | 全关系对象 | integrated | 恋人、朋友、家人、师友、现实替代、逝者纪念、前任、公众人物想象、虚构、原创、自定义 |
 | 聊天闭环 | integrated | 消息持久化、失败恢复、重新生成、删除、标记重要 |
@@ -31,10 +39,10 @@ Playwright 实际展开并通过 32 个用例、6 个 spec，文档计数使用 
 | 配置状态向导 | integrated | 设置页只读展示数据库、vault secret、session 签名 secret、cron secret、LLM 和语音配置状态，不暴露真实值 |
 | 账号删除 | integrated | 设置页危险区确认短语删除；后端清理当前用户关系、消息、记忆、日志、vault 并清除 session |
 | Prompt 上下文预算 | integrated | 角色设定固定保留，记忆与最近消息按预算裁剪 |
-| 记忆系统 | integrated | pending、active、archived、deleted 生命周期；deleted 记忆不进入用户列表、prompt 或导出 |
+| 记忆系统 | integrated | pending、active、archived、deleted 生命周期；deleted 记忆不进入用户列表、prompt 或导出；Priority 4 采用中英文词面匹配、稳定事实回退、摘录式历史 |
 | 素材导入 | integrated | 单段文本、批量文本数组、JSON Lines、本地 `.txt/.jsonl/.json` 文件读取、媒体说明、照片/音视频文件摘要、通讯录脱敏摘要，默认 pending 并脱敏密钥形态 |
 | 关系状态 | integrated | 共享状态演进逻辑已接入聊天后更新、关系状态 API 和主动回响上下文；Prisma/memory repository 持久化 |
-| 主动回响 | integrated | 站内草稿、撒娇式未回复回响、1 分钟默认节奏、自定义频率、当前工作台前台自动检查、受保护 cron 入口 |
+| 主动回响 | candidate | 既有调度已集成；Priority 4 模型个性化自动送入聊天与手动同路径投递已实现，2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递 |
 | 主动草稿状态 | integrated | draft、sent、dismissed、blocked 状态管理与筛选 |
 | 安全边界 | integrated | 运行时规则、安全 QA 样例、脱敏安全事件日志 |
 | 模型调用看板 | integrated | provider/model/latency/tokens/估算成本，不记录正文或 key |
@@ -77,9 +85,9 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `docs:check`：documentation consistency passed。
 - `git:boundary`：tracked and committable file boundary passed。
 - M135 历史 `e2e`：15 tests passed；默认是 managed mock/memory 浏览器门禁，不依赖真实供应商响应速度。
-- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，主控确认全量 E2E 32 项通过。
+- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，2026-10-26 历史全量 E2E 32 项通过。
 - M137 语音 locale 兼容：zh-CN 归一为 zh，本地语音语言 16 项通过；真实供应商另验。
-- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，本地调度 20 项通过；目标迁移待验证。
+- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，调度现 31 项、当前数据库迁移及真实隔离 checkpoint CAS 通过；新部署目标另验。
 - `pre-push audit`：0 vulnerabilities。
 - `qa:samples`：10 relationship kinds、19 safety areas passed。
 - `qa:prompt`：10 relationship kinds passed。
@@ -92,19 +100,21 @@ npm --cache .\.npm-cache audit --audit-level=high
 - `qa:real-provider:fake`：local fake-compatible BYOK flow self-test passed。
 - `pwa:check`：manifest、icons、offline shell 和 service worker boundary passed。
 - `npm audit`：0 vulnerabilities。
-- `env:readiness -- --strict`：missing=0，warning=3；输出保持脱敏。
+- 历史记录（2026-08-23）`env:readiness -- --strict`：missing=0，warning=3；该记录不证明当前生产回调配置通过，本地 HTTP AUTH_APP_URL 须改为生产 HTTPS 后复验。
 - `db:smoke`：真实 Neon/PostgreSQL 连接通过；完整 smoke 94 checks passed。
 - C 盘可视化目录无项目产物；npm audit cache 使用项目内 `.npm-cache`。
 
 ## 真实配置与部署复核
 
-8 月本机 `.env.local` 曾通过严格 readiness、真实 DB smoke 与 `verify:deploy`。10 月认证邮件与新增迁移尚未完成目标验证；真实值仍只允许放在 `.env.local`、部署平台 secret 或网站设置页用户 vault，不写入仓库。部署到新目标环境时按下表逐项同步并复跑验证。
+当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
+
+8 月本机 `.env.local` 曾通过严格 readiness、真实 DB smoke 与 `verify:deploy`。截至 2026-10-31，当前数据库迁移及 QQ 用户真实注册收件通过，新部署目标另验；真实值仍只允许放在 `.env.local`、部署平台 secret 或网站设置页用户 vault，不写入仓库。部署到新目标环境时按下表逐项同步并复跑验证。
 
 | 项 | 建议 |
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL，连接串只放 `.env.local` 或部署平台 secret |
 | `DATABASE_URL_UNPOOLED` | 可选 Neon direct 连接串，供 Prisma 迁移使用；只放 `.env.local` 或部署平台 secret |
-| 认证邮件 | `AUTH_APP_URL`、`AUTH_MAIL_FROM`、`AUTH_MAIL_TRANSPORT=smtp` 配合 `AUTH_SMTP_HOST/PORT/USER/PASSWORD`；个人邮箱授权码测试无需自有域名。可选 `http` 配合 `AUTH_MAIL_API_URL/KEY`；真实投递待验证 |
+| 认证邮件 | `AUTH_APP_URL`、`AUTH_MAIL_FROM`、`AUTH_MAIL_TRANSPORT=smtp` 配合 `AUTH_SMTP_HOST/PORT/USER/PASSWORD`；个人邮箱授权码测试无需自有域名。可选 `http` 配合 `AUTH_MAIL_API_URL/KEY`；QQ 注册收件通过；HTTP 与新部署另验 |
 | `USER_KEY_VAULT_SECRET` | 生产专用强随机值，至少 32 bytes，不复用开发值 |
 | `SESSION_COOKIE_SECRET` | 可选独立 session 签名 secret，至少 32 bytes；为空时复用强 vault secret |
 | `PROACTIVE_CRON_SECRET` | 另一段强随机值，不能和 vault secret 或数据库密码相同 |
@@ -122,7 +132,7 @@ npm run env:secrets
 
 命令会一次生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的候选值，只打印、不写文件；输出值只放入 `.env.local` 或部署平台 secret。
 
-本地体验口径：用 `npm run dev` 启动后打开 `http://127.0.0.1:3000` 或 `http://localhost:3000`；真实 API key 优先在设置页保存。工作台打开时当前关系对象会每分钟检查主动回响草稿；如果关闭页面，本地没有 all-user 常驻调度，生产才由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
+本地体验口径：用 `npm run dev` 启动后打开 `http://127.0.0.1:3000` 或 `http://localhost:3000`；真实 API key 优先在设置页保存。工作台打开时当前关系对象会每分钟检查主动回响；Priority 4 自动送入聊天已实现，2026-11-02 增强真实 QA 通过；账号全局自动开关关闭时不投递；如果关闭页面，本地没有 all-user 常驻调度，生产才由 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
 
 E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 LLM key/baseUrl/model 并使用 mock fallback。复用已有服务或显式 `E2E_REAL_PROVIDER=1` 时，结果只作为真实供应商联调/体验风险记录；供应商慢响应、超时、429、余额不足或模型列表不可读但可手动填写模型名，不直接判定发布门禁失败。
 
@@ -241,9 +251,9 @@ E2E 口径：`npm run e2e` 是发布前稳定浏览器门禁，runner 会清空 
 - M133 非 compatible provider hermetic 覆盖：新增 `npm run qa:providers`，用本地 fake server 与 stub fetch 覆盖 Anthropic、Gemini、OpenAI Responses 的认证 header、payload、默认官方 base URL 不误用 compatible `LLM_BASE_URL`，以及供应商错误诊断脱敏；进入 verify-local 与 CI。
 - M134 主动回响调度性能护栏：all-user scheduler 将规范化 `limit` 下推到 repository/Prisma `take`，同一用户 profile 读取复用缓存，达到 `maxDrafts` 后停止继续扫描；smoke 新增早停覆盖，真实 DB 下原 100 对象 clamp 路径从约 61 秒降到约 2.3 秒。
 - M135 设置页模型列表 diagnostic 前端脱敏：模型列表失败时前端会对 diagnostic 再执行本地脱敏；E2E 覆盖异常响应夹带 Bearer、API key、Base URL、prompt、rawPayload 和 stack 时页面只显示安全占位；当时全量 E2E 数量 15 tests。
-- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，主控确认全量 E2E 32 项通过。
+- M136 会话切换隔离：会话草稿、延迟历史和进行中回复隔离，2026-10-26 历史全量 E2E 32 项通过。
 - M137 语音 locale 兼容：zh-CN 归一为 zh，本地语音语言 16 项通过；真实供应商另验。
-- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，本地调度 20 项通过；目标迁移待验证。
+- M138 主动调度公平续扫：数据库 checkpoint 与 keyset cursor 跨冷启动续扫，调度现 31 项、当前数据库迁移及真实隔离 checkpoint CAS 通过；新部署目标另验。
 - 文档验收口径补丁：README、docs 入口、部署说明、MVP 状态和 Taskbook 已收束真实 API、BYOK、Vercel Cron/主动回响和本地体验说明；本补丁不改变 `src` 或 `tests`。
 - 主动回响本地体验补丁：工作台主动回响面板已展示当前关系节奏、每分钟前台检查、最近检查结果和下次检查时间；E2E 新增一条本地/真实 API 体验可诊断性覆盖，避免用户误以为页面关闭后仍有本地 all-user 后台调度。
 
