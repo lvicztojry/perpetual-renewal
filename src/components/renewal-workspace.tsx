@@ -116,6 +116,14 @@ type ProactiveSchedule = {
   reason?: string;
 };
 
+type ProactiveAvailability = {
+  accountEnabled: boolean;
+  companionEnabled: boolean;
+  effectiveEnabled: boolean;
+  frequencyMinutes: number;
+  mode: "foreground";
+};
+
 type ProactiveAutoCheck = {
   checkedAt: string;
   nextCheckAt: string;
@@ -276,6 +284,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const [proactivePersistence, setProactivePersistence] = useState<string | null>(null);
   const [proactiveSafety, setProactiveSafety] = useState<DraftSafety | null>(null);
   const [proactiveAutoCheck, setProactiveAutoCheck] = useState<ProactiveAutoCheck | null>(null);
+  const [proactiveAvailability, setProactiveAvailability] = useState<ProactiveAvailability | null>(null);
+  const [isEnablingProactive, setIsEnablingProactive] = useState(false);
+  const [proactiveRefresh, setProactiveRefresh] = useState(0);
+  const enablingProactiveRef = useRef(false);
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -293,6 +305,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     [messages]
   );
   const activeConversationId = activeCompanion?.conversationId;
+  const proactiveAccountPaused = proactiveAvailability?.accountEnabled === false;
 
   function openInspector(mode: InspectorMode) {
     inspectorTriggerRef.current = document.activeElement as HTMLElement | null;
@@ -426,12 +439,35 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
 
   useEffect(() => {
     const companionId = activeCompanion?.id;
+    if (!companionId) return;
+    let disposed = false;
+    async function readProactiveState() {
+      try {
+        const response = await fetch(`/api/companions/${companionId}/proactive-drafts`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load_failed");
+        const payload = await response.json() as { data?: ProactiveDraft[]; availability?: ProactiveAvailability; persistence?: string };
+        if (disposed) return;
+        setProactiveAvailability(payload.availability ?? null);
+        setProactiveError(null);
+        setProactiveDrafts(payload.data ?? []);
+        setProactivePersistence(payload.persistence ?? null);
+      } catch {
+        if (!disposed) setProactiveError("暂时无法读取主动回响状态，请重新打开面板重试。");
+      }
+    }
+    void readProactiveState();
+    return () => { disposed = true; };
+  }, [activeCompanion?.id, proactiveRefresh]);
+
+  useEffect(() => {
+    const companionId = activeCompanion?.id;
     const conversationId = activeCompanion?.conversationId;
     const proactiveEnabled = activeCompanion?.proactiveMessagesEnabled;
     if (
       !companionId ||
       !conversationId ||
       !proactiveEnabled ||
+      proactiveAccountPaused ||
       isBooting ||
       isSending ||
       isSaving ||
@@ -449,12 +485,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
       running = true;
 
       try {
-        const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
         const response = await fetch(`/api/companions/${companionId}/proactive-drafts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            lastUserMessage: lastUserMessage?.content,
             proactiveMessagesEnabled: true,
             force: false,
             maxDrafts: 1
@@ -468,6 +502,8 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
           schedule?: ProactiveSchedule;
           draftLimitReached?: boolean;
           deliveredCount?: number;
+          availability?: ProactiveAvailability;
+          skippedReason?: string | null;
         };
 
         if (!response.ok) {
@@ -476,13 +512,15 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
 
         if (disposed) return;
 
+        if (payload.availability) setProactiveAvailability(payload.availability);
+
         setProactiveAutoCheck(
           createProactiveAutoCheckStatus(
             payload.data?.length
               ? payload.deliveredCount
                 ? `自动回响已送达 ${payload.deliveredCount} 条`
                 : `自动检查生成 ${payload.data.length} 条草稿`
-              : `自动检查完成，${payload.schedule?.reason ?? "暂未到候选时间"}`,
+              : `自动检查完成，${payload.skippedReason ?? payload.schedule?.reason ?? "暂未到候选时间"}`,
             payload.schedule
           )
         );
@@ -503,16 +541,11 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         setProactivePersistence(payload.persistence ?? "persisted");
         setProactiveSafety(payload.safety ?? null);
         setStatus(payload.deliveredCount ? "收到新的主动回响" : "有新的主动回响草稿");
-        if (inspectorMode === "profile" || inspectorMode === "proactive") {
-          setInspectorMode("proactive");
-        }
       } catch (autoError) {
         if (!disposed) {
           const message = toSafeWorkspaceError(autoError, "主动回响自动检查失败。");
           setProactiveAutoCheck(createProactiveAutoCheckStatus(`自动检查失败：${message}`));
-          if (inspectorMode === "proactive") {
-            setProactiveError(message);
-          }
+          setProactiveError(message);
         }
       } finally {
         running = false;
@@ -531,13 +564,12 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     activeCompanion?.id,
     activeCompanion?.conversationId,
     activeCompanion?.proactiveMessagesEnabled,
-    inspectorMode,
+    proactiveAccountPaused,
     isBooting,
     isImporting,
     isLoadingDrafts,
     isSaving,
-    isSending,
-    messages
+    isSending
   ]);
 
   function selectCompanion(companion: CompanionProfile) {
@@ -572,6 +604,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     setProactiveError(null);
     setProactiveDraftFilter("draft");
     setProactiveAutoCheck(null);
+    setProactiveAvailability(null);
     setUsageError(null);
   }
 
@@ -1048,7 +1081,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     }
   }
 
-  async function generateProactiveDrafts() {
+  async function generateProactiveDrafts(force = true) {
     if (!activeCompanion) return;
     const conversationId = activeCompanion.conversationId;
 
@@ -1067,7 +1100,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         body: JSON.stringify({
           lastUserMessage: lastUserMessage?.content,
           proactiveMessagesEnabled: true,
-          force: true
+          force
         })
       });
       const payload = (await response.json()) as {
@@ -1076,6 +1109,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         persistence?: string;
         safety?: DraftSafety;
         schedule?: ProactiveSchedule;
+        availability?: ProactiveAvailability;
+        skippedReason?: string | null;
+        deliveredCount?: number;
+        deliveredMessages?: MessageRecord[];
       };
 
       if (!response.ok) {
@@ -1083,19 +1120,23 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
       }
 
       if (activeConversationRef.current !== conversationId) return;
-      setProactiveDrafts(payload.data ?? []);
-      setProactiveDraftFilter("draft");
+      if (payload.availability) setProactiveAvailability(payload.availability);
+      setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
+      setProactiveDraftFilter(payload.deliveredCount ? "sent" : "draft");
+      if (payload.deliveredMessages?.length) {
+        setMessages((current) => mergeConversationMessages(current, payload.deliveredMessages ?? []));
+      }
       setProactivePersistence(payload.persistence ?? "persisted");
       setProactiveSafety(payload.safety ?? null);
       setProactiveAutoCheck(
         createProactiveAutoCheckStatus(
           payload.data?.length
-            ? `手动生成 ${payload.data.length} 条草稿`
-            : `手动检查完成，${payload.schedule?.reason ?? "暂未生成草稿"}`,
+            ? payload.deliveredCount ? `主动回响已送达 ${payload.deliveredCount} 条` : `手动生成 ${payload.data.length} 条草稿`
+            : `检查完成，${payload.skippedReason ?? payload.schedule?.reason ?? "暂未生成草稿"}`,
           payload.schedule
         )
       );
-      setStatus(payload.data?.length ? "主动回响草稿已生成" : "暂无可发送的主动回响草稿");
+      setStatus(payload.deliveredCount ? "收到新的主动回响" : payload.skippedReason ?? (payload.data?.length ? "主动回响草稿已生成" : "暂未到发送时间"));
     } catch (draftError) {
       if (activeConversationRef.current !== conversationId) return;
       const message = toSafeWorkspaceError(draftError, "主动回响生成失败。");
@@ -1105,6 +1146,21 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     } finally {
       setIsLoadingDrafts(false);
     }
+  }
+
+  async function enableAccountProactive() {
+    if (enablingProactiveRef.current) return;
+    enablingProactiveRef.current = true;
+    setIsEnablingProactive(true); setProactiveError(null);
+    try {
+      const response = await fetch("/api/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proactiveMessagesEnabled: true }) });
+      if (!response.ok) throw new Error("enable_failed");
+      const payload = await response.json() as { user?: { proactiveMessagesEnabled: boolean } };
+      if (payload.user?.proactiveMessagesEnabled !== true) throw new Error("enable_failed");
+      setProactiveAvailability((current) => current ? { ...current, accountEnabled: true, effectiveEnabled: current.companionEnabled } : null);
+      setStatus("账号主动回响已开启");
+    } catch { setProactiveError("未能开启账号主动回响，请稍后重试。"); }
+    finally { enablingProactiveRef.current = false; setIsEnablingProactive(false); }
   }
 
   async function importTextMaterials(event: FormEvent<HTMLFormElement>) {
@@ -1663,7 +1719,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               aria-label="主动回响"
               className="icon-button"
               disabled={!activeCompanion || isLoadingDrafts}
-              onClick={generateProactiveDrafts}
+              onClick={() => { setProactiveDraftFilter("all"); setProactiveRefresh((value) => value + 1); openInspector("proactive"); }}
               title="主动回响"
               type="button"
             >
@@ -2173,11 +2229,11 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               <h2>主动回响</h2>
               <div className="form-actions">
                 <button
-                  aria-label="重新生成主动回响草稿"
+                  aria-label="刷新主动回响状态"
                   className="icon-button"
                   disabled={!activeCompanion || isLoadingDrafts}
-                  onClick={generateProactiveDrafts}
-                  title="重新生成草稿"
+                  onClick={() => setProactiveRefresh((value) => value + 1)}
+                  title="刷新状态与记录"
                   type="button"
                 >
                   <RotateCcw size={18} />
@@ -2194,16 +2250,30 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               </div>
             </header>
             <div className="inspector-scroll">
-              <section className="panel">
+              <section className={`panel ${styles.proactivePanel}`} aria-label="自动发送状态">
+                <h3>自动发送</h3>
+                <p>开启后，到达设置间隔会直接发到聊天，不需要你先发消息。</p>
+                {proactiveAvailability ? <>
+                  <p>账号总开关：{proactiveAvailability.accountEnabled ? "已开启" : "已关闭"} · 此人物：{proactiveAvailability.companionEnabled ? "已开启" : "已关闭"}</p>
+                  <p role="status">{!proactiveAvailability.accountEnabled ? "已暂停：账号总开关已关闭，所有人物都不会主动发消息。" : !proactiveAvailability.companionEnabled ? "已暂停：此人物的主动回响已关闭。" : "已开启：到期后直接送达聊天。"}</p>
+                  {!proactiveAvailability.accountEnabled ? <button className="text-button" type="button" disabled={isEnablingProactive} onClick={() => void enableAccountProactive()}>{isEnablingProactive ? "正在开启…" : "开启账号主动回响"}</button> : null}
+                  {!proactiveAvailability.companionEnabled ? <button className="text-button" type="button" onClick={() => openInspector("profile")}>前往人物资料开启</button> : null}
+                  <button className="text-button" type="button" disabled={!proactiveAvailability.effectiveEnabled || isLoadingDrafts || isEnablingProactive} onClick={() => void generateProactiveDrafts(false)}>按当前设置检查一次</button>
+                </> : <p>正在读取开关状态…</p>}
+                <p>本机试用时，请保持聊天页打开并选中此人物；关闭页面或切换人物后，这个人物不会继续自动检查。</p>
+              </section>
+              <section className={`panel ${styles.proactivePanel}`}>
                 <div className="panel-title">
-                  <h2>站内草稿</h2>
-                  <span className="pill teal">{formatPersistenceLabel(proactivePersistence)}</span>
+                  <h2>回响记录与草稿</h2>
+                  <span className="pill teal">{proactivePersistence === "memory" ? "本次试用记录" : "已保存的记录"}</span>
                 </div>
+                <p>这里查看已发送消息，也可手动生成草稿，核对后点“发送到聊天”。手动草稿不会自行发送。</p>
+                <button className="text-button" type="button" disabled={!activeCompanion || isLoadingDrafts || !proactiveAvailability?.effectiveEnabled} onClick={() => void generateProactiveDrafts(true)}>手动生成草稿</button>
                 {proactiveSafety ? (
-                  <div className="status-box">
+                  <details className="status-box"><summary>查看生成检查</summary>
                     上下文安全：{formatSafetyAction(proactiveSafety)} ·{" "}
                     {proactiveSafety.reason ?? "已通过基础检查"}
-                  </div>
+                  </details>
                 ) : null}
                 {proactiveError ? (
                   <div className="error-box" role="alert">
@@ -2212,7 +2282,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 ) : null}
                 <div className="status-box" role="status">
                   <Bell size={14} />
-                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts)}
+                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts, proactiveAvailability)}
                 </div>
                 <div className="segmented" aria-label="主动回响状态筛选">
                   {proactiveDraftFilterOptions.map((option) => (
@@ -2311,7 +2381,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                     </div>
                   ) : null}
                   {!isLoadingDrafts && !proactiveDrafts.length && !proactiveError ? (
-                    <div className="empty">当前没有可展示草稿</div>
+                    <div className="empty">还没有回响记录。开启自动发送后等待到期，或手动生成一条草稿。</div>
                   ) : null}
                 </div>
               </section>
@@ -2958,15 +3028,6 @@ function formatProviderLabel(
   return `${provider}/${model}`;
 }
 
-function formatPersistenceLabel(value: string | null) {
-  if (value === "mock") return "mock 草稿";
-  if (value === "memory") return "内存草稿";
-  if (value === "prisma") return "数据库草稿";
-  if (value === "persisted") return "已持久化";
-  if (value) return value;
-  return "待生成";
-}
-
 function formatDraftKind(kind: string) {
   const labels: Record<string, string> = {
     ANNIVERSARY: "纪念日",
@@ -3068,9 +3129,12 @@ function createProactiveAutoCheckStatus(
 function formatProactiveAutoCheckStatus(
   companion: CompanionProfile | undefined,
   check: ProactiveAutoCheck | null,
-  isLoading: boolean
+  isLoading: boolean,
+  availability?: ProactiveAvailability | null
 ) {
   if (!companion) return "选择关系后显示主动回响状态";
+  if (!availability) return "尚未确认开关状态，请刷新状态后重试。";
+  if (availability?.accountEnabled === false) return "账号总开关关闭，自动检查已暂停。";
   if (!companion.proactiveMessagesEnabled) return "主动回响已关闭";
   if (isLoading) return "正在生成主动回响草稿";
 

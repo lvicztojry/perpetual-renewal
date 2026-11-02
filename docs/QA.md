@@ -2,6 +2,8 @@
 
 ## 可重复执行命令
 
+`npm run qa:proactive-availability`：30 项，验证 GET/POST 持久化双开关、force 无法绕过关闭、skippedReason、账号隔离与只读无副作用。浏览器 `proactive-status.spec.ts` 验证真实内存 API 的停发解释、显式开启保留频率及打开历史不生成；relationship-flow 验证打开面板不推迟一分钟自动投递。
+
 新增 `npm run qa:character-import`，覆盖文本记录解析与人物提炼/预览；完整用户流程由 `tests/e2e/chat-character-import.spec.ts` 验证，含假供应商 BYOK、错误重试、创建前零人物、确认后的共同记忆与临时消息不持久化。
 
 当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
@@ -12,7 +14,7 @@
 
 Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 43 项通过（41.0 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 43 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 45 项通过（47.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 45 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
 
 核心 smoke：
 
@@ -140,7 +142,7 @@ npm run db:smoke
 | 素材导入 | `POST /api/companions/:id/imports` | 支持单段文本、批量文本数组、JSON Lines；默认写入 pending 记忆，返回 created/skipped/redaction/duplicate summary |
 | 聊天与记忆 | `POST /api/conversations/:id/messages` | 生成 user/assistant 消息，mock provider fallback，产生 pending memory；强情绪、想念和重要事件会更新更具体的 relationship-state |
 | 关系状态 | `GET/POST /api/companions/:id/relationship-state` | 读取当前 session 用户的持久化关系状态；强情绪、想念、生日/第一次等重要事件应写入具体的 `recentEmotion`、`importantEvents` 和 `explanation`；更新时写回 Prisma/memory repository；响应不返回早期 mock/DEV-9 元数据、prompt、API key、Base URL 或供应商 endpoint |
-| 主动回响 | `POST /api/companions/:id/proactive-drafts` | 生成站内草稿，保存为 `draft`，报告 `memory/prisma` persistence |
+| 主动回响 | `GET/POST /api/companions/:id/proactive-drafts` | GET 只读记录及双开关；POST force 仅生成待手动发送草稿，非 force 到期后直接投递；返回 availability 与 skippedReason，任一持久开关关闭均不生成/投递 |
 | me | `GET /api/me` | 返回本地 demo/mock 用户 |
 | chat complete | `POST /api/chat/complete` | provider 为 `mock`，返回 `fallbackReason`，只统计 active memory |
 | safety | `POST /api/safety/check` | 撒娇式允许、非性化未成年人陪伴、医疗/法律担心的情绪支持、公众人物想象式鼓励、自伤、他伤、现实行动、公众人物授权、金钱法律、排他依赖、关系施压、角色越权、未成年人性化、隐私跟踪、专业建议、身份欺骗均命中预期策略 |
@@ -180,7 +182,7 @@ npm run db:smoke
 
 M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；后续结果按日期分列，源码数量不等于通过数量。
 
-2026-11-02 当前基线：Playwright --list JSON 派生 43 tests，主控完整浏览器回归 43 项通过，涵盖聊天记录创建人物以及个人账号页的资料保存、密码重置重试、退出与访问保护。2026-10-31 历史全量为 33 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
+2026-11-02 当前基线：Playwright --list JSON 派生 45 tests，主控完整浏览器回归 45 项通过，涵盖聊天记录创建人物以及个人账号页的资料保存、密码重置重试、退出与访问保护。2026-10-31 历史全量为 33 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
 
 ### 10 月增量验收
 

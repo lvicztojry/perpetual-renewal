@@ -125,7 +125,7 @@ test("chat character import validates speaker choices, clears stale results, and
   await login(page);
   await page.goto("/create-from-chat");
   await parse(page);
-  await expect(page.getByLabel("我在记录中的说话者").locator('option[value="小林"]')).toBeDisabled();
+  await expect(page.getByLabel("我在记录中的说话者").locator('option[value="小林"]')).toHaveAttribute("disabled", "");
   await page.getByLabel("我在记录中的说话者").selectOption("");
   await expect(page.getByRole("button", { name: "提炼人物 →" })).toBeDisabled();
   await page.getByLabel("我在记录中的说话者").selectOption("我");

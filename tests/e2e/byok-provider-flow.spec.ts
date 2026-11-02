@@ -21,6 +21,8 @@ test("settings BYOK key drives real compatible chat flow without leaking provide
 
     await page.getByRole("link", { name: "设置" }).click();
     await expect(page.getByRole("heading", { name: "模型供应商" })).toBeVisible();
+    // Profile and saved credentials finish loading in the same state update.
+    await expect(page.getByLabel("昵称", { exact: true })).toHaveValue("BYOK 浏览器 QA");
     await page.getByLabel("Base URL").fill(provider.baseUrl);
     await page.getByLabel("模型", { exact: true }).fill(modelId);
     await page.getByLabel("API Key").fill(fakeApiKey);

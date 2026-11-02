@@ -18,7 +18,7 @@ import type {
   MessageRecord,
   RelationshipStateRecord
 } from "@/lib/renewal/types";
-import { getUserProfile } from "@/lib/users/profile";
+import { getUserProfile, type UserProfile } from "@/lib/users/profile";
 
 type ProactiveDraftRequest = {
   lastUserMessage?: string;
@@ -42,7 +42,10 @@ export async function GET(
     const { companionId } = await context.params;
     const session = await getCurrentSession();
     const repository = createRenewalRepository();
-    const companion = await repository.getCompanion(session.userId, companionId);
+    const [companion, profile] = await Promise.all([
+      repository.getCompanion(session.userId, companionId),
+      getUserProfile(session.userId)
+    ]);
 
     if (!companion) {
       return privateJson({ error: "Companion not found." }, { status: 404 });
@@ -52,6 +55,7 @@ export async function GET(
 
     return privateJson({
       data: records.map(toProactiveDraftResponse),
+      availability: toProactiveAvailability(companion, profile),
       persistence: repository.persistence
     });
   } catch (error) {
@@ -93,6 +97,7 @@ export async function POST(
       return privateJson({ error: "Companion not found." }, { status: 404 });
     }
 
+    const availability = toProactiveAvailability(companion, profile);
     const history = await repository.listMessages(session.userId, companion.conversationId);
     const persistedLastUserMessage = [...history].reverse().find((message) => message.role === "user")?.content;
     const lastUserMessage = forceGenerate ? body.lastUserMessage ?? persistedLastUserMessage : persistedLastUserMessage;
@@ -123,7 +128,7 @@ export async function POST(
       companion: proactiveCompanion,
       state,
       lastUserMessage,
-      proactiveMessagesEnabled: companion.proactiveMessagesEnabled && profile.proactiveMessagesEnabled && body.proactiveMessagesEnabled !== false,
+      proactiveMessagesEnabled: availability.effectiveEnabled && body.proactiveMessagesEnabled !== false,
       frequencyPreset,
       frequencyMinutes,
       force: forceGenerate,
@@ -175,6 +180,7 @@ export async function POST(
 
     return privateJson({
       data: records.map(toProactiveDraftResponse),
+      availability,
       safety,
       persistence: repository.persistence,
       frequency,
@@ -194,6 +200,23 @@ export async function POST(
 
     throw error;
   }
+}
+
+function toProactiveAvailability(companion: RenewalCompanionProfile, profile: UserProfile) {
+  return {
+    accountEnabled: profile.proactiveMessagesEnabled,
+    companionEnabled: companion.proactiveMessagesEnabled,
+    effectiveEnabled: profile.proactiveMessagesEnabled && companion.proactiveMessagesEnabled,
+    frequencyMinutes: normalizeProactiveFrequency(
+      {
+        preset: companion.proactiveFrequencyPreset,
+        everyMinutes: companion.proactiveFrequencyMinutes ?? profile.proactiveFrequencyHours * 60
+      },
+      profile.proactiveFrequencyHours * 60
+    ).everyMinutes,
+    // This endpoint is triggered by the local page for the current relationship.
+    mode: "foreground" as const
+  };
 }
 
 function toProactiveDraftResponse(record: ProactiveMessageRecord) {

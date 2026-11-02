@@ -54,6 +54,8 @@ jobs:
         run: npm run qa:imports
       - name: Chat character import QA
         run: npm run qa:character-import
+      - name: Proactive availability QA
+        run: npm run qa:proactive-availability
 
       - name: Config vault QA
         run: npm run qa:vault

@@ -27,6 +27,7 @@ const steps = [
   ["Voice language QA", ["run", "qa:voice-language"]],
   ["Proactive scheduler QA", ["run", "qa:proactive-scheduler"]],
   ["Proactive cron contract QA", ["run", "qa:proactive-cron"]],
+  ["Proactive availability QA", ["run", "qa:proactive-availability"]],
   ["Real provider QA fake", ["run", "qa:real-provider:fake"]],
   ["PWA check", ["run", "pwa:check"]],
   ["Environment readiness", ["run", "env:readiness"]],

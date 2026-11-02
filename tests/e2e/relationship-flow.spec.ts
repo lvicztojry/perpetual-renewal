@@ -107,7 +107,8 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByRole("button", { name: "主动回响" }).click();
   await expect(page.getByRole("heading", { name: "主动回响" })).toBeVisible();
-  await expect(page.getByText("站内草稿")).toBeVisible();
+  await expect(page.getByText("回响记录与草稿")).toBeVisible();
+  await page.getByRole("button", { name: "手动生成草稿", exact: true }).click();
   await expect(page.getByText(/当前节奏 每 1 分钟/)).toBeVisible();
   await expect(page.getByText(/自动检查每 1 分钟/)).toBeVisible();
   await expect(page.getByRole("button", { name: /^草稿 \d+$/ })).toBeVisible();
@@ -157,7 +158,8 @@ test("proactive panel surfaces one-minute check status for local trials", async 
   await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
   await page.getByRole("button", { name: "主动回响" }).click();
   await expect(page.getByRole("heading", { name: "主动回响" })).toBeVisible();
-  await expect(page.getByText("站内草稿")).toBeVisible();
+  await expect(page.getByText("回响记录与草稿")).toBeVisible();
+  await page.getByRole("button", { name: "手动生成草稿", exact: true }).click();
   await expect(page.getByText(/当前节奏 每 1 分钟/)).toBeVisible();
   await expect(page.getByText(/自动检查每 1 分钟/)).toBeVisible();
   await expect(page.getByText(/手动生成 \d+ 条草稿|手动检查完成/)).toBeVisible();
@@ -201,7 +203,10 @@ test("automatic proactive delivery appears once in the open chat without sending
   await page.getByLabel("名字").fill(`主动消息${unique}`);
   await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
   await expect(page.getByRole("heading", { exact: true, name: `主动消息${unique}` })).toBeVisible();
-  await page.clock.runFor(60_100);
+  await page.clock.runFor(30_000);
+  await page.getByRole("button", { name: "主动回响", exact: true }).click();
+  expect(checks).toBe(0);
+  await page.clock.runFor(30_100);
   await expect(page.locator(".message-bubble").filter({ hasText: content })).toHaveCount(1);
   expect(checks).toBe(1);
   await page.clock.runFor(60_100);
