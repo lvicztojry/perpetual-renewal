@@ -10,7 +10,7 @@
 
 Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 33 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 33 项通过（42.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 37 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
 
 核心 smoke：
 
@@ -178,7 +178,7 @@ npm run db:smoke
 
 M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；后续结果按日期分列，源码数量不等于通过数量。
 
-2026-10-31 当前基线：Playwright --list JSON 派生 33 tests、6 个 spec，主控确认全量 33 项通过（42.2 秒），最终 typecheck 通过。2026-10-26 历史全量为 32 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
+2026-10-31 当前基线：Playwright --list JSON 派生 37 tests、6 个 spec，主控确认全量 33 项通过（42.2 秒），最终 typecheck 通过。2026-10-26 历史全量为 32 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
 
 ### 10 月增量验收
 

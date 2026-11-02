@@ -1,23 +1,25 @@
 "use client";
 
 import {
+  ArrowLeft,
   BarChart3,
   Bell,
   BookHeart,
   Check,
   Database,
   Edit3,
-  Heart,
+  LogIn,
   MessageCircle,
   Mic,
   Plus,
   RotateCcw,
   Send,
   Settings,
-  Sparkles,
   Star,
   Trash2,
   Upload,
+  UserRound,
+  X,
   Volume2
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +44,7 @@ import {
   type StructuredImportKind,
   type StructuredImportPlan
 } from "@/lib/import/structured-client-import";
+import styles from "./workspace-theme.module.css";
 
 type InspectorMode =
   | "profile"
@@ -232,6 +235,12 @@ export function RenewalWorkspace() {
     createRelationshipObjectDraft()
   );
   const [inspectorMode, setInspectorMode] = useState<InspectorMode>("profile");
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isMobileConversation, setIsMobileConversation] = useState(false);
+  const [conversationPreviews, setConversationPreviews] = useState<Record<string, string>>({});
+  const inspectorRef = useRef<HTMLDialogElement | null>(null);
+  const inspectorTriggerRef = useRef<HTMLElement | null>(null);
+  const streamRef = useRef<HTMLDivElement | null>(null);
   const [proactiveDrafts, setProactiveDrafts] = useState<ProactiveDraft[]>([]);
   const [proactiveDraftFilter, setProactiveDraftFilter] =
     useState<ProactiveDraftFilter>("draft");
@@ -284,6 +293,32 @@ export function RenewalWorkspace() {
     [messages]
   );
   const activeConversationId = activeCompanion?.conversationId;
+
+  function openInspector(mode: InspectorMode) {
+    inspectorTriggerRef.current = document.activeElement as HTMLElement | null;
+    setInspectorMode(mode);
+    setIsInspectorOpen(true);
+  }
+
+  function closeInspector() {
+    setIsInspectorOpen(false);
+    inspectorTriggerRef.current?.focus();
+  }
+
+  useEffect(() => {
+    const dialog = inspectorRef.current;
+    if (!dialog) return;
+    if (isInspectorOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+      inspectorTriggerRef.current?.focus();
+    }
+  }, [isInspectorOpen]);
+
+  useEffect(() => {
+    streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
+  }, [messages, activeConversationId]);
   const proactiveDraftStats = useMemo(
     () =>
       proactiveDrafts.reduce<Record<ProactiveDraftFilter, number>>(
@@ -506,7 +541,16 @@ export function RenewalWorkspace() {
   ]);
 
   function selectCompanion(companion: CompanionProfile) {
+    setIsMobileConversation(true);
+    setIsInspectorOpen(false);
     if (activeConversationRef.current === companion.conversationId) return;
+    if (activeConversationRef.current) {
+      const preview = messages.at(-1)?.content;
+      setConversationPreviews((current) => ({
+        ...current,
+        [activeConversationRef.current!]: preview ?? "还没有消息，先打声招呼吧"
+      }));
+    }
     if (activeConversationRef.current) {
       draftsByConversationRef.current.set(activeConversationRef.current, draft);
     }
@@ -555,6 +599,7 @@ export function RenewalWorkspace() {
       );
       setForm(toForm(payload.companion));
       setInspectorMode("profile");
+      setIsInspectorOpen(false);
       setStatus("关系设定已通过 API 保存");
     } catch (saveError) {
       const message = toSafeWorkspaceError(saveError, "关系设定保存失败。");
@@ -569,7 +614,7 @@ export function RenewalWorkspace() {
     setCreateForm(createRelationshipObjectDraft("CUSTOM"));
     setError(null);
     setFormError(null);
-    setInspectorMode("create");
+    openInspector("create");
     setStatus("正在创建一段新的关系回响");
   }
 
@@ -578,7 +623,7 @@ export function RenewalWorkspace() {
     setForm(toForm(activeCompanion));
     setError(null);
     setFormError(null);
-    setInspectorMode("edit");
+    openInspector("edit");
     setStatus("正在编辑当前关系设定");
   }
 
@@ -614,6 +659,8 @@ export function RenewalWorkspace() {
       setProactiveAutoCheck(null);
       setVoicePreview(null);
       setStatus("新关系对象已创建，可以开始聊天");
+      setIsMobileConversation(true);
+      setIsInspectorOpen(false);
     } catch (createError) {
       const message = toSafeWorkspaceError(createError, "新建关系失败。");
       setFormError(message);
@@ -661,6 +708,8 @@ export function RenewalWorkspace() {
       setVoicePreview(null);
       setInspectorMode("profile");
       setStatus("关系对象已删除");
+      setIsInspectorOpen(false);
+      setIsMobileConversation(false);
     } catch (deleteError) {
       setError(toSafeWorkspaceError(deleteError, "删除关系对象失败。"));
       setStatus("删除关系对象失败，请稍后重试");
@@ -1007,7 +1056,7 @@ export function RenewalWorkspace() {
     setError(null);
     setProactiveError(null);
     setProactiveSafety(null);
-    setInspectorMode("proactive");
+    openInspector("proactive");
     setStatus("正在生成主动回响草稿...");
 
     try {
@@ -1417,7 +1466,7 @@ export function RenewalWorkspace() {
       }
 
       setVoicePreview(payload);
-      setStatus(`语音回复已生成 · ${formatVoiceProviderStatus(payload)}`);
+      setStatus("语音已准备好。");
     } catch (voiceError) {
       setError(toSafeWorkspaceError(voiceError, "语音回复生成失败。"));
       setStatus("语音回复生成失败，请稍后重试");
@@ -1430,7 +1479,7 @@ export function RenewalWorkspace() {
     setIsLoadingUsage(true);
     setError(null);
     setUsageError(null);
-    setInspectorMode("usage");
+    openInspector("usage");
     setStatus("正在读取模型调用看板...");
 
     try {
@@ -1479,11 +1528,11 @@ export function RenewalWorkspace() {
   const pendingCount = activeMemories.filter((memory) => memory.status === "pending").length;
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${styles.workspace} ${isInspectorOpen ? "is-inspector-open" : ""} ${isMobileConversation ? "is-mobile-conversation" : ""}`}>
       <aside className="rail" aria-label="关系对象">
         <div className="brand">
           <div className="brand-mark">
-            <Sparkles size={22} />
+            <Bell size={22} strokeWidth={1.25} aria-hidden="true" />
           </div>
           <div>
             <h1>生生不息</h1>
@@ -1492,7 +1541,7 @@ export function RenewalWorkspace() {
         </div>
 
         <section className="rail-section">
-          <p className="section-label">关系</p>
+          <p className="section-label">想见的人</p>
           <div className="relationship-list">
             {companions.map((companion) => (
               <button
@@ -1500,13 +1549,16 @@ export function RenewalWorkspace() {
                 key={companion.id}
                 onClick={() => selectCompanion(companion)}
                 title={`切换到 ${companion.name}`}
+                aria-pressed={companion.id === activeId}
                 type="button"
               >
                 <div className="avatar">{companion.name.slice(0, 1)}</div>
                 <div>
                   <div className="relationship-name">{companion.name}</div>
                   <div className="relationship-kind">
-                    {relationshipKindLabels[companion.relationshipKind]}
+                    {companion.id === activeCompanion?.id
+                      ? messages.at(-1)?.content ?? "还没有消息，先打声招呼吧"
+                      : conversationPreviews[companion.conversationId] ?? companion.speakingStyle}
                   </div>
                 </div>
               </button>
@@ -1516,16 +1568,16 @@ export function RenewalWorkspace() {
         </section>
 
         <div className="quick-actions">
-          <button className="text-button primary-action" onClick={startCreateCompanion} type="button">
+          <button aria-label="创建关系对象" className="text-button primary-action" onClick={startCreateCompanion} type="button">
             <Plus size={17} />
-            创建关系对象
+            想见谁
           </button>
           <a className="text-button" href="/settings" title="用户设置">
             <Settings size={17} />
             设置
           </a>
           <a className="text-button" href="/login" title="切换账号">
-            <Sparkles size={17} />
+            <LogIn size={17} />
             登录
           </a>
         </div>
@@ -1533,29 +1585,29 @@ export function RenewalWorkspace() {
 
       <section className="main" aria-label="聊天">
         <header className="topbar">
+          <button aria-label="返回联系人" className={`icon-button ${styles.mobileBack}`} onClick={() => setIsMobileConversation(false)} type="button">
+            <ArrowLeft size={22} />
+          </button>
           {activeCompanion ? (
             <div className="companion-heading">
               <div className="avatar">{activeCompanion.name.slice(0, 1)}</div>
               <div>
                 <div className="title-row">
                   <h2>{activeCompanion.name}</h2>
-                  <span className="pill teal">
-                    {relationshipKindLabels[activeCompanion.relationshipKind]}
-                  </span>
-                  {activeCompanion.immersionEnabled ? (
-                    <span className="pill coral">沉浸</span>
-                  ) : null}
                 </div>
-                <p className="muted">{activeCompanion.speakingStyle}</p>
+                <p className="muted">上次聊到的事，我们接着说</p>
               </div>
             </div>
           ) : (
             <div>
-              <h2>关系工作台</h2>
-              <p className="muted">{status}</p>
+              <h2>想见的人，总有回响</h2>
+              <p className="muted">选择一位想见的人，或开始新的相遇</p>
             </div>
           )}
           <div className="topbar-actions">
+            <button aria-label="关系资料" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
+              <UserRound size={20} />
+            </button>
             <button
               aria-label="编辑关系设定"
               className="icon-button"
@@ -1580,7 +1632,7 @@ export function RenewalWorkspace() {
               aria-label="记忆"
               className="icon-button"
               disabled={!activeCompanion}
-              onClick={() => setInspectorMode("memories")}
+              onClick={() => openInspector("memories")}
               title="记忆"
               type="button"
             >
@@ -1590,7 +1642,7 @@ export function RenewalWorkspace() {
               aria-label="导入素材"
               className="icon-button"
               disabled={!activeCompanion || isImporting}
-              onClick={() => setInspectorMode("import")}
+              onClick={() => openInspector("import")}
               title="导入素材"
               type="button"
             >
@@ -1619,24 +1671,11 @@ export function RenewalWorkspace() {
           </div>
         </header>
 
-        <div className="chat-stream">
-          {persistenceNotice ? (
-            <div className="workspace-notice" role="status">
-              <Database aria-hidden="true" size={18} />
-              <div>
-                <strong>当前为临时存储</strong>
-                <span>
-                  {persistenceNotice.description} {persistenceNotice.nextStep}
-                </span>
-              </div>
-              <a className="text-button" href="/settings">
-                配置状态
-              </a>
-            </div>
-          ) : null}
+        <div className="chat-stream" ref={streamRef} aria-label="聊天记录" aria-busy={isBooting || isSending}>
           <div className="day-divider">{isBooting ? "加载中" : "今天"}</div>
           {messages.map((message) => (
             <article className={`message ${message.role}`} key={message.id}>
+              {message.role === "assistant" ? <div className={`avatar ${styles.messageAvatar}`} aria-hidden="true">{activeCompanion?.name.slice(0, 1)}</div> : null}
               <div
                 className={`message-bubble ${
                   getMessageStatus(message) === "failed" ? "failed" : ""
@@ -1645,9 +1684,8 @@ export function RenewalWorkspace() {
                 {message.content}
               </div>
               <div className="message-time">
-                {message.role === "assistant" ? activeCompanion?.name ?? "关系对象" : "我"} ·{" "}
                 {formatTime(message.createdAt)}
-                {message.role === "assistant" ? ` · ${formatProviderLabel(message.metadata)}` : ""}
+                {getMessageStatus(message) === "failed" ? " · 回复失败，请重试" : ""}
               </div>
               <div className="topbar-actions" aria-label="消息操作">
                 {message.role === "assistant" ? (
@@ -1694,25 +1732,20 @@ export function RenewalWorkspace() {
 
         <form className="composer" onSubmit={sendMessage}>
           <div className="composer-inner">
-            <div className="composer-title">
-              <h2>{activeCompanion ? `写给 ${activeCompanion.name}` : "选择或新建一个关系"}</h2>
-              <span className="pill">
-                <Heart size={14} />
-                熟悉度 {activeCompanion?.relationshipState.familiarityScore ?? 0}
-              </span>
-            </div>
-            {error ? <div className="error-text">{error}</div> : null}
-            <div className="status-line">{status}</div>
+            {error && !isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
+            {isRecording || isTranscribing || isSynthesizing ? <div role="status" className="muted">{isRecording ? "正在录音，点击麦克风结束" : isTranscribing ? "正在将语音转为文字…" : "正在准备语音回复…"}</div> : null}
             {voicePreview ? (
               <div className="voice-preview">
+                <span className="voice-ready" role="status">语音回复已生成</span>
                 <audio controls src={voicePreview.audioDataUrl} />
-                <span>
+                <details>
+                  <summary>语音详情</summary>
                   {formatVoiceProviderStatus(voicePreview)}
                   {voicePreview.voice ? ` · ${voicePreview.voice}` : ""}
-                </span>
-                {voicePreview.fallbackReason ? (
-                  <span>{redactWorkspaceError(voicePreview.fallbackReason)}</span>
-                ) : null}
+                  {voicePreview.fallbackReason ? (
+                    <p>{redactWorkspaceError(voicePreview.fallbackReason)}</p>
+                  ) : null}
+                </details>
               </div>
             ) : null}
             <div className="input-row">
@@ -1728,6 +1761,7 @@ export function RenewalWorkspace() {
               </button>
               <input
                 className="chat-input"
+                aria-label="把想说的话放在这里"
                 disabled={!activeCompanion || isSending}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="把想说的话放在这里"
@@ -1752,7 +1786,18 @@ export function RenewalWorkspace() {
         </form>
       </section>
 
-      <aside className="inspector" aria-label="关系资料">
+      <dialog className={`inspector ${styles.drawer}`} aria-label="关系资料" ref={inspectorRef}
+        onCancel={(event) => { event.preventDefault(); closeInspector(); }}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeInspector();
+        }}>
+        <div className={styles.drawerBar}>
+          <span>这一段回响</span>
+          <button aria-label="关闭关系资料" className="icon-button" onClick={closeInspector} type="button"><X size={19} /></button>
+        </div>
+        <div className={styles.drawerContent}>
         {inspectorMode === "create" ? (
           <RelationshipObjectForm
             disabled={isSaving}
@@ -1760,7 +1805,7 @@ export function RenewalWorkspace() {
             form={createForm}
             isSaving={isSaving}
             mode="create"
-            onCancel={() => setInspectorMode(activeCompanion ? "profile" : "create")}
+            onCancel={closeInspector}
             onChange={setCreateForm}
             onKindSelect={(kind) =>
               setCreateForm((current) => applyRelationshipKindDefaults(current, kind))
@@ -1777,6 +1822,7 @@ export function RenewalWorkspace() {
             onCancel={() => {
               setForm(activeCompanion ? toForm(activeCompanion) : null);
               setInspectorMode("profile");
+              closeInspector();
             }}
             onChange={setForm}
             onKindSelect={(kind) =>
@@ -1794,7 +1840,7 @@ export function RenewalWorkspace() {
                 <button
                   aria-label="返回关系资料"
                   className="icon-button"
-                  onClick={() => setInspectorMode("profile")}
+                  onClick={closeInspector}
                   title="关闭记忆管理"
                   type="button"
                 >
@@ -1939,7 +1985,7 @@ export function RenewalWorkspace() {
                 <button
                   aria-label="返回关系资料"
                   className="icon-button"
-                  onClick={() => setInspectorMode("profile")}
+                  onClick={closeInspector}
                   title="关闭导入"
                   type="button"
                 >
@@ -2128,7 +2174,7 @@ export function RenewalWorkspace() {
                 <button
                   aria-label="返回关系资料"
                   className="icon-button"
-                  onClick={() => setInspectorMode("profile")}
+                  onClick={closeInspector}
                   title="关闭主动回响"
                   type="button"
                 >
@@ -2278,7 +2324,7 @@ export function RenewalWorkspace() {
                 <button
                   aria-label="返回关系资料"
                   className="icon-button"
-                  onClick={() => setInspectorMode("profile")}
+                  onClick={closeInspector}
                   title="关闭调用看板"
                   type="button"
                 >
@@ -2553,7 +2599,13 @@ export function RenewalWorkspace() {
             </div>
           </>
         )}
-      </aside>
+        </div>
+        <div className={styles.drawerStatus}>
+          {error && isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
+          <div className="status-line" role="status">{status}</div>
+          {persistenceNotice ? <details><summary><Database size={14} aria-hidden="true" /> 存储状态</summary><p>{persistenceNotice.description} {persistenceNotice.nextStep}</p><a href="/settings">配置状态</a></details> : null}
+        </div>
+      </dialog>
     </main>
   );
 }

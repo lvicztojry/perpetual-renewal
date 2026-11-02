@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("switching relationships isolates drafts, delayed history, and in-flight replies", async ({ page }) => {
   await page.goto("/login");
@@ -58,13 +58,13 @@ test("switching relationships isolates drafts, delayed history, and in-flight re
   await expect(composer).toHaveValue("乙的未发送草稿");
   releaseReply();
   await expect(composer).toBeEnabled();
-  await expect(page.getByText("甲的迟到回复", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("聊天记录").getByText("甲的迟到回复", { exact: true })).toHaveCount(0);
   await expect(composer).toHaveValue("乙的未发送草稿");
   releaseHistory();
   await page.getByTitle(`切换到 ${first.name}`).click();
-  await expect(page.getByText("甲的迟到回复", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("聊天记录").getByText("甲的迟到回复", { exact: true })).toBeVisible();
   await expect(composer).toHaveValue("");
   await page.getByTitle(`切换到 ${second.name}`).click();
-  await expect(page.getByText("甲的迟到回复", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("聊天记录").getByText("甲的迟到回复", { exact: true })).toHaveCount(0);
   await expect(composer).toHaveValue("乙的未发送草稿");
 });

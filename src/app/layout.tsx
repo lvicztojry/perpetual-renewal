@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./renewal-theme.css";
 import { PwaRegister } from "@/components/pwa-register";
+import { BellIntro } from "@/components/bell-intro";
 
 export const metadata: Metadata = {
   title: "生生不息",
-  description: "全关系 AI 情感回响工作台",
+  description: "只要想念，就会想见。",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -14,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#16736b"
+  themeColor: "#191a18"
 };
 
 export default function RootLayout({
@@ -27,6 +29,7 @@ export default function RootLayout({
       <body>
         {children}
         <PwaRegister />
+        <BellIntro />
       </body>
     </html>
   );

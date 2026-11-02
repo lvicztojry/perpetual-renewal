@@ -8,16 +8,16 @@ import {
   Check,
   Download,
   KeyRound,
-  Languages,
   LogOut,
   Wifi,
   RefreshCw,
   Save,
   ShieldCheck,
   Trash2,
-  UserRound
+  RotateCcw
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import styles from "./account-theme.module.css";
 
 type UserProfile = {
   id: string;
@@ -612,27 +612,34 @@ export function UserSettings() {
   }
 
   return (
-    <main className="settings-shell">
-      <header className="settings-header">
+    <main className={`settings-shell ${styles.account} ${styles.settingsShell}`}>
+      <header className={`settings-header ${styles.settingsHeader}`}>
         <Link className="text-button" href="/">
           <ArrowLeft size={17} />
           返回工作台
         </Link>
-        <div className="settings-heading">
-          <div className="brand-mark">
-            <UserRound size={22} />
-          </div>
+        <div className={`settings-heading ${styles.settingsHeading}`}>
           <div>
+            <p className={styles.eyebrow}>生生不息 / 设置</p>
             <h1>账号与资料</h1>
-            <p>这些偏好会影响称呼、语言和主动回响的频率。</p>
+            <p>调整你的称呼、沟通偏好与连接方式。</p>
           </div>
         </div>
       </header>
 
-      <form className="settings-grid" onSubmit={saveProfile}>
-        <section className="settings-section">
+      <div className={styles.settingsLayout}>
+      <nav className={styles.sectionNav} aria-label="设置分区">
+        <a href="#account-profile">基础资料</a>
+        <a href="#account-preferences">沟通偏好</a>
+        <a href="#account-appearance">外观</a>
+        <a href="#account-provider">模型供应商</a>
+        <a href="#account-privacy">数据与隐私</a>
+        <a href="#account-status">配置状态</a>
+      </nav>
+      <form className={`settings-grid ${styles.settingsForm}`} onSubmit={saveProfile}>
+        <section className="settings-section" id="account-profile" aria-labelledby="profile-heading">
           <div className="panel-title">
-            <h2>基础资料</h2>
+            <h2 id="profile-heading">基础资料</h2>
             {profile ? <span className="pill">{profile.email}</span> : null}
           </div>
 
@@ -678,13 +685,9 @@ export function UserSettings() {
           )}
         </section>
 
-        <section className="settings-section">
+        <section className="settings-section" id="account-preferences" aria-labelledby="preferences-heading">
           <div className="panel-title">
-            <h2>沟通偏好</h2>
-            <span className="pill teal">
-              <Languages size={14} />
-              MVP
-            </span>
+            <h2 id="preferences-heading">沟通偏好</h2>
           </div>
 
           {form ? (
@@ -723,9 +726,23 @@ export function UserSettings() {
           )}
         </section>
 
-        <section className="settings-section">
+        <section className="settings-section" id="account-appearance" aria-labelledby="appearance-heading">
           <div className="panel-title">
-            <h2>模型供应商</h2>
+            <h2 id="appearance-heading">外观</h2>
+          </div>
+          <div className={styles.appearanceRow}>
+            <p>再听一次开场的钟声，回到故事开始的地方。</p>
+            <button className="text-button" type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("renewal:replay-intro"))}>
+              <RotateCcw size={17} aria-hidden="true" />
+              重播开场
+            </button>
+          </div>
+        </section>
+
+        <section className="settings-section" id="account-provider" aria-labelledby="provider-heading">
+          <div className="panel-title">
+            <h2 id="provider-heading">模型供应商</h2>
             <span className="pill teal">
               <KeyRound size={14} />
               {credential?.configured ? "用户密钥" : "环境变量"}
@@ -920,9 +937,9 @@ export function UserSettings() {
           </div>
         </section>
 
-        <section className="settings-section">
+        <section className="settings-section" id="account-privacy" aria-labelledby="privacy-heading">
           <div className="panel-title">
-            <h2>数据与隐私</h2>
+            <h2 id="privacy-heading">数据与隐私</h2>
             <span className="pill teal">
               <Download size={14} />
               JSON
@@ -959,6 +976,8 @@ export function UserSettings() {
                 {exportStatus === "exporting" ? "导出中" : "导出数据"}
               </button>
             </div>
+            <div className={styles.dangerZone}>
+            <h3>删除账号</h3>
             <div className="status-box">
               删除账号会清除当前账号下的关系对象、对话、记忆、主动回响草稿、模型调用日志、安全事件和已保存模型密钥。建议先导出数据。
             </div>
@@ -990,12 +1009,13 @@ export function UserSettings() {
                 {deleteStatus === "deleting" ? "删除中" : "删除账号"}
               </button>
             </div>
+            </div>
           </div>
         </section>
 
-        <section className="settings-section">
+        <section className="settings-section" id="account-status" aria-labelledby="status-heading">
           <div className="panel-title">
-            <h2>配置状态</h2>
+            <h2 id="status-heading">配置状态</h2>
             <span className="pill teal">
               <ShieldCheck size={14} />
               只读
@@ -1051,6 +1071,7 @@ export function UserSettings() {
           </button>
         </footer>
       </form>
+      </div>
     </main>
   );
 }

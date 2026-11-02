@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -22,7 +22,7 @@ test("settings BYOK key drives real compatible chat flow without leaking provide
     await page.getByRole("link", { name: "设置" }).click();
     await expect(page.getByRole("heading", { name: "模型供应商" })).toBeVisible();
     await page.getByLabel("Base URL").fill(provider.baseUrl);
-    await page.getByLabel("模型").fill(modelId);
+    await page.getByLabel("模型", { exact: true }).fill(modelId);
     await page.getByLabel("API Key").fill(fakeApiKey);
     await page.getByRole("button", { name: "保存连接配置" }).click();
 
@@ -57,8 +57,8 @@ test("settings BYOK key drives real compatible chat flow without leaking provide
     await page.getByPlaceholder("把想说的话放在这里").fill(userMessage);
     await page.getByRole("button", { name: "发送" }).click();
 
-    await expect(page.getByText(userMessage, { exact: true })).toBeVisible();
-    await expect(page.getByText(providerReply)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByLabel("聊天记录").getByText(userMessage, { exact: true })).toBeVisible();
+    await expect(page.getByLabel("聊天记录").getByText(providerReply)).toBeVisible({ timeout: 20_000 });
     await expect
       .poll(() => provider.chatRequests.length, { message: "chat message should call fake provider" })
       .toBeGreaterThanOrEqual(2);

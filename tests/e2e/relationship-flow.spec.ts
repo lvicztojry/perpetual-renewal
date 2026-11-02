@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 test("login, create relationship, chat, confirm memory, draft proactive message, logout", async ({
   page
@@ -41,11 +41,13 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
     expect(dialog.message()).toContain("删除");
     await dialog.dismiss();
   });
+  await page.getByRole("button", { name: "关系资料", exact: true }).click();
   await page.getByRole("button", { name: "删除关系" }).click();
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByPlaceholder("把想说的话放在这里").fill(firstMessage);
   await page.getByRole("button", { name: "发送" }).click();
   await expect(page.getByText(firstMessage)).toBeVisible();
-  await expect(page.getByText("我在这里，先把这句话稳稳接住。")).toBeVisible();
+  await expect(page.getByLabel("聊天记录").getByText("我在这里，先把这句话稳稳接住。", { exact: true })).toBeVisible();
   await expect(page.locator(".status-line")).toHaveText(/已回复|用户消息已保存/, {
     timeout: 15_000
   });
@@ -57,6 +59,7 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await expect(page.getByText("记忆状态已更新")).toBeVisible();
   await expect(page.getByText(/active/)).toBeVisible();
 
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByRole("button", { name: "导入素材" }).click();
   await expect(page.getByRole("heading", { name: "导入素材" })).toBeVisible();
   await page.getByRole("button", { name: "多段" }).click();
@@ -101,6 +104,7 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: "导入为候选" }).click();
   await expect(page.getByText(/已导入 \d+ 条候选记忆/)).toBeVisible();
 
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByRole("button", { name: "主动回响" }).click();
   await expect(page.getByRole("heading", { name: "主动回响" })).toBeVisible();
   await expect(page.getByText("站内草稿")).toBeVisible();
@@ -118,6 +122,7 @@ test("login, create relationship, chat, confirm memory, draft proactive message,
   await page.getByRole("button", { name: /^草稿 \d+$/ }).click();
   await expect(page.getByRole("button", { name: "发送到聊天" }).first()).toBeVisible();
 
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByRole("link", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "账号与资料" })).toBeVisible();
   await expect(page.getByRole("button", { name: "导出数据" })).toBeVisible();
@@ -235,6 +240,7 @@ test("mobile workspace keeps panels usable without horizontal overflow", async (
   });
   expect(createFormOverflow).toBe(false);
 
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   await page.getByRole("link", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "账号与资料" })).toBeVisible();
   await expect(page.getByRole("button", { name: "导出数据" })).toBeVisible();
@@ -448,11 +454,12 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
 
   await page.getByPlaceholder("把想说的话放在这里").fill("今天想听一段声音。");
   await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByText("我在这里，慢慢听你说。")).toBeVisible();
+  await expect(page.getByLabel("聊天记录").getByText("我在这里，慢慢听你说。")).toBeVisible();
   await expect(page.getByRole("button", { name: "朗读最近回复" })).toBeEnabled();
 
   await page.getByRole("button", { name: "朗读最近回复" }).click();
   await expect(page.getByText("语音回复已生成")).toBeVisible();
+  await page.getByText("语音详情", { exact: true }).click();
   await expect(page.getByText("语音供应商回退")).toBeVisible();
   await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
   await expect(page.getByText("[已隐藏 Base URL]")).toBeVisible();

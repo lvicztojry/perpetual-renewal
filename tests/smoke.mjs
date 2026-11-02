@@ -623,7 +623,7 @@ async function runSmoke() {
   const serviceWorker = await request("/sw.js");
   assert(
     typeof serviceWorker.body === "string" &&
-      serviceWorker.body.includes("perpetual-renewal-pwa-v1") &&
+      serviceWorker.body.includes("perpetual-renewal-pwa-v2") &&
       serviceWorker.body.includes('url.pathname.startsWith("/api/")'),
     "service worker should explicitly skip API response caching"
   );

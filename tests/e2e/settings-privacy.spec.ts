@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { readFile } from "node:fs/promises";
 
 const E2E_SESSION_COOKIE_SECRET =
@@ -60,7 +60,7 @@ test("settings saves and deletes user API key, and shows connection failure with
 
   await expect(page.getByText("未保存用户密钥，将使用服务端环境变量或 mock。")).toBeVisible();
   await page.getByLabel("Base URL").fill("https://provider.example.com/v1");
-  await page.getByLabel("模型").fill("e2e-test-model");
+  await page.getByLabel("模型", { exact: true }).fill("e2e-test-model");
   await page.getByLabel("API Key").fill(fakeApiKey);
   await expect(page.getByLabel("API Key")).toHaveValue(fakeApiKey);
   await expect(page.getByRole("button", { name: "保存连接配置" })).toBeEnabled();
@@ -107,7 +107,7 @@ test("settings keeps credential draft and redacts provider values after save fai
   await loginAsFreshUser(page, "settings-save-failure");
 
   await page.getByLabel("Base URL").fill(fakeBaseUrl);
-  await page.getByLabel("模型").fill("e2e-save-failure-model");
+  await page.getByLabel("模型", { exact: true }).fill("e2e-save-failure-model");
   await page.getByLabel("API Key").fill(fakeApiKey);
   await page.getByRole("button", { name: "保存连接配置" }).click();
 
@@ -115,7 +115,7 @@ test("settings keeps credential draft and redacts provider values after save fai
     page.getByText("供应商拒绝 [已隐藏 Base URL] 使用 [已隐藏 API Key] 保存。")
   ).toBeVisible();
   await expect(page.getByLabel("Base URL")).toHaveValue(fakeBaseUrl);
-  await expect(page.getByLabel("模型")).toHaveValue("e2e-save-failure-model");
+  await expect(page.getByLabel("模型", { exact: true })).toHaveValue("e2e-save-failure-model");
   await expect(page.getByLabel("API Key")).toHaveValue(fakeApiKey);
   await expect(page.getByRole("button", { name: "保存连接配置" })).toBeEnabled();
   await expect(page.getByText(fakeApiKey)).toHaveCount(0);
@@ -148,7 +148,7 @@ test("settings redacts provider values after credential delete failure", async (
   await loginAsFreshUser(page, "settings-delete-failure");
 
   await page.getByLabel("Base URL").fill(fakeBaseUrl);
-  await page.getByLabel("模型").fill("e2e-delete-failure-model");
+  await page.getByLabel("模型", { exact: true }).fill("e2e-delete-failure-model");
   await page.getByLabel("API Key").fill(fakeApiKey);
   await page.getByRole("button", { name: "保存连接配置" }).click();
   await expect(page.getByText("已保存连接配置")).toBeVisible();
@@ -231,7 +231,7 @@ test("settings reads provider models and keeps API key private", async ({ page }
   await expect(page.getByText(fakeApiKey)).toHaveCount(0);
 
   await page.getByRole("button", { name: /tryanotherone\/e2e-memory-pro/ }).click();
-  await expect(page.getByLabel("模型")).toHaveValue("tryanotherone/e2e-memory-pro");
+  await expect(page.getByLabel("模型", { exact: true })).toHaveValue("tryanotherone/e2e-memory-pro");
 
   await page.getByRole("button", { name: "读取模型列表" }).click();
   await expect(page.getByText("读取模型列表超时，请稍后再试。（请求超时，可以稍后重试）")).toBeVisible();
@@ -262,7 +262,7 @@ test("settings export downloads a redacted JSON snapshot", async ({ page }) => {
     await expect(page.getByText("未保存用户密钥，将使用服务端环境变量或 mock。")).toBeVisible();
   }
   await page.getByLabel("Base URL").fill(fakeBaseUrl);
-  await page.getByLabel("模型").fill("e2e-export-model");
+  await page.getByLabel("模型", { exact: true }).fill("e2e-export-model");
   await page.getByLabel("API Key").fill(fakeApiKey);
   await expect(page.getByLabel("API Key")).toHaveValue(fakeApiKey);
   await expect(page.getByRole("button", { name: "保存连接配置" })).toBeEnabled();

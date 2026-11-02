@@ -1,0 +1,159 @@
+.intro {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: #f4e7d1;
+  background: #191a18;
+  color-scheme: dark;
+  font-family: "Songti SC", "Noto Serif SC", SimSun, serif;
+}
+
+.intro:not([open]) { display: none; }
+.intro::backdrop { background: #191a18; }
+
+.film, .camera, .canvas, .artwork, .scene, .bellPosition, .bell, .dust, .vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.film { overflow: hidden; }
+.camera { transform: scale(1.025); }
+
+/* All artwork coordinates refer to the supplied 1672 × 941 canvas.
+   Contain preserves both the bell and the right-hand screen on narrow displays. */
+.canvas {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 177.6833dvh);
+  aspect-ratio: 1672 / 941;
+  transform: translate(-50%, -50%);
+  container-type: inline-size;
+  background: radial-gradient(ellipse at 34% 76%, #704c36 0, #302c27 35%, #191a18 75%);
+}
+
+.artwork { opacity: 0; transition: opacity 800ms ease; }
+.loaded { opacity: 1; }
+.scene { background: url("/visuals/bell-scene.png") center / 100% 100% no-repeat; }
+
+/* The isolated export is larger than the reference bell. Keep compensation
+   outside the swing so both always share the same suspension point. */
+.bellPosition { transform: scale(0.85); transform-origin: 33% 0%; }
+.bell {
+  background: url("/visuals/bell-isolated.png") center / 100% 100% no-repeat;
+  transform-origin: 33% 1%;
+  transform: rotate(-1.4deg);
+}
+
+.screen {
+  position: absolute;
+  left: 57.5%;
+  top: 21%;
+  width: 40%;
+  height: 32%;
+  display: grid;
+  place-items: center;
+  transform: perspective(1000px) rotateY(-13deg) rotateZ(-12deg) skewX(-7deg);
+  color: #ffe4bc;
+  text-align: center;
+  text-shadow: 0 0 0.5cqw #d29e63, 0 0 1.5cqw #ba794438;
+  opacity: 0.6;
+}
+
+.screen p { margin: 0; font-size: 3.1cqw; line-height: 1.65; white-space: nowrap; }
+.screen strong { color: #fff1d9; font-weight: 600; }
+
+.dust {
+  opacity: 0.2;
+  background-image:
+    radial-gradient(circle at 15% 54%, #d8b87a 0 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 66%, #c5a571 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 42%, #ad956c 0 0.6px, transparent 1.2px);
+  background-size: 173px 139px, 257px 193px, 113px 229px;
+  mask-image: radial-gradient(ellipse at 30% 62%, #000, transparent 56%);
+}
+
+.vignette {
+  background: linear-gradient(0deg, #111310e8, transparent 27%, #11131018 80%),
+    radial-gradient(ellipse at center, transparent 44%, #11131073);
+}
+
+.signature {
+  position: absolute;
+  inset: auto 20px max(30px, env(safe-area-inset-bottom)) 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-shadow: 0 2px 12px #000;
+}
+
+.signature h1 { margin: 0; font-size: clamp(22px, 1.65vw, 30px); font-weight: 400; letter-spacing: 0.22em; }
+.signature p { margin: 0; font-size: 14px; letter-spacing: 0.32em; }
+.rule { width: 180px; margin: 7px 0; font-size: 8px; color: #b9a17b; background: linear-gradient(90deg, transparent, #b9a17b55, transparent) center / 100% 1px no-repeat; }
+
+.intro button, .replay {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 9px 14px;
+  background: #191a186b;
+  color: #f4e7d1;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.intro .enter { margin-top: 20px; min-width: 112px; border-color: #b9a17b99; letter-spacing: 0.3em; background: #191a18b8; }
+.intro button:hover, .replay:hover { background: #584b36; }
+.intro button:focus-visible, .replay:focus-visible { outline: 2px solid #ffe4bc; outline-offset: 4px; }
+.controls { position: absolute; right: max(22px, env(safe-area-inset-right)); bottom: max(26px, env(safe-area-inset-bottom)); display: flex; gap: 12px; }
+.replay { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); right: 16px; z-index: 20; background: #292b27; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.intro[data-phase="playing"] .camera { animation: approach 5s ease-out both; }
+.intro[data-phase="playing"] .bell { animation: swing 5s ease-in-out both; }
+.intro[data-phase="playing"] .dust { animation: drift 5s ease-out both; }
+.intro[data-phase="playing"] .screen { animation: screenPower 5s ease-out both; }
+.intro[data-phase="playing"] { animation: depart 5s linear both; }
+
+@keyframes approach { from { transform: scale(1.025); } to { transform: scale(1.065) translateY(0.4%); } }
+@keyframes swing {
+  0% { transform: rotate(-1.4deg); }
+  19% { transform: rotate(2.1deg); }
+  42% { transform: rotate(-1.6deg); }
+  65% { transform: rotate(1deg); }
+  85% { transform: rotate(-0.5deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes drift { from { transform: translateY(5px); } to { transform: translate(6px, -12px); } }
+@keyframes screenPower { 0%, 12% { opacity: 0.3; } 24%, 100% { opacity: 1; } }
+@keyframes depart { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+
+@media (max-width: 640px) {
+  .signature { bottom: max(100px, calc(env(safe-area-inset-bottom) + 80px)); }
+  .controls { left: 16px; right: 16px; justify-content: space-between; }
+  .screen p { font-size: 3.6cqw; }
+}
+
+.intro[data-reduced-motion="true"],
+.intro[data-reduced-motion="true"] * { animation: none !important; transition: none !important; }
+.intro[data-reduced-motion="true"] .camera { transform: none; }
+.intro[data-reduced-motion="true"] .bell { transform: none; }
+.intro[data-reduced-motion="true"] .screen { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro, .intro * { animation: none !important; transition: none !important; }
+  .camera, .bell { transform: none; }
+  .screen { opacity: 1; }
+}

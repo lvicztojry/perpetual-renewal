@@ -11,7 +11,7 @@ const offline = readText(join("public", "offline.html"));
 expectIncludes(manifest, 'name: "生生不息"', "manifest should use the product name");
 expectIncludes(manifest, 'display: "standalone"', "manifest should use standalone display");
 expectIncludes(manifest, 'start_url: "/"', "manifest should start at the app root");
-expectIncludes(manifest, 'theme_color: "#16736b"', "manifest should define the theme color");
+expectIncludes(manifest, 'theme_color: "#191a18"', "manifest should define the charcoal theme color");
 expectIncludes(manifest, 'src: "/icons/icon.svg"', "manifest should reference the app icon");
 expectIncludes(manifest, 'src: "/icons/maskable.svg"', "manifest should reference the maskable icon");
 expectIncludes(manifest, 'purpose: "maskable"', "manifest should mark the maskable icon purpose");
@@ -23,7 +23,7 @@ expectIncludes(offline, "<!doctype html>", "offline shell should be an HTML docu
 expectIncludes(offline, "现在暂时离线", "offline shell should explain the offline state");
 expectIncludes(offline, 'name="viewport"', "offline shell should be responsive");
 
-expectIncludes(serviceWorker, "perpetual-renewal-pwa-v1", "service worker should version its cache");
+expectIncludes(serviceWorker, "perpetual-renewal-pwa-v2", "service worker should version its cache");
 expectIncludes(serviceWorker, '"/offline.html"', "service worker should cache the offline shell");
 expectIncludes(serviceWorker, 'url.pathname.startsWith("/api/")', "service worker should skip API requests");
 expectIncludes(serviceWorker, 'request.method !== "GET"', "service worker should skip non-GET requests");

@@ -1111,6 +1111,8 @@ M34 当前落点：
 
 仍需外部配置：
 
+本轮本机界面交付（2026-11-02）：巨钟入场、分层摆钟动画与合成钟声、静音/跳过/重播、桌面双栏、手机列表返回、按需工具抽屉、账号与设置以及 PWA 主题已实现；37 项浏览器回归、94 项隔离 smoke、生产构建和访问保护通过。素材、提示词及真实页面截图见 [UI_REDESIGN.md](UI_REDESIGN.md)。用户已决定暂缓公网部署。
+
 - 将本机已验证的 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 或 Vercel `CRON_SECRET` alias 同步到目标部署环境，并在那里复跑 `npm run verify:deploy`。
 - 真实模型 key/model：优先由用户在设置页 vault 保存，或由部署平台 secret 提供服务端 fallback。
 

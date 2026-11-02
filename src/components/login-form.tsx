@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff, LoaderCircle, LogIn, Sparkles } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import styles from "./account-theme.module.css";
 
 type Mode = "local" | "login" | "register" | "forgot" | "reset" | "verify";
 type FieldName = "email" | "nickname" | "password" | "confirmation";
@@ -17,12 +18,12 @@ const copy: Record<Mode, { title: string; description: string; submit: string }>
   },
   login: {
     title: "进入生生不息",
-    description: "用邮箱和密码登录，继续你的关系与记忆。",
+    description: "用邮箱和密码登录，接着上次的话聊。",
     submit: "登录"
   },
   register: {
     title: "创建账号",
-    description: "留一个称呼，为关系与记忆安放一个位置。",
+    description: "留下你的称呼，用邮箱和密码创建账号。",
     submit: "注册"
   },
   forgot: {
@@ -196,19 +197,20 @@ export function LoginForm({
   ) : null;
 
   return (
-    <main className="auth-shell">
-      <section className="auth-panel" aria-labelledby="auth-title">
+    <main className={`auth-shell ${styles.account} ${styles.loginShell}`}>
+      <section className={`auth-panel ${styles.loginPanel}`} aria-labelledby="auth-title">
         <Link className="text-button" href={needsToken ? "/login?mode=password" : "/"} prefetch={false}>
           <ArrowLeft size={17} aria-hidden="true" />
           {needsToken ? "返回登录" : "返回工作台"}
         </Link>
-        <div className="settings-heading">
-          <div className="brand-mark"><Sparkles size={22} aria-hidden="true" /></div>
-          <div>
+        <header className={styles.loginHeading}>
+          <p className={styles.wordmark}>生生不息</p>
+          <p className={styles.brandNote}>念念不忘，必有回响</p>
+          <div className={styles.authTitle}>
             <h1 id="auth-title">{copy[mode].title}</h1>
             <p>{copy[mode].description}</p>
           </div>
-        </div>
+        </header>
 
         {status === "success" ? (
           <div className="form-grid">
@@ -286,7 +288,7 @@ export function LoginForm({
         )}
 
         {!needsToken && status !== "success" ? (
-          <nav className="topbar-actions" aria-label="账号操作">
+          <nav className={styles.authLinks} aria-label="账号操作">
             {mode === "login" ? <>
               <button className="text-button" type="button" disabled={busy} onClick={() => switchMode("register")}>注册账号</button>
               <button className="text-button" type="button" disabled={busy} onClick={() => switchMode("forgot")}>忘记密码</button>

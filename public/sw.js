@@ -1,4 +1,4 @@
-const CACHE_NAME = "perpetual-renewal-pwa-v1";
+const CACHE_NAME = "perpetual-renewal-pwa-v2";
 const APP_SHELL = ["/", "/offline.html", "/icons/icon.svg", "/icons/maskable.svg"];
 
 self.addEventListener("install", (event) => {

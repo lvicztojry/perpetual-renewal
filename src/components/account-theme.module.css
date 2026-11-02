@@ -1,0 +1,495 @@
+.account {
+  color-scheme: dark;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.65;
+}
+
+.account :global(.form-grid) {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.account :global(.field) {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.account :global(.field) > span,
+.account :global(.field) label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.account :global(.field) :is(input, select, textarea) {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 16px;
+}
+
+.account input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.account :global(.field) small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.account :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--teal-strong);
+  outline-offset: 4px;
+  box-shadow: none;
+}
+
+.account :global(.field) [aria-invalid="true"] {
+  border-color: var(--coral);
+}
+
+.account :is(:global(.text-button), :global(.primary-button), :global(.icon-button)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-decoration: none;
+}
+
+.account :global(.text-button):hover:not(:disabled),
+.account :global(.icon-button):hover:not(:disabled) {
+  border-color: var(--teal);
+  background: var(--soft-teal);
+}
+
+.account :global(.primary-button) {
+  border-color: var(--teal);
+  background: var(--teal);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.account :global(.primary-button):hover:not(:disabled) {
+  background: var(--teal-strong);
+  border-color: var(--teal-strong);
+}
+
+.account :global(.icon-button) {
+  width: 46px;
+  padding: 10px;
+}
+
+.account :global(.wide) {
+  width: 100%;
+}
+
+.account :global(.status-box) {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.account :global(.error-state) {
+  color: var(--coral);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.account :global(.save-state) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-size: 13px;
+}
+
+.account :global(.empty) {
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.loginShell {
+  min-height: 100svh;
+  padding: 40px 24px;
+  background: linear-gradient(90deg, var(--bg), rgb(25 26 24 / 87%)),
+    url("/visuals/chat-room.webp") center / cover;
+}
+
+.loginPanel {
+  width: min(460px, 100%);
+  gap: 28px;
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.loginPanel > :global(.text-button) {
+  justify-self: start;
+  padding: 0;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.loginHeading p {
+  margin: 0;
+}
+
+.wordmark {
+  color: var(--teal-strong);
+  font-family: "Noto Serif SC", "Songti SC", SimSun, serif;
+  font-size: 34px;
+  letter-spacing: 0.18em;
+}
+
+.brandNote {
+  color: var(--muted);
+  font-family: "Songti SC", SimSun, serif;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+}
+
+.authTitle {
+  margin-top: 32px;
+}
+
+.authTitle h1 {
+  margin: 0 0 8px;
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.authTitle p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.authLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.authLinks :global(.text-button) {
+  border-color: transparent;
+  padding: 8px 0;
+  color: var(--teal-strong);
+}
+
+.settingsShell {
+  width: min(1120px, 100%);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 32px 40px 64px;
+}
+
+.settingsHeader {
+  display: grid;
+  justify-items: start;
+  gap: 28px;
+  padding-bottom: 32px;
+}
+
+.settingsHeader > :global(.text-button) {
+  padding-left: 0;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.settingsHeading h1 {
+  margin: 8px 0;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.settingsHeading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.settingsHeading .eyebrow {
+  color: var(--teal-strong);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}
+
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 164px minmax(0, 1fr);
+  align-items: start;
+  gap: 40px;
+}
+
+.sectionNav {
+  position: sticky;
+  top: 32px;
+  display: grid;
+  gap: 4px;
+  padding: 8px 16px 8px 0;
+  border-right: 1px solid var(--line);
+}
+
+.sectionNav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.sectionNav a:hover,
+.sectionNav a:focus-visible {
+  color: var(--teal-strong);
+  background: var(--soft-teal);
+}
+
+.settingsForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  min-width: 0;
+}
+
+.settingsForm :global(.settings-section) {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  scroll-margin-top: 24px;
+}
+
+.account :global(.panel-title) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.account :global(.panel-title) h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.account :global(.pill) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.account :global(.pill.teal) {
+  color: var(--teal-strong);
+}
+
+.account :global(.settings-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settingsForm > footer {
+  padding: 8px 0;
+}
+
+.account :global(.toggle-row) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.account :global(.toggle-row) span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account :global(.toggle-row) input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--teal);
+}
+
+.appearanceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.appearanceRow p {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.account :global(.memory-list) {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.account :is(:global(.memory-item), :global(.relationship-type-card)) {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.account :global(.relationship-type-card) {
+  min-height: 44px;
+  text-align: left;
+}
+
+.account :global(.relationship-type-card):hover {
+  border-color: var(--teal);
+  background: var(--soft-teal);
+}
+
+.account :global(.memory-meta) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.account :global(.memory-item) p,
+.account :global(.memory-item) > span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.dangerZone {
+  display: grid;
+  gap: 18px;
+  margin-top: 12px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.dangerZone h3 {
+  margin: 0;
+  color: var(--coral);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.dangerZone :global(.text-button) {
+  color: var(--coral);
+}
+
+@media (max-width: 700px) {
+  .settingsShell {
+    padding: 20px 16px 40px;
+  }
+
+  .settingsHeader {
+    gap: 20px;
+    padding-bottom: 24px;
+  }
+
+  .settingsHeading h1 {
+    font-size: 26px;
+  }
+
+  .settingsLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .sectionNav {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sectionNav a {
+    padding: 8px 10px;
+  }
+
+  .settingsForm :global(.settings-section) {
+    gap: 20px;
+    padding: 20px 16px;
+  }
+
+  .account :global(.settings-actions) {
+    gap: 10px;
+  }
+
+  .loginShell {
+    padding: 24px 16px;
+  }
+
+  .loginPanel {
+    gap: 24px;
+    padding: 24px;
+  }
+}
