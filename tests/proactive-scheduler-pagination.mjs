@@ -13,6 +13,10 @@ const now = new Date("2026-10-26T08:00:00.000Z");
 const old = "2026-10-25T08:00:00.000Z";
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const ids = (result) => Array.from(result.results, (row) => row.companionId);
+const generation = {
+  intent: "interest", length: "short", memoryIds: ["fixture-memory-1"],
+  topicKey: "memory:fixture-memory-1", attempts: 1, actualChars: 20
+};
 
 // Load actual scheduler, draft generator, repositories and fallback wrapper.
 // Only external I/O is replaced: no environment files, credentials or live DB.
@@ -43,7 +47,7 @@ function fixture(count = 7, mode = "prisma") {
   }
   return {
     store, mode, checkpoints: new Map(), checkpointWrites: [], queries: [],
-    profiles: new Map(), profileReads: [], personalizations: [], failPrimary: false,
+    profiles: new Map(), profileReads: [], personalizations: [], personalizationResults: new Map(), failPrimary: false,
     transactionTail: Promise.resolve(), deliveryTransactions: 0
   };
 }
@@ -218,10 +222,12 @@ function load(db) {
   const stubs = {
     "node:crypto": nodeRequire("node:crypto"),
     "./proactive-model": {
-      async personalizeProactiveDraft(companion, draft, history) {
-        db.personalizations.push({ companionId: companion.id, history: plain(history) });
+      async personalizeProactiveDraft(companion, draft, history, provider, options) {
+        db.personalizations.push({ companionId: companion.id, history: plain(history), provider,
+          options: options && plain(options) });
         await db.beforePersonalize?.(companion);
-        return { draft: { ...draft, content: `为 ${companion.name} 生成的问候。` }, source: "model" };
+        if (db.personalizationResults.has(companion.id)) return db.personalizationResults.get(companion.id);
+        return { draft: { ...draft, content: `为 ${companion.name} 生成的问候。` }, source: "model", generation };
       }
     },
     "@prisma/client": nodeRequire("@prisma/client"),
@@ -229,7 +235,7 @@ function load(db) {
     "@/lib/users/profile": {
       async getUserProfile(userId) {
         db.profileReads.push(userId);
-        return { proactiveMessagesEnabled: true, proactiveFrequencyHours: 24, ...db.profiles.get(userId) };
+        return { proactiveMessagesEnabled: true, proactiveFrequencyHours: 24, timezone: "Asia/Shanghai", ...db.profiles.get(userId) };
       }
     },
     "@/lib/persistence/memory-fallback": {
@@ -337,16 +343,22 @@ for (const mode of ["memory", "prisma"]) {
 
   test(`${mode}: due cadence delivers one personalized assistant message and cold retries do not duplicate it`, async () => {
     const db = fixture(1, mode);
+    db.profiles.set("u1", { timezone: "America/New_York" });
     const first = await load(db).run({ dryRun: false });
     assert.equal(first.generatedCount, 1);
     assert.equal(first.savedCount, 1);
     assert.equal(first.deliveredCount, 1);
     assert.equal(db.personalizations.length, 1);
+    assert.equal(db.personalizations[0].provider, undefined);
+    assert.deepEqual(db.personalizations[0].options, {
+      previous: [], now: now.toISOString(), timeZone: "America/New_York"
+    });
     const [draft] = db.store.proactiveMessages;
     const [message] = db.store.messages;
     assert.equal(draft.status, "sent");
     assert.match(draft.deliveryKey, /^[a-f0-9]{64}$/);
     assert.equal(draft.safety.generator, "model");
+    assert.deepEqual(plain(draft.safety.generation), generation);
     assert.equal(message.role, "assistant");
     assert.equal(message.proactiveMessageId, draft.id);
     assert.equal(message.content, "为 Companion 0 生成的问候。");
@@ -366,6 +378,54 @@ for (const mode of ["memory", "prisma"]) {
     assert.equal(db.store.messages.length, 2);
     assert.equal(new Set(db.store.proactiveMessages.map((m) => m.deliveryKey)).size, 2);
     assert.equal(db.personalizations[1].history.length, 1, "the helper receives the prior delivered history");
+    assert.deepEqual(db.personalizations[1].options, {
+      previous: before.proactiveMessages, now: new Date(now.getTime() + 60_000).toISOString(),
+      timeZone: "America/New_York"
+    });
+  });
+
+  for (const reason of ["主动回响生成暂不可用，请稍后重试。", "主动回响未通过质量检查，请稍后重试。"]) {
+    test(`${mode}: null generation saves and delivers nothing, exposes a safe reason and can retry (${reason})`, async () => {
+      const db = fixture(1, mode);
+      db.personalizationResults.set("c000", { draft: null, source: "unavailable", reason,
+        generation: { ...generation, attempts: 2, rawPayload: "fixture-secret-provider-failure" } });
+      const before = plain(db.store);
+      const failed = await load(db).run({ dryRun: false });
+      assert.equal(failed.savedCount, 0);
+      assert.equal(failed.deliveredCount, 0);
+      assert.equal(failed.results[0].savedCount, 0);
+      assert.equal(failed.results[0].reason, reason);
+      for (const [collection, records] of Object.entries(before)) {
+        assert.deepEqual(plain(db.store[collection]), records, `failed generation must not mutate ${collection}`);
+      }
+      assert.doesNotMatch(JSON.stringify(failed), /fixture-secret|rawPayload|stack|authorization/);
+      db.personalizationResults.delete("c000");
+      const retry = await load(db).run({ dryRun: false });
+      assert.equal(retry.savedCount, 1, "a failed generation must not leave a cadence anchor that suppresses retries");
+      assert.equal(retry.deliveredCount, 1);
+      assert.equal(db.store.proactiveMessages.length, 1);
+      assert.equal(db.store.messages.length, 1);
+    });
+  }
+
+  test(`${mode}: a failed companion does not prevent the next from generating or advancing pagination`, async () => {
+    const db = fixture(3, mode);
+    const reason = "主动回响生成暂不可用，请稍后重试。";
+    db.personalizationResults.set("c000", { draft: null, source: "unavailable", reason });
+    const result = await load(db).run({ dryRun: false, limit: 2 });
+    assert.deepEqual(ids(result), ["c000", "c001"]);
+    assert.deepEqual(db.personalizations.map((call) => call.companionId), ["c000", "c001"]);
+    assert.equal(result.results[0].reason, reason);
+    assert.equal(result.results[0].savedCount, 0);
+    assert.equal(result.results[1].savedCount, 1);
+    assert.equal(result.savedCount, 1);
+    assert.equal(result.deliveredCount, 1);
+    assert.deepEqual(db.store.proactiveMessages.map((record) => record.companionId), ["c001"]);
+    assert.deepEqual(db.store.messages.map((message) => message.conversationId), ["conversation-c001"]);
+    assert.equal(db.store.conversations.find((conversation) => conversation.companionId === "c000").lastMessageAt, null);
+    assert.equal(result.nextCursor, "c001");
+    assert.equal(await load(db).repository.getProactiveSchedulerCheckpoint("all"), "c001");
+    assert.deepEqual(ids(await load(db).run({ dryRun: false, limit: 2 })), ["c002"]);
   });
 
   test(`${mode}: concurrent repository delivery and delivery-key retries retain one message`, async () => {

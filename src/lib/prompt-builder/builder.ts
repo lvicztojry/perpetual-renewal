@@ -67,7 +67,7 @@ const DEFAULT_CONTEXT_BUDGET: PromptContextBudget = {
 
 export function buildRenewalPrompt(input: BuildPromptInput): BuiltPrompt {
   const budget = normalizeContextBudget(input.contextBudget);
-  const query = latestUserQuery(input.recentMessages ?? []);
+  const query = input.memoryQuery ?? latestUserQuery(input.recentMessages ?? []);
   const memorySelection = selectActiveMemories(input.memories ?? [], budget, query);
   const messageSelection = selectRecentMessages(input.recentMessages ?? [], budget);
   const systemContent = [

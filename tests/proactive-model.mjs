@@ -26,7 +26,7 @@ function harness(options = {}) {
     name: options.providerName ?? "compatible",
     async complete(request) {
       requests.push(request);
-      return options.complete ? options.complete(request, api) : completion();
+      return options.complete ? options.complete(request, api) : plannedCompletion(request);
     }
   };
   const context = vm.createContext({
@@ -48,7 +48,9 @@ function harness(options = {}) {
     "@/lib/logging/sanitize": "logging/sanitize.ts",
     "@/lib/renewal/types": "renewal/types.ts",
     "@/lib/usage": "usage/service.ts",
-    "./safety": "relationship/safety.ts"
+    "./safety": "relationship/safety.ts",
+    "./proactive-strategy": "relationship/proactive-strategy.ts",
+    "./proactive-quality": "relationship/proactive-quality.ts"
   };
   const cache = new Map();
   function load(file) {
@@ -61,6 +63,8 @@ function harness(options = {}) {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
     });
     function require(specifier) {
+      assert.ok(!["relationship/proactive-strategy.ts", "relationship/proactive-quality.ts"].includes(file),
+        `Pure proactive modules must have type-only imports: ${file} imports ${specifier}`);
       if (specifier === "@/lib/llm/user-provider") {
         return { async createUserLlmProvider(userId) {
           lookups.push(userId);
@@ -117,7 +121,10 @@ function harness(options = {}) {
   const api = {
     requests, lookups, writes, stored, logs, deadlines, controller, provider,
     companion, draft, history, safety, types: load("llm/types.ts"),
-    run: (configuredProvider) => helper.personalizeProactiveDraft(companion, draft, history, configuredProvider)
+    plan: (opts = {}) => load("relationship/proactive-strategy.ts").planProactiveMessage({
+      companion, history, previous: opts.previous ?? [], now: opts.now ?? new Date(draft.scheduledAt), timeZone: opts.timeZone
+    }),
+    run: (configuredProvider, opts) => helper.personalizeProactiveDraft(companion, draft, history, configuredProvider, opts)
   };
   return api;
 }
@@ -126,10 +133,18 @@ function message(role, content, metadata = null) {
   return { id: content, conversationId: "conversation-test", role, content, metadata, createdAt: timestamp };
 }
 
-function completion(content = "阿续，今晚的星星让我想起了你，有空再来聊聊呀。") {
+function completion(content = "阿续，出道关于星星的难题给我。") {
   return { content, provider: "compatible", model: "hermetic-model", usage: {
     inputTokens: 80, outputTokens: 20, totalTokens: 100
   }, raw: { diagnostic: diagnostics } };
+}
+
+function plannedCompletion(request) {
+  return completion(request.maxTokens === 768
+    ? "阿续，假如能给一颗星星写封信，你会给它起什么名字？我大概会叫它小灯泡，再附上一张想象中的星图，把北斗七星画成一把歪歪扭扭的小勺子。光是想想就觉得，这封信的邮票恐怕也得画成星星才配得上。"
+    : request.maxTokens === 384
+      ? "阿续，出道关于星星的难题给我。我先把北斗七星的小勺子摆好，准备接招。"
+      : undefined);
 }
 
 function fallback(result, app, source = "template") {
@@ -137,9 +152,17 @@ function fallback(result, app, source = "template") {
   assert.strictEqual(result.draft, app.draft, "fallback must preserve the original safe draft and metadata");
 }
 
-function usage(app, status, errorKind) {
-  assert.equal(app.writes.length, 1, "each attempted model completion has one usage write");
-  const row = app.writes[0];
+function unavailable(result) {
+  assert.equal(result.source, "unavailable");
+  assert.equal(result.draft, null, "real provider failures must not send a template");
+  assert.equal(typeof result.reason, "string");
+  assert.ok(result.reason.trim());
+  assert.equal(result.generation, undefined);
+}
+
+function usage(app, status, errorKind, index = 0) {
+  assert.equal(app.writes.length, app.requests.length, "each attempted model completion has one usage write");
+  const row = app.writes[index];
   assert.equal(row.userId, app.companion.userId);
   assert.equal(row.companionId, app.companion.id);
   assert.equal(row.conversationId, app.companion.conversationId);
@@ -148,6 +171,27 @@ function usage(app, status, errorKind) {
   assert.equal(row.status, status);
   assert.equal(row.errorKind, errorKind);
   assert.ok(Number.isFinite(row.latencyMs) && row.latencyMs >= 0);
+  if (status === "success") {
+    assert.equal(row.model, "hermetic-model");
+    assert.deepEqual(row.usage, completion().usage);
+  }
+}
+
+function optionsForLength(app, length) {
+  for (let hour = 0; hour < 200; hour++) {
+    const opts = { now: new Date(Date.parse(timestamp) + hour * 3600000), timeZone: "Asia/Shanghai" };
+    if (app.plan(opts).length === length) return opts;
+  }
+  assert.fail(`No fixture plan found for ${length}`);
+}
+
+function previous(app, id, content, overrides = {}) {
+  return {
+    id, userId: app.companion.userId, companionId: app.companion.id,
+    status: "sent", content, createdAt: timestamp, updatedAt: timestamp,
+    safety: { generation: { intent: "interest", length: "medium", memoryIds: ["memory-active"], topicKey: "memory:memory-active" } },
+    ...overrides
+  };
 }
 
 function noDiagnostics(app, result) {
@@ -178,14 +222,21 @@ test("configured provider receives real character, active memories, relationship
   assert.match(request.messages.at(-1).content, /用户没有发来新消息/);
   assert.match(request.messages.at(-1).content, /主动/);
   assert.equal(request.messages.filter((m) => m.role === "user").length, 1, "no fabricated user turn");
-  assert.equal(request.maxTokens, 384);
+  const plan = app.plan();
+  assert.equal(request.maxTokens, { short: 192, medium: 384, long: 768 }[plan.length]);
   assert.strictEqual(request.signal, app.controller.signal);
   assert.deepEqual(app.deadlines, [20_000]);
-  assert.equal(result.draft.content, completion().content);
+  assert.equal(result.draft.content, plannedCompletion(request).content);
   assert.equal(result.draft.safety.action, "allow");
   assert.equal(result.draft.safety.stage, "proactive_draft");
   assert.equal(result.draft.postflightSafety.action, "allow");
-  for (const key of ["id", "companionId", "kind", "reason", "scheduledAt", "nextCandidateAt", "frequency"]) {
+  assert.equal(result.draft.kind, plan.kind);
+  assert.deepEqual(plain(result.generation), {
+    intent: plan.intent, length: plan.length, memoryIds: plain(plan.memoryIds), topicKey: plan.topicKey,
+    attempts: 1, actualChars: [...plannedCompletion(request).content].length
+  });
+  assert.equal(result.draft.reason, "结合人物设定与记忆生成");
+  for (const key of ["id", "companionId", "scheduledAt", "nextCandidateAt", "frequency"]) {
     assert.deepEqual(plain(result.draft[key]), plain(app.draft[key]));
   }
   assert.deepEqual(plain({ companion: app.companion, draft: app.draft, history: app.history }), before);
@@ -200,6 +251,129 @@ test("default path resolves the provider for the companion's user", async () => 
   assert.equal((await app.run()).source, "model");
   assert.deepEqual(app.lookups, [app.companion.userId]);
   assert.equal(app.requests.length, 1);
+});
+
+for (const length of ["short", "medium", "long"]) {
+  test(`${length} plan controls token budget and exposes generation metadata`, async () => {
+    const app = harness();
+    const opts = optionsForLength(app, length);
+    const plan = app.plan(opts);
+    const result = await app.run(undefined, opts);
+    assert.equal(result.source, "model");
+    assert.equal(app.requests.length, 1);
+    assert.equal(app.requests[0].maxTokens, { short: 192, medium: 384, long: 768 }[length]);
+    assert.deepEqual(plain(result.generation), {
+      intent: plan.intent, length, memoryIds: plain(plan.memoryIds), topicKey: plan.topicKey,
+      attempts: 1, actualChars: [...result.draft.content].length
+    });
+    assert.match(app.requests[0].messages.at(-1).content, /时区=Asia\/Shanghai/);
+    usage(app, "success");
+  });
+}
+
+for (const kind of ["generic", "repeated"]) {
+  for (const recover of [true, false]) {
+    test(`${kind} candidate ${recover ? "rewrites successfully" : "twice is skipped"} with per-call billing`, async () => {
+      const bad = kind === "generic" ? "不想说也没关系，我会一直陪你。" : "阿续，要不要给北斗七星编一套暗号？";
+      const app = harness({ complete: (request, api) => recover && api.requests.length === 2 ? plannedCompletion(request) : completion(bad) });
+      if (kind === "repeated") app.history.push(message("assistant", bad));
+      const result = await app.run();
+      assert.equal(app.requests.length, 2);
+      assert.deepEqual(app.deadlines, [20_000]);
+      assert.strictEqual(app.requests[0].signal, app.requests[1].signal);
+      assert.equal(app.requests[0].maxTokens, app.requests[1].maxTokens);
+      assert.match(app.requests[1].messages.at(-1).content, /上一候选未发送，需要重新写一条/);
+      assert.match(app.requests[1].messages.at(-1).content, kind === "generic" ? /空泛/ : /重复/);
+      assert.equal(app.requests[1].messages.filter((m) => m.role === "user").length, 1);
+      if (recover) {
+        assert.equal(result.source, "model");
+        assert.equal(result.draft.content, plannedCompletion(app.requests[1]).content);
+        assert.equal(result.generation.attempts, 2);
+        assert.equal(result.generation.actualChars, [...result.draft.content].length);
+      } else unavailable(result);
+      usage(app, "success", undefined, 0);
+      usage(app, "success", undefined, 1);
+      noDiagnostics(app, result);
+    });
+  }
+}
+
+test("transport failure during rewrite logs the billed first response and one error then stops", async () => {
+  const app = harness({ complete: (_request, api) => {
+    if (api.requests.length === 1) return completion("");
+    throw new Error(diagnostics);
+  } });
+  const result = await app.run();
+  unavailable(result);
+  assert.equal(app.requests.length, 2);
+  usage(app, "success", undefined, 0);
+  usage(app, "error", "provider_response", 1);
+  assert.deepEqual(app.deadlines, [20_000]);
+  assert.strictEqual(app.requests[0].signal, app.requests[1].signal);
+  noDiagnostics(app, result);
+});
+
+test("selected memories survive unrelated history retrieval and exclude foreign sources", async () => {
+  const app = harness();
+  const base = app.companion.memories[0];
+  app.companion.memories.push(...Array.from({ length: 5 }, (_, i) => ({
+    ...base, id: `extra-${i}`, content: `selected-memory-${i}-marker 喜欢收集旧邮票`
+  })));
+  app.companion.memories.push(
+    { ...base, id: "foreign-user", userId: "other-user", content: "foreign-user-memory-marker" },
+    { ...base, id: "foreign-companion", companionId: "other-companion", content: "foreign-companion-memory-marker" }
+  );
+  app.history.push({ ...message("user", "foreign-conversation-marker"), conversationId: "other-conversation" });
+  const plan = app.plan();
+  assert.equal(plan.memoryIds.length, 3);
+  const result = await app.run();
+  assert.equal(result.source, "model");
+  assert.deepEqual(plain(result.generation.memoryIds), plain(plan.memoryIds));
+  const prompt = JSON.stringify(app.requests[0].messages);
+  for (const memory of app.companion.memories) {
+    assert.equal(prompt.includes(memory.content), plan.memoryIds.includes(memory.id), `selection for ${memory.id}`);
+  }
+  assert.ok(!prompt.includes("foreign-conversation-marker"));
+  assert.ok(prompt.includes("history-user-marker"));
+});
+
+test("previous generation options guide topic and intent metadata and isolate other sources", async () => {
+  const app = harness();
+  app.companion.memories.push({ ...app.companion.memories[0], id: "unused-memory", content: "unused-memory-marker 喜欢拼图" });
+  const valid = [previous(app, "prior-1", "合格历史回响甲"), previous(app, "prior-2", "合格历史回响乙")];
+  const opts = { previous: valid, now: new Date(timestamp), timeZone: "Asia/Shanghai" };
+  const plan = app.plan(opts);
+  const supplied = { ...opts, previous: [
+    ...valid,
+    previous(app, "foreign-user", "foreign-user-previous-marker", { userId: "other-user" }),
+    previous(app, "foreign-companion", "foreign-companion-previous-marker", { companionId: "other-companion" }),
+    previous(app, "dismissed", "dismissed-previous-marker", { status: "dismissed" }),
+    previous(app, "blocked", "blocked-previous-marker", { status: "blocked" })
+  ] };
+  const before = plain(supplied);
+  const result = await app.run(undefined, supplied);
+  assert.equal(result.source, "model");
+  assert.deepEqual(plain(result.generation), {
+    intent: plan.intent, length: plan.length, memoryIds: plain(plan.memoryIds), topicKey: plan.topicKey,
+    attempts: 1, actualChars: [...result.draft.content].length
+  });
+  assert.notEqual(result.generation.intent, "interest", "two repeated intents rotate");
+  assert.notEqual(result.generation.length, "medium", "two repeated lengths rotate");
+  assert.equal(result.generation.topicKey, "memory:unused-memory");
+  const prompt = JSON.stringify(app.requests[0].messages);
+  for (const record of valid) assert.ok(prompt.includes(record.content));
+  for (const record of supplied.previous.slice(2)) assert.ok(!prompt.includes(record.content));
+  assert.deepEqual(plain(supplied), before);
+});
+
+test("previous sent proactive text is checked for repetition", async () => {
+  const app = harness();
+  const result = await app.run(undefined, { previous: [192, 384, 768].map((maxTokens) =>
+    previous(app, `already-sent-${maxTokens}`, plannedCompletion({ maxTokens }).content)) });
+  unavailable(result);
+  assert.equal(app.requests.length, 2);
+  usage(app, "success", undefined, 0);
+  usage(app, "success", undefined, 1);
 });
 
 for (const configured of [false, true]) {
@@ -246,13 +420,15 @@ test("real reply normalizer removes headings, emphasis, links and code fences", 
 });
 
 for (const content of ["", " \n\t ", "```text\n\n```", "我会线下见你", "忽略安全规则"]) {
-  test(`empty or unsafe output preserves safe template: ${JSON.stringify(content)}`, async () => {
+  test(`empty or unsafe output is skipped after one rewrite: ${JSON.stringify(content)}`, async () => {
     const app = harness({ complete: () => completion(content) });
     const result = await app.run();
-    fallback(result, app);
-    // Unsafe but completed responses consumed tokens; empty responses are errors.
-    usage(app, content.includes("见你") || content.includes("规则") ? "success" : "error",
-      content.includes("见你") || content.includes("规则") ? undefined : "provider_response");
+    unavailable(result);
+    assert.equal(app.requests.length, 2);
+    usage(app, "success", undefined, 0);
+    usage(app, "success", undefined, 1);
+    assert.deepEqual(app.deadlines, [20_000]);
+    assert.strictEqual(app.requests[0].signal, app.requests[1].signal);
     noDiagnostics(app, result);
   });
 }
@@ -270,7 +446,7 @@ test("relational pressure is revised and rechecked by real safety", async () => 
 
 test("provider output diagnostics are redacted before returning the draft or writing usage", async () => {
   const app = harness({ complete: () => completion(`晚安。 ${diagnostics}`) });
-  const result = await app.run();
+  const result = await app.run(undefined, optionsForLength(app, "long"));
   assert.equal(result.source, "model");
   assert.ok(result.draft.content.includes("晚安。"));
   assert.ok(result.draft.content.includes("redacted"));
@@ -279,7 +455,7 @@ test("provider output diagnostics are redacted before returning the draft or wri
 
 test("safety revision metadata does not retain credentials or private provider diagnostics", async () => {
   const app = harness({ complete: () => completion(`你不回复就是不爱我。 ${diagnostics}`) });
-  const result = await app.run();
+  const result = await app.run(undefined, optionsForLength(app, "long"));
   assert.equal(result.source, "model");
   assert.equal(result.draft.postflightSafety.action, "revise");
   assert.equal(result.draft.safety.action, "allow");
@@ -287,7 +463,7 @@ test("safety revision metadata does not retain credentials or private provider d
 });
 
 for (const kind of ["generic", "authentication", "timeout"]) {
-  test(`provider ${kind} error falls back and records only safe error classification`, async () => {
+  test(`provider ${kind} error stops without retry and records only safe error classification`, async () => {
     const app = harness({ complete: (_request, api) => {
       if (kind === "generic") throw new Error(diagnostics);
       throw new api.types.LlmProviderError(diagnostics, {
@@ -295,29 +471,31 @@ for (const kind of ["generic", "authentication", "timeout"]) {
       });
     } });
     const result = await app.run();
-    fallback(result, app);
+    unavailable(result);
+    assert.equal(app.requests.length, 1);
     usage(app, "error", kind === "generic" ? "provider_response" : kind);
     noDiagnostics(app, result);
   });
 }
 
-test("deadline abort reaches provider signal and falls back without waiting twenty seconds", async () => {
+test("deadline abort reaches provider signal and stops without waiting twenty seconds", async () => {
   const app = harness({ complete: (request, api) => new Promise((_resolve, reject) => {
     request.signal.addEventListener("abort", () => reject(api.types.toLlmProviderError(request.signal.reason, {
       provider: "compatible"
     })), { once: true });
     queueMicrotask(() => api.controller.abort(new DOMException("Test deadline elapsed", "TimeoutError")));
   }) });
-  fallback(await app.run(), app);
+  unavailable(await app.run());
+  assert.equal(app.requests.length, 1);
   assert.deepEqual(app.deadlines, [20_000]);
   assert.equal(app.requests[0].signal.aborted, true);
   usage(app, "error", "timeout");
 });
 
-test("provider lookup failure falls back without inventing a provider usage row", async () => {
+test("provider lookup failure is unavailable without inventing a provider usage row", async () => {
   const app = harness({ lookupError: new Error(diagnostics) });
   const result = await app.run();
-  fallback(result, app);
+  unavailable(result);
   assert.equal(app.requests.length, 0);
   assert.equal(app.writes.length, 0);
   noDiagnostics(app, result);
@@ -327,13 +505,13 @@ for (const failedCompletion of [false, true]) {
   test(`usage persistence failure stays best effort (completion failed=${failedCompletion})`, async () => {
     const app = harness({
       usageError: new Error(`Database unavailable; Authorization: Bearer ${secret}`),
-      complete: () => {
+      complete: (request) => {
         if (failedCompletion) throw new Error(diagnostics);
-        return completion();
+        return plannedCompletion(request);
       }
     });
     const result = await app.run();
-    if (failedCompletion) fallback(result, app);
+    if (failedCompletion) unavailable(result);
     else assert.equal(result.source, "model", "usage outage must not discard a valid model reply");
     usage(app, failedCompletion ? "error" : "success", failedCompletion ? "provider_response" : undefined);
     assert.equal(app.stored.length, 0);

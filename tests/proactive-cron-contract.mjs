@@ -166,7 +166,7 @@ function checkAutomaticDeliveryContract() {
     "automatic cadence should select at most one draft per due companion"
   );
   assert(
-    liveBlock.includes("await personalizeProactiveDraft(companion, candidate, messages)"),
+    /await personalizeProactiveDraft\(companion, candidate, messages(?:,|\))/.test(liveBlock),
     "live cron delivery should personalize the candidate with actual conversation history"
   );
   assert(

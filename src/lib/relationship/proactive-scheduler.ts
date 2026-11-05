@@ -148,10 +148,17 @@ export async function runProactiveScheduler(
     eligibleCount += 1;
     generatedCount += cappedDrafts.length;
     let companionSavedCount = 0;
+    let generationFailure: string | undefined;
 
     if (!dryRun) {
       for (const candidate of cappedDrafts) {
-        const generated = await personalizeProactiveDraft(companion, candidate, messages);
+        const generated = await personalizeProactiveDraft(companion, candidate, messages, undefined, {
+          previous: proactiveMessages, now, timeZone: profile.timezone
+        });
+        if (!generated.draft) {
+          generationFailure = generated.reason ?? "本轮主动回响未生成，将稍后重试。";
+          continue;
+        }
         const draft = generated.draft;
         const record = await repository.createProactiveMessage(companion.userId, companion.id, {
           kind: draft.kind,
@@ -160,6 +167,7 @@ export async function runProactiveScheduler(
           safety: {
             result: draft.safety,
             generator: generated.source,
+            ...(generated.generation ? { generation: generated.generation } : {}),
             ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
             ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
             ...(draft.frequency ? { frequency: draft.frequency } : {}),
@@ -186,14 +194,14 @@ export async function runProactiveScheduler(
       due: true,
       generatedCount: cappedDrafts.length,
       savedCount: companionSavedCount,
-      reason:
+      reason: generationFailure ?? (
         cappedDrafts.length < drafts.length
           ? dryRun
             ? "到期，但已按本轮上限裁剪；dry-run 未保存草稿。"
             : "到期，已按本轮上限处理站内回响。"
           : dryRun
             ? "到期，dry-run 未保存草稿。"
-            : "到期，已处理站内回响。",
+            : "到期，已处理站内回响。"),
       nextCandidateAt: cappedDrafts[0]?.nextCandidateAt
     });
   }

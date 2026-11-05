@@ -134,8 +134,8 @@ export async function POST(
       force: forceGenerate,
       now: new Date()
     });
-    const maxDrafts = normalizeMaxDrafts(body.maxDrafts);
-    const drafts = plan.drafts.slice(0, forceGenerate ? maxDrafts : 1);
+    const maxDrafts = normalizeMaxDrafts(body.maxDrafts ?? 1);
+    const drafts = plan.drafts.slice(0, forceGenerate ? Math.min(maxDrafts, body.maxDrafts ?? 1) : 1);
     const draftLimitReached = plan.drafts.length > drafts.length;
     const frequency = normalizeProactiveFrequency(
       {
@@ -149,8 +149,15 @@ export async function POST(
 
     const records: ProactiveMessageRecord[] = [];
     const deliveredMessages: MessageRecord[] = [];
+    let generationFailure: string | null = null;
     for (const candidate of drafts) {
-      const generated = forceGenerate ? { draft: candidate, source: "template" } : await personalizeProactiveDraft(companion, candidate, history);
+      const generated = await personalizeProactiveDraft(companion, candidate, history, undefined, {
+        previous: [...proactiveMessages, ...records], now: new Date(candidate.scheduledAt ?? Date.now()), timeZone: profile.timezone
+      });
+      if (!generated.draft) {
+        generationFailure = generated.reason ?? "本轮主动回响未生成，请稍后再试。";
+        break;
+      }
       const draft = generated.draft;
       let record = await repository.createProactiveMessage(session.userId, companion.id, {
           kind: draft.kind,
@@ -159,6 +166,7 @@ export async function POST(
           safety: {
             result: draft.safety,
             generator: generated.source,
+            ...(generated.generation ? { generation: generated.generation } : {}),
             ...(draft.preflightSafety ? { preflight: draft.preflightSafety } : {}),
             ...(draft.postflightSafety ? { postflight: draft.postflightSafety } : {}),
             ...(draft.frequency ? { frequency: draft.frequency } : {}),
@@ -185,10 +193,10 @@ export async function POST(
       persistence: repository.persistence,
       frequency,
       schedule: plan.schedule,
-      skippedReason: plan.skippedReason ?? null,
+      skippedReason: generationFailure ?? plan.skippedReason ?? null,
       maxDrafts,
       draftLimitReached,
-      status: deliveredMessages.length ? "sent" : "draft",
+      status: generationFailure && !records.length ? "unavailable" : deliveredMessages.length ? "sent" : "draft",
       deliveredMessages,
       deliveredCount: deliveredMessages.length,
       generatedCount: plan.drafts.length,
@@ -230,10 +238,25 @@ function toProactiveDraftResponse(record: ProactiveMessageRecord) {
     nextCandidateAt:
       typeof record.safety?.nextCandidateAt === "string" ? record.safety.nextCandidateAt : null,
     frequency: record.safety?.frequency ?? null,
+    generation: publicGeneration(record.safety?.generation),
+    generator: record.safety?.generator ?? null,
     safety: record.safety?.result ?? null,
     status: record.status,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
+  };
+}
+
+function publicGeneration(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const data = value as Record<string, unknown>;
+  return {
+    intent: typeof data.intent === "string" && ["followup", "shared_memory", "interest", "banter", "affection", "concrete_care"].includes(data.intent) ? data.intent : "unknown",
+    length: typeof data.length === "string" && ["short", "medium", "long"].includes(data.length) ? data.length : "unknown",
+    memoryIds: Array.isArray(data.memoryIds) ? data.memoryIds.filter((id): id is string => typeof id === "string" && /^[\w-]{1,100}$/.test(id)).slice(0, 3) : [],
+    topicKey: typeof data.topicKey === "string" && /^(?:(?:memory|message):[\w-]{1,100}|intent:(?:followup|shared_memory|interest|banter|affection|concrete_care))$/.test(data.topicKey) ? data.topicKey : "unknown",
+    attempts: typeof data.attempts === "number" ? Math.min(2, Math.max(1, Math.floor(data.attempts) || 1)) : 1,
+    actualChars: typeof data.actualChars === "number" ? Math.min(10000, Math.max(0, Math.floor(data.actualChars) || 0)) : 0
   };
 }
 

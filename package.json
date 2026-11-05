@@ -24,7 +24,7 @@
     "env:mail": "node scripts/auth-mail-check.mjs",
     "qa:mail-check": "node tests/auth-mail-check.mjs && node tests/env-readiness-auth.mjs",
     "qa:database-url": "node tests/database-url.mjs",
-    "qa:proactive-scheduler": "node tests/proactive-scheduler-pagination.mjs && node tests/proactive-delivery.mjs && node tests/proactive-model.mjs",
+    "qa:proactive-scheduler": "node tests/proactive-scheduler-pagination.mjs && node tests/proactive-delivery.mjs && node tests/proactive-model.mjs && node tests/proactive-strategy.mjs && node tests/proactive-quality.mjs",
     "qa:proactive-cron": "node tests/proactive-cron-contract.mjs",
     "qa:proactive-availability": "node tests/proactive-availability.mjs",
     "qa:real-provider": "node tests/qa-real-provider.mjs",

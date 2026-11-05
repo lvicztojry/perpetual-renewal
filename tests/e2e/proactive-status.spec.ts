@@ -50,6 +50,8 @@ test("opening proactive history is read-only and manual drafts are clearly separ
   await page.getByRole("button", { name: "主动回响", exact: true }).click();
   await expect(page.getByRole("heading", { name: "回响记录与草稿" })).toBeVisible();
   await expect(page.getByText(draft.content, { exact: true })).toBeVisible();
+  await page.getByText("查看这条回响的生成信息", { exact: true }).first().click();
+  await expect(page.getByRole("dialog")).toContainText("演示模板");
   await expect(page.getByRole("dialog")).toContainText("手动草稿不会自行发送");
   expect(posts).toBe(0);
   await page.getByRole("button", { name: "刷新主动回响状态" }).click();
@@ -64,4 +66,16 @@ test("opening proactive history is read-only and manual drafts are clearly separ
   await expect(page.getByRole("dialog")).toContainText("尚未到达主动回响候选时间");
   const saved = (await (await page.request.get(`/api/companions/${companion.id}/proactive-drafts`)).json()).data;
   expect(saved.every((item: { status: string }) => item.status === "draft")).toBe(true);
+  const beforeMessages = await page.locator(".message-bubble").count();
+  const failure = "本轮回响内容重复或不合适，已跳过发送，稍后再试。";
+  await page.route("**/api/companions/*/proactive-drafts", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    return route.fulfill({ json: { data: [], status: "unavailable", skippedReason: failure,
+      deliveredCount: 0, deliveredMessages: [], savedCount: 0 } });
+  });
+  await page.getByRole("button", { name: "手动生成草稿", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText(failure);
+  await expect(page.locator(".message-bubble")).toHaveCount(beforeMessages);
+  const unchanged = (await (await page.request.get(`/api/companions/${companion.id}/proactive-drafts`)).json()).data;
+  expect(unchanged.length).toBe(saved.length);
 });

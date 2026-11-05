@@ -59,6 +59,8 @@ export type BuildPromptInput = {
   user?: PromptUserProfile;
   userBoundaries?: string[];
   memories?: PromptMemory[];
+  /** Internal retrieval override; an empty query retains preselected proactive memories. */
+  memoryQuery?: string;
   relationshipState?: PromptRelationshipState | null;
   recentMessages?: PromptRecentMessage[];
   highRiskRules?: string[];

@@ -106,6 +106,8 @@ type ProactiveDraft = {
   safety?: DraftSafety;
   preflightSafety?: DraftSafety;
   postflightSafety?: DraftSafety;
+  generator?: string | null;
+  generation?: { length?: string; memoryIds?: string[]; attempts?: number; actualChars?: number } | null;
 };
 
 type ProactiveSchedule = {
@@ -2268,6 +2270,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                   <span className="pill teal">{proactivePersistence === "memory" ? "本次试用记录" : "已保存的记录"}</span>
                 </div>
                 <p>这里查看已发送消息，也可手动生成草稿，核对后点“发送到聊天”。手动草稿不会自行发送。</p>
+                <p>手动草稿同样参考人物设定与记忆，默认生成一条；未配置模型时仅提供演示模板。</p>
                 <button className="text-button" type="button" disabled={!activeCompanion || isLoadingDrafts || !proactiveAvailability?.effectiveEnabled} onClick={() => void generateProactiveDrafts(true)}>手动生成草稿</button>
                 {proactiveSafety ? (
                   <details className="status-box"><summary>查看生成检查</summary>
@@ -2313,6 +2316,12 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                         </div>
                         <div>{draft.content}</div>
                         <div className="memory-meta">{draft.reason}</div>
+                        {draft.generator ? <details className="memory-meta">
+                          <summary>查看这条回响的生成信息</summary>
+                          <div>{draft.generator === "model" ? "模型生成" : draft.generator === "template" ? "演示模板" : "边界提示"}
+                            {draft.generation ? ` · ${{ short: "短句", medium: "中等长度", long: "较长表达" }[draft.generation.length ?? ""] ?? "自然长度"} · 提供 ${draft.generation.memoryIds?.length ?? 0} 条记忆参考 · ${draft.generation.actualChars ?? 0} 字${(draft.generation.attempts ?? 1) > 1 ? " · 已重写一次" : ""}` : ""}
+                          </div>
+                        </details> : null}
                         <div className="memory-meta">
                           生成 {formatDateTime(draft.createdAt ?? draft.scheduledAt)}
                           {draft.scheduledAt ? ` · 计划 ${formatDateTime(draft.scheduledAt)}` : ""}

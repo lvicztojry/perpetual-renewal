@@ -7,7 +7,12 @@ import ts from "typescript";
 
 const routeFile = "app/api/companions/[companionId]/proactive-drafts/route.ts";
 const old = "2020-01-01T00:00:00.000Z";
+const now = new Date("2026-10-26T08:00:00.000Z");
 const plain = (value) => JSON.parse(JSON.stringify(value));
+const generation = {
+  intent: "interest", length: "short", memoryIds: ["fixture-memory-1"],
+  topicKey: "memory:fixture-memory-1", attempts: 1, actualChars: 20
+};
 
 // Run the real route, planner, safety, frequency and private response helpers.
 // Only session, persistence and personalization are doubles; no env files or I/O.
@@ -15,6 +20,7 @@ function fixture(options = {}) {
   const profiles = [false, true].map((enabled, index) => ({
     id: `fixture-user-${index}`, email: `fixture-${index}@example.invalid`,
     proactiveMessagesEnabled: enabled, proactiveFrequencyHours: 24,
+    timezone: "Asia/Shanghai",
     privateMarker: `fixture-profile-private-${index}`
   }));
   const companions = profiles.map((profile, index) => ({
@@ -80,7 +86,11 @@ function fixture(options = {}) {
         message: { id: "fixture-delivered", content: record.content, role: "assistant" } };
     }
   };
-  const context = vm.createContext({ Date, Error, Response, Headers,
+  class FixtureDate extends Date {
+    constructor(value = now) { super(value); }
+    static now() { return now.getTime(); }
+  }
+  const context = vm.createContext({ Date: FixtureDate, Error, Response, Headers,
     process: { env: { DATABASE_URL: "fixture", RENEWAL_REPOSITORY: "prisma" } } });
   const cache = new Map();
   const stubs = {
@@ -97,9 +107,10 @@ function fixture(options = {}) {
       return profiles.find((item) => item.id === owner);
     } },
     "@/lib/renewal/repository": { createRenewalRepository: () => repository },
-    "@/lib/relationship/proactive-model": { async personalizeProactiveDraft(companion, draft, history) {
-      calls.push(["personalize", companion.id, history.length]);
-      return { draft: { ...draft, content: "fixture personalized greeting" }, source: "fixture" };
+    "@/lib/relationship/proactive-model": { async personalizeProactiveDraft(companion, draft, history, provider, context) {
+      calls.push(["personalize", companion.id, plain(history), provider, context && plain(context)]);
+      if (options.personalization) return options.personalization;
+      return { draft: { ...draft, content: "fixture personalized greeting" }, source: "model", generation };
     } }
   };
   const modules = {
@@ -163,6 +174,7 @@ for (const accountEnabled of [false, true]) {
       assert.deepEqual(body.availability, { accountEnabled, companionEnabled,
         effectiveEnabled: accountEnabled && companionEnabled, frequencyMinutes: 1, mode: "foreground" });
       assert.equal(body.data[0].content, "fixture-content-0");
+      assert.equal(body.data[0].generation, null);
       assert.equal(body.persistence, "fixture");
       assert.doesNotMatch(JSON.stringify(body), /fixture-profile-private|fixture-record-private|fixture-content-1|email/);
       assert.deepEqual(f.calls.map((call) => call[0]), ["companion", "profile", "list"]);
@@ -235,7 +247,7 @@ test("POST enabled due path personalizes one draft and automatically delivers wi
   f.assertPreferencesUnchanged();
 });
 
-test("POST enabled force retains template drafts, maxDrafts and request frequency without changing preferences", async () => {
+test("POST enabled force personalizes explicit maxDrafts without automatic delivery or preference changes", async () => {
   const f = fixture({ profile: { proactiveMessagesEnabled: true } });
   const { body } = await f.request("POST", { force: true, frequencyMinutes: 7, maxDrafts: 2 });
   assert.equal(body.frequency.everyMinutes, 7);
@@ -245,14 +257,94 @@ test("POST enabled force retains template drafts, maxDrafts and request frequenc
   assert.equal(body.deliveredCount, 0);
   assert.equal(body.status, "draft");
   assert.equal(body.skippedReason, null);
-  assert.ok(!f.calls.some(([kind]) => ["personalize", "deliver"].includes(kind)));
+  assert.equal(f.calls.filter(([kind]) => kind === "personalize").length, 2);
+  assert.deepEqual(f.calls.filter(([kind]) => kind === "personalize")[1][4].previous,
+    plain(f.stored.filter((record) => record.companionId === f.companions[0].id).slice(0, -1)),
+    "later manual drafts receive earlier drafts saved in the same request");
+  assert.ok(!f.calls.some(([kind]) => kind === "deliver"));
+  assert.ok(body.data.every((record) => record.content === "fixture personalized greeting"));
   assert.ok(f.calls.filter(([kind]) => kind === "create").every((call) => call[3].deliveryKey === null));
   f.assertPreferencesUnchanged();
 });
 
+for (const request of [{ force: true }, { frequencyHours: 0 }, { frequencyMinutes: 0 }]) {
+  test(`POST manual generation defaults to one personalized saved draft: ${JSON.stringify(request)}`, async () => {
+    const f = fixture({ profile: { proactiveMessagesEnabled: true } });
+    const { status, body } = await f.request("POST", request);
+    assert.equal(status, 200);
+    assert.equal(body.maxDrafts, 1);
+    assert.equal(body.savedCount, 1);
+    assert.equal(body.data.length, 1);
+    assert.equal(body.data[0].status, "draft");
+    assert.equal(body.data[0].content, "fixture personalized greeting");
+    assert.equal(body.deliveredCount, 0);
+    assert.equal(f.calls.filter(([kind]) => kind === "personalize").length, 1);
+    assert.ok(!f.calls.some(([kind]) => kind === "deliver"));
+    assert.equal(f.calls.find(([kind]) => kind === "create")[3].deliveryKey, null);
+    f.assertPreferencesUnchanged();
+  });
+}
+
+for (const force of [false, true]) {
+  test(`POST personalization receives stored records, scoped history, profile timezone and clock (force=${force})`, async () => {
+    const f = fixture({ profile: { proactiveMessagesEnabled: true, timezone: "America/New_York" } });
+    const previous = plain(f.stored.filter((record) => record.companionId === f.companions[0].id));
+    await f.request("POST", { force });
+    const call = f.calls.find(([kind]) => kind === "personalize");
+    assert.ok(call, "manual and automatic paths both personalize");
+    assert.deepEqual(call[2], [{ role: "user", content: "今天看到了星星", createdAt: old }]);
+    assert.equal(call[3], undefined, "the generator resolves the user's configured provider");
+    assert.deepEqual(call[4], { previous, now: now.toISOString(), timeZone: "America/New_York" });
+    const create = f.calls.find(([kind]) => kind === "create");
+    assert.deepEqual(create[3].safety.generation, generation);
+    assert.equal(create[3].safety.generator, "model");
+  });
+
+  for (const reason of ["主动回响生成暂不可用，请稍后重试。", "主动回响未通过质量检查，请稍后重试。"]) {
+    test(`POST null generation neither saves nor delivers and returns failure reason (force=${force}, ${reason})`, async () => {
+      const f = fixture({ profile: { proactiveMessagesEnabled: true }, personalization: {
+        draft: null, source: "unavailable", reason,
+        generation: { ...generation, attempts: 2, rawPayload: "fixture-raw-provider-failure" }
+      } });
+      const before = plain(f.stored);
+      const { status, body } = await f.request("POST", { force, maxDrafts: 1 });
+      assert.equal(status, 200);
+      assert.equal(body.skippedReason, reason);
+      assert.equal(body.savedCount, 0);
+      assert.equal(body.deliveredCount, 0);
+      assert.deepEqual(body.data, []);
+      assert.equal(f.calls.filter(([kind]) => kind === "personalize").length, 1);
+      assert.ok(!f.calls.some(([kind]) => ["create", "deliver"].includes(kind)));
+      assert.deepEqual(f.stored, before);
+      assert.doesNotMatch(JSON.stringify(body), /fixture-raw-provider-failure|rawPayload|stack|authorization/);
+      f.assertPreferencesUnchanged();
+    });
+  }
+}
+
+for (const method of ["GET", "POST"]) {
+  test(`${method} exposes generation tags, IDs and counts without raw diagnostic fields`, async () => {
+    const unsafeGeneration = { ...generation,
+      prompt: "fixture-secret-prompt", rawPayload: "fixture-secret-payload",
+      stack: "fixture-secret-stack", authorization: "fixture-secret-token",
+      provider: "fixture-secret-provider", model: "fixture-secret-model",
+      endpoint: "https://fixture-provider.invalid/v1", memoryContent: "fixture-secret-memory"
+    };
+    const f = fixture({ profile: { proactiveMessagesEnabled: true }, personalization: {
+      draft: { kind: "DAILY_GREETING", content: "fixture personalized greeting", reason: "问候",
+        safety: { action: "allow" } }, source: "model", generation: unsafeGeneration
+    } });
+    f.stored[0].safety.generation = unsafeGeneration;
+    const { status, body } = await f.request(method);
+    assert.equal(status, 200);
+    assert.deepEqual(body.data[0].generation, generation);
+    assert.doesNotMatch(JSON.stringify(body), /fixture-secret|fixture-provider|rawPayload|authorization|memoryContent/);
+  });
+}
+
 test("POST enabled not due retains schedule skippedReason and performs no generation", async () => {
   const f = fixture({ profile: { proactiveMessagesEnabled: true } });
-  f.stored[0].createdAt = new Date().toISOString();
+  f.stored[0].createdAt = now.toISOString();
   const { body } = await f.request("POST");
   assert.equal(body.availability.effectiveEnabled, true);
   assert.equal(body.schedule.due, false);
