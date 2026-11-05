@@ -265,7 +265,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importFileName, setImportFileName] = useState<string | null>(null);
   const [isBooting, setIsBooting] = useState(true);
-  const [isSending, setIsSending] = useState(false);
+  const [sendingConversations, setSendingConversations] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
@@ -297,6 +297,8 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const activeConversationRef = useRef<string | null>(null);
   const messageRevisionRef = useRef(0);
   const draftsByConversationRef = useRef(new Map<string, string>());
+  const inFlightConversationsRef = useRef(new Set<string>());
+  const localMessagesByConversationRef = useRef(new Map<string, MessageRecord[]>());
 
   const activeCompanion = useMemo(
     () => companions.find((companion) => companion.id === activeId) ?? companions[0],
@@ -307,6 +309,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     [messages]
   );
   const activeConversationId = activeCompanion?.conversationId;
+  const isSending = !!activeConversationId && !!sendingConversations[activeConversationId];
   const proactiveAccountPaused = proactiveAvailability?.accountEnabled === false;
 
   function openInspector(mode: InspectorMode) {
@@ -425,7 +428,20 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
           throw new Error(await readResponseError(response, "消息加载失败。"));
         }
         const payload = (await response.json()) as { messages: MessageRecord[] };
-        if (mounted && revision === messageRevisionRef.current) setMessages(payload.messages);
+        if (mounted && revision === messageRevisionRef.current) {
+          const local = localMessagesByConversationRef.current.get(conversationId) ?? [];
+          setMessages((current) => mergeConversationMessages(payload.messages, [...current, ...local]));
+          // Persisted response overlays only bridge switching while POST is pending.
+          // Local unconfirmed bubbles remain until reconciled by clientMessageId.
+          const persistedKeys = new Set(payload.messages.map((message) => message.metadata?.clientMessageId).filter(Boolean));
+          const retainedLocal = local.filter((message) =>
+            message.metadata?.localStatus && !persistedKeys.has(message.metadata?.clientMessageId)
+          );
+          const trackedKeys = new Set(local.map((message) => message.metadata?.clientMessageId).filter(Boolean));
+          const confirmedPending = inFlightConversationsRef.current.has(conversationId)
+            ? payload.messages.filter((message) => trackedKeys.has(message.metadata?.clientMessageId)) : [];
+          localMessagesByConversationRef.current.set(conversationId, [...retainedLocal, ...confirmedPending]);
+        }
       } catch (loadError) {
         if (mounted && revision === messageRevisionRef.current) {
           setError(toSafeWorkspaceError(loadError, "消息加载失败。"));
@@ -590,7 +606,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     }
     activeConversationRef.current = companion.conversationId;
     messageRevisionRef.current += 1;
-    setMessages([]);
+    setMessages(localMessagesByConversationRef.current.get(companion.conversationId) ?? []);
     setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
     setProactiveDrafts([]);
     setProactiveSafety(null);
@@ -758,15 +774,27 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     const content = draft.trim();
     if (!content || !activeCompanion || isSending) return;
     const conversationId = activeCompanion.conversationId;
-
-    setIsSending(true);
+    if (inFlightConversationsRef.current.has(conversationId)) return;
+    const clientMessageId = crypto.randomUUID();
+    const localId = `local-${clientMessageId}`;
+    const optimistic: MessageRecord = {
+      id: localId, conversationId, role: "user", content, createdAt: new Date().toISOString(),
+      metadata: { clientMessageId, localStatus: "sending" }
+    };
+    inFlightConversationsRef.current.add(conversationId);
+    setSendingConversations((current) => ({ ...current, [conversationId]: true }));
+    localMessagesByConversationRef.current.set(conversationId,
+      [...(localMessagesByConversationRef.current.get(conversationId) ?? []), optimistic]);
+    setMessages((current) => mergeConversationMessages(current, [optimistic]));
+    setDraft("");
+    draftsByConversationRef.current.set(conversationId, "");
     setError(null);
 
     try {
       const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ content, clientMessageId })
       });
       if (!response.ok) {
         throw new Error(await readResponseError(response, "消息发送失败。"));
@@ -793,15 +821,14 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
             : companion
         )
       );
-      draftsByConversationRef.current.delete(conversationId);
+      const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
+      const remainingLocal = (localMessagesByConversationRef.current.get(conversationId) ?? []).filter((message) =>
+        message.id !== localId && message.metadata?.clientMessageId !== clientMessageId);
+      localMessagesByConversationRef.current.set(conversationId,
+        activeConversationRef.current === conversationId ? remainingLocal : mergeConversationMessages(remainingLocal, incoming));
+      setConversationPreviews((current) => ({ ...current, [conversationId]: incoming.at(-1)?.content ?? content }));
       if (activeConversationRef.current !== conversationId) return;
-      messageRevisionRef.current += 1;
-      setMessages((current) => {
-        const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
-        const incomingIds = new Set(incoming.map((message) => message.id));
-        return [...current.filter((message) => !incomingIds.has(message.id)), ...incoming];
-      });
-      setDraft("");
+      setMessages((current) => mergeConversationMessages(current.filter((message) => message.id !== localId), incoming));
       setStatus(
         payload.completion
           ? `已回复 · ${payload.completion.provider}/${payload.completion.model}`
@@ -811,12 +838,27 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         setError(`回复生成失败：${redactWorkspaceError(payload.assistantError.message)}`);
       }
     } catch (sendError) {
+      const unconfirmed = { ...optimistic, metadata: { ...optimistic.metadata, localStatus: "unconfirmed" } };
+      localMessagesByConversationRef.current.set(conversationId,
+        (localMessagesByConversationRef.current.get(conversationId) ?? []).map((message) => message.id === localId ? unconfirmed : message));
       if (activeConversationRef.current === conversationId) {
-        setError(toSafeWorkspaceError(sendError, "消息发送失败。"));
+        setMessages((current) => mergeConversationMessages(current.filter((message) => message.id !== localId), [unconfirmed]));
+        setError(toSafeWorkspaceError(sendError, "消息发送未确认，请稍后刷新核对。"));
       }
     } finally {
-      setIsSending(false);
+      inFlightConversationsRef.current.delete(conversationId);
+      setSendingConversations((current) => ({ ...current, [conversationId]: false }));
     }
+  }
+
+  function editUnconfirmedMessage(message: MessageRecord) {
+    if (message.conversationId !== activeConversationRef.current || !message.metadata?.localStatus) return;
+    setDraft(message.content);
+    draftsByConversationRef.current.set(message.conversationId, message.content);
+    setMessages((current) => current.filter((item) => item.id !== message.id));
+    localMessagesByConversationRef.current.set(message.conversationId,
+      (localMessagesByConversationRef.current.get(message.conversationId) ?? []).filter((item) => item.id !== message.id));
+    setError(null);
   }
 
   async function regenerateMessage(messageId?: string) {
@@ -1663,6 +1705,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               <div>
                 <div className="title-row">
                   <h2>{activeCompanion.name}</h2>
+                  {isSending ? <span className={styles.typingStatus} role="status" aria-live="polite">对方正在输入…</span> : null}
                 </div>
                 <p className="muted">上次聊到的事，我们接着说</p>
               </div>
@@ -1747,16 +1790,22 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               {message.role === "assistant" ? <div className={`avatar ${styles.messageAvatar}`} aria-hidden="true">{activeCompanion?.name.slice(0, 1)}</div> : null}
               <div
                 className={`message-bubble ${
-                  getMessageStatus(message) === "failed" ? "failed" : ""
+                  getMessageStatus(message) === "failed" || message.metadata?.localStatus === "unconfirmed" ? "failed" : ""
                 }`}
               >
                 {message.content}
               </div>
               <div className="message-time">
                 {formatTime(message.createdAt)}
+                {message.metadata?.localStatus === "sending" ? " · 发送中" : ""}
+                {message.metadata?.localStatus === "unconfirmed" ? " · 发送未确认，请刷新核对" : ""}
                 {getMessageStatus(message) === "failed" ? " · 回复失败，请重试" : ""}
               </div>
-              <div className="topbar-actions" aria-label="消息操作">
+              {message.metadata?.localStatus ? message.metadata.localStatus === "unconfirmed" ? (
+                <div className="topbar-actions" aria-label="消息操作">
+                  <button className="text-button" type="button" disabled={!!draft.trim()} onClick={() => editUnconfirmedMessage(message)} title={draft.trim() ? "请先处理输入框中的草稿" : "重新编辑这条未确认消息"}>重新编辑</button>
+                </div>
+              ) : null : <div className="topbar-actions" aria-label="消息操作">
                 {message.role === "assistant" ? (
                   <button
                     aria-label={
@@ -1791,7 +1840,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 >
                   <Trash2 size={16} />
                 </button>
-              </div>
+              </div>}
             </article>
           ))}
           {!messages.length && !isBooting ? (
@@ -1831,7 +1880,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               <input
                 className="chat-input"
                 aria-label="把想说的话放在这里"
-                disabled={!activeCompanion || isSending}
+                disabled={!activeCompanion}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="把想说的话放在这里"
                 value={draft}
@@ -1848,7 +1897,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               </button>
               <button className="primary-button" disabled={!activeCompanion || isSending} type="submit">
                 <Send size={17} />
-                {isSending ? "发送中" : "发送"}
+                {isSending ? "等待回复" : "发送"}
               </button>
             </div>
           </div>
@@ -3101,7 +3150,11 @@ function mergeProactiveDrafts(current: ProactiveDraft[], incoming: ProactiveDraf
 function mergeConversationMessages(current: MessageRecord[], incoming: MessageRecord[]) {
   const merged = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) merged.set(message.id, message);
-  return [...merged.values()].sort((left, right) =>
+  const values = [...merged.values()];
+  const confirmedKeys = new Set(values.filter((message) => !message.metadata?.localStatus && message.metadata?.clientMessageId)
+    .map((message) => `${message.conversationId}:${message.metadata?.clientMessageId}`));
+  return values.filter((message) => !message.metadata?.localStatus ||
+    !confirmedKeys.has(`${message.conversationId}:${message.metadata?.clientMessageId}`)).sort((left, right) =>
     new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
   );
 }

@@ -22,6 +22,7 @@ const steps = [
   ["Password auth QA", ["run", "qa:auth"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],
   ["Response safety QA", ["run", "qa:response"]],
+  ["Chat delivery QA", ["run", "qa:chat-delivery"]],
   ["Provider adapters QA", ["run", "qa:providers"]],
   ["Voice shared-LLM QA", ["run", "qa:voice"]],
   ["Voice language QA", ["run", "qa:voice-language"]],

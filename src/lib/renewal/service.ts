@@ -59,6 +59,14 @@ export class MessageValidationError extends Error {
   }
 }
 
+export function validateClientMessageId(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0 || value.length > 100 || /[^A-Za-z0-9_-]/.test(value)) {
+    throw new MessageValidationError("Invalid clientMessageId.");
+  }
+  return value;
+}
+
 export function getRenewalService(userId = DEMO_USER_ID) {
   return new RenewalService(repository, userId);
 }
@@ -167,7 +175,12 @@ export class RenewalService {
     return this.repo.deleteMemory(this.userId, memoryId);
   }
 
-  async sendMessage(conversationId: string, content: string): Promise<SendMessageResult | null> {
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    clientMessageId?: string
+  ): Promise<SendMessageResult | null> {
+    const correlationId = validateClientMessageId(clientMessageId);
     const conversation = await this.repo.getConversation(this.userId, conversationId);
     if (!conversation) return null;
 
@@ -177,7 +190,12 @@ export class RenewalService {
     const trimmed = content.trim();
     if (!trimmed) throw new MessageValidationError("Message content is required.");
 
-    const userMessage = await this.repo.appendMessage(conversationId, "user", trimmed);
+    const userMessage = await this.repo.appendMessage(
+      conversationId,
+      "user",
+      trimmed,
+      correlationId === undefined ? undefined : { clientMessageId: correlationId }
+    );
     const relationshipState = await this.repo.updateRelationshipAfterMessage(
       companion.id,
       userMessage

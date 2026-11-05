@@ -2,7 +2,7 @@ import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
 import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
 import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
-import { getRenewalService, MessageValidationError } from "@/lib/renewal/service";
+import { getRenewalService, MessageValidationError, validateClientMessageId } from "@/lib/renewal/service";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,8 @@ export async function POST(request: Request, context: RouteContext) {
     const session = await getCurrentSession();
     const result = await getRenewalService(session.userId).sendMessage(
       conversationId,
-      body.content ?? ""
+      body.content ?? "",
+      body.clientMessageId
     );
 
     if (!result) {
@@ -138,7 +139,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
 function readMessageCreate(body: Record<string, unknown>) {
   return {
-    content: typeof body.content === "string" ? body.content : undefined
+    content: typeof body.content === "string" ? body.content : undefined,
+    clientMessageId: validateClientMessageId(body.clientMessageId)
   };
 }
 
@@ -151,6 +153,7 @@ function readMessagePatch(body: Record<string, unknown>) {
 }
 
 function messageValidationErrorMessage(error: MessageValidationError) {
+  if (error.message === "Invalid clientMessageId.") return "Invalid clientMessageId.";
   if (error.message === "Message content is required.") return "Message content is required.";
   if (error.message === "Only assistant messages can be regenerated.") {
     return "Only assistant messages can be regenerated.";

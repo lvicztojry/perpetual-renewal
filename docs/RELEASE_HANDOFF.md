@@ -8,7 +8,7 @@
 
 Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 45 项通过（47.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 45 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+当前自动验收：完整浏览器回归 52 项通过（约 1.2 分钟），客户端消息关联 6 项通过；Playwright --list JSON 派生基线为 52 tests。完整 memory API smoke 基线为 94 checks。真实供应商质量与公网部署另行验证，公网部署仍按用户决定暂缓。
 
 2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。 调度套餐限制见 [DEPLOYMENT.md](DEPLOYMENT.md#vercel-deployment)。
 
@@ -218,6 +218,7 @@ npm run qa:character-import
 npm run qa:vault
 npm run qa:logging
 npm run qa:response
+npm run qa:chat-delivery
 npm run qa:providers
 npm run qa:voice
 npm run qa:voice-language

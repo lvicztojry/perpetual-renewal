@@ -64,6 +64,7 @@
 .drawerStatus summary { cursor: pointer; }
 .drawerStatus svg { vertical-align: middle; }
 .proactivePanel :is(h3, p) { margin: 0; line-height: 1.65; }
+.typingStatus { font-size: 12px; font-weight: 400; color: var(--accent, #c3a77a); }
 
 @media (max-width: 1000px) and (min-width: 761px) {
   .workspace { grid-template-columns: 228px minmax(0, 1fr); }

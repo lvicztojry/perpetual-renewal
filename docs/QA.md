@@ -2,6 +2,8 @@
 
 ## 可重复执行命令
 
+`npm run qa:chat-delivery` 验证即时消息的客户端关联 ID、旧请求兼容、非法参数拒绝与回复失败后的消息保留；浏览器的 `conversation-isolation.spec.ts` 验证响应返回前显示消息和输入状态、会话隔离及历史合并。
+
 `npm run qa:proactive-availability`：30 项，验证 GET/POST 持久化双开关、force 无法绕过关闭、skippedReason、账号隔离与只读无副作用。浏览器 `proactive-status.spec.ts` 验证真实内存 API 的停发解释、显式开启保留频率及打开历史不生成；relationship-flow 验证打开面板不推迟一分钟自动投递。
 
 新增 `npm run qa:character-import`，覆盖文本记录解析与人物提炼/预览；完整用户流程由 `tests/e2e/chat-character-import.spec.ts` 验证，含假供应商 BYOK、错误重试、创建前零人物、确认后的共同记忆与临时消息不持久化。
@@ -14,7 +16,7 @@
 
 Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-已通过：调度 31 项、投递 19 项、主动模型 24 项、记忆 17 项、定向关系浏览器 7 项；主控确认全量 E2E 45 项通过（47.2 秒），最终 typecheck 通过。Playwright --list JSON 派生基线为 45 tests；完整 memory smoke 保持 94 checks。2026-11-02 增强版真实 vault QA 已通过；公网部署按用户决定暂缓。最新主控确认：完整 memory smoke 94 checks、build 与 qa:auth-access 均通过。
+当前自动验收：完整浏览器回归 52 项通过（约 1.2 分钟），客户端消息关联 6 项通过；Playwright --list JSON 派生基线为 52 tests。完整 memory API smoke 基线为 94 checks。真实供应商质量与公网部署另行验证，公网部署仍按用户决定暂缓。
 
 核心 smoke：
 
@@ -182,7 +184,7 @@ npm run db:smoke
 
 M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；后续结果按日期分列，源码数量不等于通过数量。
 
-2026-11-02 当前基线：Playwright --list JSON 派生 45 tests，主控完整浏览器回归 45 项通过，涵盖聊天记录创建人物以及个人账号页的资料保存、密码重置重试、退出与访问保护。2026-10-31 历史全量为 33 项。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
+2026-11-05 当前基线：Playwright --list JSON 派生 52 tests，完整浏览器回归 52 项通过；涵盖即时消息、人物输入状态、慢响应、跨会话发送、历史去重和失败恢复。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
 
 ### 10 月增量验收
 

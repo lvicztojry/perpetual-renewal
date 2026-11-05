@@ -15,6 +15,7 @@
     "qa:vault": "node tests/config-vault-security.mjs",
     "qa:logging": "node tests/logging-sanitize-smoke.mjs",
     "qa:response": "node tests/response-safety-smoke.mjs",
+    "qa:chat-delivery": "node tests/message-client-id.mjs",
     "qa:providers": "node tests/provider-adapters-smoke.mjs",
     "qa:voice": "node tests/voice-shared-llm-smoke.mjs",
     "qa:voice-language": "node tests/voice-transcription-language.mjs",
