@@ -22,7 +22,7 @@ import {
   X,
   Volume2
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyRelationshipKindDefaults,
   createRelationshipObjectDraft,
@@ -1784,9 +1784,13 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         </header>
 
         <div className="chat-stream" ref={streamRef} aria-label="聊天记录" aria-busy={isBooting || isSending}>
-          <div className="day-divider">{isBooting ? "加载中" : "今天"}</div>
-          {messages.map((message) => (
-            <article className={`message ${message.role}`} key={message.id}>
+          {isBooting ? <div className="day-divider">加载中</div> : null}
+          {messages.map((message, index) => (
+            <Fragment key={message.id}>
+              {index === 0 || formatChatDate(message.createdAt) !== formatChatDate(messages[index - 1].createdAt) ? (
+                <div className="day-divider">{formatChatDate(message.createdAt)}</div>
+              ) : null}
+            <article className={`message ${message.role}`}>
               {message.role === "assistant" ? <div className={`avatar ${styles.messageAvatar}`} aria-hidden="true">{activeCompanion?.name.slice(0, 1)}</div> : null}
               <div
                 className={`message-bubble ${
@@ -1796,7 +1800,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 {message.content}
               </div>
               <div className="message-time">
-                {formatTime(message.createdAt)}
+                <time dateTime={Number.isNaN(Date.parse(message.createdAt)) ? undefined : message.createdAt}>{formatTime(message.createdAt)}</time>
                 {message.metadata?.localStatus === "sending" ? " · 发送中" : ""}
                 {message.metadata?.localStatus === "unconfirmed" ? " · 发送未确认，请刷新核对" : ""}
                 {getMessageStatus(message) === "failed" ? " · 回复失败，请重试" : ""}
@@ -1842,6 +1846,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 </button>
               </div>}
             </article>
+            </Fragment>
           ))}
           {!messages.length && !isBooting ? (
             <div className="empty">这段关系还没有消息，先说第一句话吧</div>
@@ -3049,10 +3054,19 @@ function formatImportSummary(summary: ImportSummary) {
 }
 
 function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString("zh-CN", {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  return `${formatChatDate(value)} ${date.toLocaleTimeString("zh-CN", {
     hour: "2-digit",
-    minute: "2-digit"
-  });
+    minute: "2-digit",
+    hourCycle: "h23"
+  })}`;
+}
+
+function formatChatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "日期未知";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 async function loadDatabaseConfigStatus() {

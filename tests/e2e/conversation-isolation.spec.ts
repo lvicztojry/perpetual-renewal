@@ -158,6 +158,23 @@ test("optimistic send clears immediately, replaces the local ID, and preserves t
   expect(h.mutations).toEqual([{ conversationId: h.first.conversationId, body: {
     action: "set_important", messageId: payload.userMessage.id, important: true
   } }]);
+  // Build UTC storage values from browser-local times to cover timezone and year boundaries.
+  const dates = await page.evaluate(() => [
+    new Date(2025, 11, 31, 23, 58).toISOString(),
+    new Date(2025, 11, 31, 23, 59).toISOString(),
+    new Date(2026, 0, 1, 0, 0).toISOString()
+  ]);
+  h.history.set(h.first.conversationId, dates.map((createdAt, index) => ({
+    ...payload.userMessage, id: `calendar-${index}`, content: `跨年消息${index}`, createdAt, metadata: null
+  })));
+  await h.select(h.second);
+  await h.select(h.first);
+  const chat = page.getByLabel("聊天记录");
+  await expect(chat.locator(".message-time time")).toHaveText([
+    "2025-12-31 23:58", "2025-12-31 23:59", "2026-01-01 00:00"
+  ]);
+  await expect(chat.locator(".day-divider")).toHaveText(["2025-12-31", "2026-01-01"]);
+  await expect(chat.locator(".message-time time").last()).toHaveAttribute("datetime", dates[2]);
 });
 for (const failure of ["HTTP", "network"] as const) {
   test(`${failure} failure retains an unconfirmed bubble and allows explicit editing without resending`, async ({ page }) => {
