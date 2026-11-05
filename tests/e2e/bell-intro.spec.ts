@@ -1,10 +1,87 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import ts from "typescript";
 import { expect, test } from "./fixtures";
 
 test.describe("bell opening", () => {
   test.use({ showIntro: true });
 
-  test("first visit renders the intro text and skipping persists across reload", async ({ page }) => {
+  test("first visit renders the intro text and skipping persists across reload", async ({ page }, testInfo) => {
     await page.goto("/login");
+    const source = ts.transpileModule(
+      readFileSync(resolve(process.cwd(), "src/lib/audio/giant-bell.ts"), "utf8"),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+    ).outputText;
+    const audio = await page.evaluate(async (code) => {
+      const exports = {} as {
+        createGiantBellSound: (
+          context: BaseAudioContext,
+          options: { muted: boolean; reducedMotion: boolean }
+        ) => GainNode;
+      };
+      // Run the actual import-free helper in the browser's real Web Audio engine.
+      new Function("exports", code)(exports);
+      async function render(muted: boolean) {
+        const sampleRate = 48_000;
+        const context = new OfflineAudioContext(2, sampleRate * 5, sampleRate);
+        const master = exports.createGiantBellSound(context, { muted, reducedMotion: false });
+        const masterGain = master.gain.value;
+        const buffer = await context.startRendering();
+        const channels = Array.from({ length: buffer.numberOfChannels }, (_, index) => {
+          const samples = buffer.getChannelData(index);
+          let peak = 0;
+          let finite = true;
+          for (const sample of samples) {
+            finite = finite && Number.isFinite(sample);
+            peak = Math.max(peak, Math.abs(sample));
+          }
+          function rms(start: number, end: number) {
+            const first = Math.round(start * sampleRate);
+            const last = Math.round(end * sampleRate);
+            let energy = 0;
+            for (let i = first; i < last; i++) energy += samples[i] * samples[i];
+            return Math.sqrt(energy / (last - first));
+          }
+          return {
+            finite,
+            peak,
+            firstStrikeRms: rms(0, 0.2),
+            beforeSecondStrikeRms: rms(1.95, 2.15),
+            secondStrikeRms: rms(2.15, 2.35),
+            finalSample: samples[samples.length - 1]
+          };
+        });
+        return {
+          sampleRate: buffer.sampleRate,
+          frames: buffer.length,
+          masterGain,
+          channels
+        };
+      }
+      return { audible: await render(false), muted: await render(true) };
+    }, source);
+    await testInfo.attach("giant-bell-offline-audio", {
+      body: JSON.stringify(audio, null, 2),
+      contentType: "application/json"
+    });
+    for (const rendered of [audio.audible, audio.muted]) {
+      expect(rendered.sampleRate).toBe(48_000);
+      expect(rendered.frames).toBe(240_000);
+      expect(rendered.channels).toHaveLength(2);
+      for (const channel of rendered.channels) expect(channel.finite).toBe(true);
+    }
+    expect(audio.audible.masterGain).toBeCloseTo(0.85, 2);
+    for (const channel of audio.audible.channels) {
+      expect(channel.peak).toBeGreaterThan(0.1);
+      // The 0.85 master and 0.94 limiter leave headroom below this ceiling.
+      expect(channel.peak).toBeLessThanOrEqual(0.86);
+      expect(channel.firstStrikeRms).toBeGreaterThan(0.04);
+      expect(channel.secondStrikeRms).toBeGreaterThan(0.04);
+      expect(channel.secondStrikeRms).toBeGreaterThan(channel.beforeSecondStrikeRms);
+      expect(Math.abs(channel.finalSample)).toBeLessThan(0.00001);
+    }
+    expect(audio.muted.masterGain).toBe(0);
+    for (const channel of audio.muted.channels) expect(channel.peak).toBe(0);
     const intro = page.getByRole("dialog", { name: "生生不息开场", exact: true });
     await expect(intro).toBeVisible();
     await expect(intro.locator("p").filter({ hasText: "我看到了" }).first()).toHaveText(
@@ -39,6 +116,13 @@ test.describe("bell opening", () => {
     await expect(intro).toBeVisible();
     await expect(intro).toHaveAttribute("data-reduced-motion", "true");
     await expect(intro.getByRole("button", { name: "进入", exact: true })).toBeFocused();
+    const mute = intro.getByRole("button", { name: "静音", exact: true });
+    await expect(mute).toHaveAttribute("aria-pressed", "false");
+    await mute.click();
+    const unmute = intro.getByRole("button", { name: "开启声音", exact: true });
+    await expect(unmute).toHaveAttribute("aria-pressed", "true");
+    await unmute.click();
+    await expect(mute).toHaveAttribute("aria-pressed", "false");
     await intro.getByRole("button", { name: "跳过开场动画", exact: true }).click();
     await expect(intro).toBeHidden();
     await page.getByLabel("邮箱").fill("reduced-motion@perpetual-renewal.local");

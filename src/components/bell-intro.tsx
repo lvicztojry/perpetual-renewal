@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./bell-intro.module.css";
+import { BELL_VOLUME, createGiantBellSound } from "@/lib/audio/giant-bell";
 
 const SESSION_KEY = "renewal:intro-seen:v1";
 const REPLAY_EVENT = "renewal:replay-intro";
@@ -96,30 +97,8 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     try {
       const context = new AudioContext();
       audioRef.current = context;
-      const master = context.createGain();
-      master.gain.value = muted ? 0 : 0.035;
-      master.connect(context.destination);
-      gainRef.current = master;
+      gainRef.current = createGiantBellSound(context, { muted, reducedMotion });
       void context.resume().catch(stopAudio);
-      const now = context.currentTime;
-      const strikes = reducedMotion ? [0] : [0, 2.15];
-      for (const delay of strikes) {
-        // Inharmonic bronze partials with a soft attack and a natural, quiet decay.
-        [1, 2.01, 2.76, 4.07, 5.43].forEach((ratio, index) => {
-          const oscillator = context.createOscillator();
-          const envelope = context.createGain();
-          const start = now + delay;
-          oscillator.type = "sine";
-          oscillator.frequency.value = 164.81 * ratio;
-          envelope.gain.setValueAtTime(0, start);
-          envelope.gain.linearRampToValueAtTime(0.6 / (index + 1), start + 0.018);
-          envelope.gain.exponentialRampToValueAtTime(0.0001, start + 2.7);
-          oscillator.connect(envelope);
-          envelope.connect(master);
-          oscillator.start(start);
-          oscillator.stop(start + 2.75);
-        });
-      }
     } catch { stopAudio(); }
     setPhase("playing");
   }
@@ -129,7 +108,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     setMuted(next);
     const context = audioRef.current;
     const gain = gainRef.current;
-    if (context && gain) gain.gain.setTargetAtTime(next ? 0 : 0.035, context.currentTime, 0.025);
+    if (context && gain) gain.gain.setTargetAtTime(next ? 0 : BELL_VOLUME, context.currentTime, 0.025);
   }
 
   return (
