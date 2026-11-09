@@ -19,6 +19,7 @@ const e2eMetrics = readE2eMetrics();
 const taskbookMilestones = readTaskbookMilestones();
 const verifyLocalScripts = readVerifyLocalBaseScripts();
 
+checkCurrentStatusSource();
 checkDocsText(docsAndReadmes);
 checkVolatileReleaseStateWording(docsAndReadmes);
 checkReleaseSyncWording();
@@ -48,6 +49,18 @@ if (findings.length > 0) {
 console.log(
   `Documentation consistency check passed for ${docsAndReadmes.length} docs/readme files.`
 );
+
+function checkCurrentStatusSource() {
+  const current = readText("docs/MVP_STATUS.md") ?? "";
+  for (const required of ["更新：", "## 验收记录", "## 当前施工顺序", "MVP_STATUS_HISTORY.md", "QA.md", "TASKBOOK.md"]) {
+    if (!current.includes(required)) findings.push("Current status missing: " + required);
+  }
+  for (const file of ["README.md", "docs/README.md", "docs/PHASE-1.5.md", "docs/QA.md", "docs/RELEASE_HANDOFF.md", "docs/PR_DRAFT.md"]) {
+    const content = readText(file) ?? "";
+    if (!content.includes("MVP_STATUS.md")) findings.push(file + " must link the current status source.");
+    if (/^当前自动验收：/m.test(content)) findings.push(file + " duplicates current verification; use MVP_STATUS.md.");
+  }
+}
 
 function checkDocsText(targetFiles) {
   for (const file of targetFiles) {
@@ -178,7 +191,7 @@ function checkReleaseSyncWording() {
   const requiredSnippets = [
     ["README.md", "git log -1 --oneline"],
     [".github/pull_request_template.md", "Initial baseline commit"],
-    ["docs/MVP_STATUS.md", "首个 baseline"],
+    ["docs/MVP_STATUS_HISTORY.md", "首个 baseline"],
     ["docs/RELEASE_HANDOFF.md", "Current branch tip"]
   ];
 
@@ -191,6 +204,7 @@ function checkReleaseSyncWording() {
 }
 
 function checkDerivedCount(location, line, pattern, expected, label, options = {}) {
+  if (location.replaceAll("\\", "/").startsWith("docs/MVP_STATUS_HISTORY.md:")) return;
   if (typeof expected !== "number" || expected <= 0) {
     return;
   }
@@ -391,7 +405,7 @@ function checkPackageJson() {
     "node scripts/prisma-command.mjs migrate deploy",
     "package.json scripts.prisma:migrate:deploy"
   );
-  expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs", "package.json scripts.docs:check");
+  expectEqual(scripts["docs:check"], "node scripts/docs-consistency.mjs && node tests/docs-status-guard.mjs", "package.json scripts.docs:check");
   expectEqual(scripts["qa:imports"], "node tests/structured-import-smoke.mjs", "package.json scripts.qa:imports");
   expectEqual(scripts["qa:vault"], "node tests/config-vault-security.mjs", "package.json scripts.qa:vault");
   expectEqual(scripts["qa:logging"], "node tests/logging-sanitize-smoke.mjs", "package.json scripts.qa:logging");
@@ -578,19 +592,6 @@ function checkDeploymentDocs() {
     ["docs/DEPLOYMENT.md", "npm run prisma:migrate:deploy"],
     ["docs/DATABASE.md", "npm run prisma:migrate:deploy"],
     ["docs/QA.md", "npm run prisma:migrate:deploy"],
-    ["docs/MVP_STATUS.md", `${smokeMetrics.checkCount} checks`],
-    ["docs/MVP_STATUS.md", `${qaMetrics.safetyAreaCount} safety areas`],
-    ["docs/MVP_STATUS.md", "npm run db:smoke"],
-    ["docs/MVP_STATUS.md", "npm run verify:deploy"],
-    ["docs/MVP_STATUS.md", "npm run qa:imports"],
-    ["docs/MVP_STATUS.md", "npm run qa:vault"],
-    ["docs/MVP_STATUS.md", "npm run qa:logging"],
-    ["docs/MVP_STATUS.md", "npm run qa:response"],
-    ["docs/MVP_STATUS.md", "npm run qa:proactive-cron"],
-    ["docs/MVP_STATUS.md", "npm run pwa:check"],
-    ["docs/MVP_STATUS.md", `M${taskbookMilestones.latestNumber}`],
-    ["docs/MVP_STATUS.md", "session 签名来源"],
-    ["docs/PHASE-1.5.md", `${smokeMetrics.checkCount} checks`],
     ["README.md", "npm run db:smoke"],
     ["README.md", "session 签名"],
     ["docs/README.md", "SESSION_COOKIE_SECRET"],
@@ -608,8 +609,6 @@ function checkDeploymentDocs() {
     ["docs/PR_DRAFT.md", "user vault"],
     ["docs/LLM.md", "端点是否已配置和端点指纹"],
     ["docs/LLM.md", "不返回 key 原文、Base URL 明文或 `baseUrl` 字段"],
-    ["docs/MVP_STATUS.md", "用户自带 API key"],
-    ["docs/MVP_STATUS.md", "VOICE_PROVIDER=shared-llm"],
     ["docs/DEPLOYMENT.md", "https://api.tryanotherone.com/v1"],
     ["docs/DEPLOYMENT.md", "VOICE_PROVIDER=shared-llm"],
     ["docs/DEPLOYMENT.md", "SESSION_COOKIE_SECRET"],
@@ -634,8 +633,8 @@ function checkReleaseMilestoneSync() {
   const mvp = readText("docs/MVP_STATUS.md") ?? "";
   const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
 
-  if (!mvp.includes(`M${latest}`)) {
-    findings.push(`docs/MVP_STATUS.md should mention latest integrated Taskbook milestone M${latest}.`);
+  if (!mvp.includes("TASKBOOK.md")) {
+    findings.push("docs/MVP_STATUS.md must link the live Taskbook.");
   }
 
   if (!handoff.includes(`M${latest}`)) {

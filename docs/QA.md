@@ -1,5 +1,7 @@
 # 生生不息 QA 与 Smoke 验收 v0.1
 
+当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
+
 ## 可重复执行命令
 
 `npm run qa:chat-delivery` 验证即时消息的客户端关联 ID、旧请求兼容、非法参数拒绝与回复失败后的消息保留；浏览器的 `conversation-isolation.spec.ts` 验证响应返回前显示消息和输入状态、会话隔离及历史合并。
@@ -10,13 +12,10 @@
 
 当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
 
-截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。
 
 历史记录（2026-10-26）：lint/typecheck/build、E2E 32 项、本地调度 20 项、语音语言 16 项、本地认证后端与 SMTP 33 项通过，audit 零漏洞。早期 PostgreSQL 在 CREATE SCHEMA 遇到 database_unreachable，未创建 schema/执行迁移；该阻塞已恢复。
 
-Priority 4 本机集成验证已通过：模型按关系设定生成主动回响并自动直接送入聊天；每频率周期稳定幂等键、唯一消息关联、Serializable 事务重试及用户/关系关闭开关控制投递，手动发送复用同一路径。记忆采用中英文词面匹配、稳定事实回退与摘录式历史上下文，未实现 embeddings 或模型摘要。
 
-当前自动验收：完整浏览器回归 52 项通过（约 1.2 分钟），客户端消息关联 6 项通过；Playwright --list JSON 派生基线为 52 tests。完整 memory API smoke 基线为 94 checks。真实供应商质量与公网部署另行验证，公网部署仍按用户决定暂缓。
 
 核心 smoke：
 

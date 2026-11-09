@@ -36,7 +36,7 @@
     "env:readiness": "node scripts/env-readiness.mjs",
     "env:secrets": "node scripts/generate-env-secrets.mjs",
     "secrets:check": "node scripts/check-env-leaks.mjs",
-    "docs:check": "node scripts/docs-consistency.mjs",
+    "docs:check": "node scripts/docs-consistency.mjs && node tests/docs-status-guard.mjs",
     "git:boundary": "node scripts/git-boundary-check.mjs",
     "next:typegen": "node scripts/next-typegen.mjs",
     "typecheck": "npm run next:typegen && tsc --noEmit",
