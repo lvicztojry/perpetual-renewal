@@ -16,6 +16,7 @@ function fixture({ failReply = false } = {}) {
     metadata: { important: true, source: "existing" }
   }];
   const state = { writes: 0, providerCalls: 0, replies: 0, usage: [] };
+  const memories = [];
   const repo = {
     async getConversation(userId, conversationId) {
       assert.equal(userId, "user");
@@ -25,7 +26,7 @@ function fixture({ failReply = false } = {}) {
     async getCompanion(userId, companionId) {
       assert.equal(userId, "user");
       assert.equal(companionId, "companion");
-      return { id: companionId, name: "Fixture", relationshipKind: "FRIEND", memories: [] };
+      return { id: companionId, userId, conversationId: "conversation", name: "Fixture", relationshipKind: "FRIEND", memories };
     },
     async appendMessage(conversationId, role, content, metadata) {
       state.writes++;
@@ -37,7 +38,16 @@ function fixture({ failReply = false } = {}) {
       return message;
     },
     async updateRelationshipAfterMessage() { state.writes++; return { warmth: 1 }; },
-    async createPendingMemory() { state.writes++; return { id: "pending" }; },
+    async createPendingMemory(userId, companionId, sourceMessageId, content) {
+      state.writes++;
+      const memory = { id: `pending-${memories.length}`, userId, companionId, sourceMessageId, content, type: "user_fact", status: "pending" };
+      memories.push(memory); return memory;
+    },
+    async createMemory(userId, companionId, input) {
+      state.writes++;
+      const memory = { id: `manual-${memories.length}`, userId, companionId, ...input };
+      memories.push(memory); return memory;
+    },
     async listMessages(userId, conversationId) {
       assert.equal(userId, "user");
       assert.equal(conversationId, "conversation");
@@ -90,7 +100,7 @@ function fixture({ failReply = false } = {}) {
   });
   const context = { params: Promise.resolve({ conversationId: "conversation" }) };
   return {
-    state, messages,
+    state, messages, memories,
     service: new serviceModule.RenewalService(repo, "user"),
     MessageValidationError: serviceModule.MessageValidationError,
     post: (body) => route.POST(new Request("http://offline/messages", {
@@ -99,6 +109,30 @@ function fixture({ failReply = false } = {}) {
     get: () => route.GET(new Request("http://offline/messages"), context)
   };
 }
+
+test("automatic memory dedup checks full source and never mistakes equal truncated prefixes", async () => {
+  const f = fixture();
+  const content = "我记得" + "我们一起讨论未来的计划和想法".repeat(5) + "计划一";
+  await f.service.sendMessage("conversation", content);
+  assert.equal(f.memories.length, 1);
+  await f.service.sendMessage("conversation", content);
+  assert.equal(f.memories.length, 1);
+  await f.service.sendMessage("conversation", content.slice(0, -1) + "二");
+  assert.equal(f.memories.length, 2);
+});
+
+test("manual candidates preserve type, negation, numbers and archival intent", async () => {
+  const f = fixture();
+  const add = (content, type = "user_fact") => f.service.createMemoryCandidates("companion", { content, type });
+  assert.equal((await add("喜欢咖啡 2 杯")).length, 1);
+  assert.equal((await add("  喜欢咖啡  2 杯  ")).length, 0);
+  assert.equal((await add("不喜欢咖啡 2 杯")).length, 1);
+  assert.equal((await add("喜欢咖啡 3 杯")).length, 1);
+  assert.equal((await add("喜欢咖啡 2 杯", "emotional_preference")).length, 1);
+  f.memories[0].status = "archived";
+  await add("喜欢咖啡 2 杯");
+  assert.equal(f.memories[0].status, "archived");
+});
 
 test("POST persists correlation on USER and GET returns it without changing other metadata", async () => {
   const f = fixture();
@@ -116,7 +150,7 @@ test("POST persists correlation on USER and GET returns it without changing othe
   assert.deepEqual(result.assistantMessage.metadata, {
     status: "sent", provider: completion.provider, model: completion.model, usage: completion.usage
   });
-  assert.deepEqual(result.pendingMemory, { id: "pending" });
+  assert.deepEqual(result.pendingMemory, f.memories[0]);
   assert.deepEqual(result.relationshipState, { warmth: 1 });
   const fetched = await f.get();
   assert.equal(fetched.status, 200);

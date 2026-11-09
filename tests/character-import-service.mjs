@@ -219,6 +219,26 @@ await test("model JSON analysis uses user provider, logs usage, retains only tar
   noKey(call); noKey(result); noKey(state.usage);
 });
 
+await test("selected samples stay exact and reject raw, foreign and oversized data before provider access", async () => {
+  const sample = [{ speaker: "阿澈", content: "走呀，去看晚霞。" }, { speaker: "我", content: "这是我的原话。" }];
+  reset();
+  const result = await analyzeChatCharacter("alice", { messages: sample, targetSpeaker: "阿澈", selfSpeaker: "我" });
+  check.deepEqual(plain(JSON.parse(state.calls[0].messages[1].content).messages), sample);
+  check.equal(result.stats.sampledMessages, 2);
+  for (const messages of [[], [...sample, { speaker: "旁人", content: "不得上传" }],
+    [...sample, { speaker: "我", content: "x", raw: "hidden" }],
+    [{ speaker: "阿澈", content: "x".repeat(1001) }, sample[1]],
+    Array.from({ length: 161 }, (_, i) => sample[i % 2]),
+    Array.from({ length: 100 }, (_, i) => ({ ...sample[i % 2], content: "字".repeat(999) }))]) {
+    reset();
+    await check.rejects(() => analyzeChatCharacter("alice", { messages, targetSpeaker: "阿澈", selfSpeaker: "我" }), CharacterImportValidationError);
+    check.equal(state.calls.length, 0); check.equal(state.users.length, 0);
+  }
+  reset();
+  await check.rejects(() => analyzeChatCharacter("alice", { messages: sample, text: "不得同时提交全文", targetSpeaker: "阿澈", selfSpeaker: "我" }), CharacterImportValidationError);
+  check.equal(state.calls.length, 0);
+});
+
 await test("model malformed JSON/schema fails explicitly without local fallback", async () => {
   for (const response of ["not JSON", "[]", "{}", "null", JSON.stringify(draft({ relationshipKind: "forged" }))]) {
     reset(fakeProvider(response));

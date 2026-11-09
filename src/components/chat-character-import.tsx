@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { selectTranscriptSample } from "@/lib/import/character-draft";
 import type { FormEvent } from "react";
 import { parseTranscript } from "@/lib/import/transcript";
 import type { CharacterDraft, CharacterImportAnalysis, CharacterPreviewMessage } from "@/lib/import/character-types";
@@ -49,6 +50,7 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [targetSpeaker, setTargetSpeaker] = useState("");
   const [selfSpeaker, setSelfSpeaker] = useState("");
+  const [excludedSamples, setExcludedSamples] = useState<number[]>([]);
   const [analysis, setAnalysis] = useState<CharacterImportAnalysis | null>(null);
   const [draft, setDraft] = useState<CharacterDraft | null>(null);
   const [history, setHistory] = useState<PreviewTurn[]>([]);
@@ -77,7 +79,7 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
   }
 
   function resetDerived() {
-    setAnalysis(null); setDraft(null); resetPreview();
+    setAnalysis(null); setDraft(null); setExcludedSamples([]); resetPreview();
   }
 
   function changeText(value: string) {
@@ -149,6 +151,12 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
   }
 
   const validSpeakers = Boolean(transcript && targetSpeaker && selfSpeaker && targetSpeaker !== selfSpeaker);
+  const samplePlan = useMemo(() => {
+    try { return selectTranscriptSample(transcript?.messages ?? [], targetSpeaker, selfSpeaker, 23900); }
+    catch { return { sample: [], relevantCount: 0, shortened: false }; }
+  }, [transcript, targetSpeaker, selfSpeaker]);
+  const sendSamples = samplePlan.sample.filter((_, index) => !excludedSamples.includes(index));
+  const canAnalyze = validSpeakers && sendSamples.some((row) => row.speaker === targetSpeaker) && sendSamples.some((row) => row.speaker === selfSpeaker);
   const draftReady = Boolean(draft && draft.name.trim() && draft.name.length <= 80
     && draft.speakingStyle.trim() && draft.speakingStyle.length <= 1600
     && draft.customKind.length <= 80 && draft.userAddress.length <= 80 && draft.background.length <= 3000
@@ -160,13 +168,13 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
       }));
 
   async function analyze() {
-    if (!validSpeakers || !begin("analyze")) return;
+    if (!canAnalyze || !begin("analyze")) return;
     try {
-      const result = await request({ action: "analyze", text, targetSpeaker, selfSpeaker });
+      const result = await request({ action: "analyze", messages: sendSamples, targetSpeaker, selfSpeaker });
       if (!mounted.current) return;
       if (!record(result) || !validDraft(result.draft) || !["model", "local"].includes(String(result.source)) || !Array.isArray(result.warnings) || !result.warnings.every((warning) => typeof warning === "string")
         || !record(result.stats) || !Number.isFinite(result.stats.totalMessages) || !Number.isFinite(result.stats.sampledMessages)) throw new Error("invalid response");
-      setAnalysis(result as CharacterImportAnalysis); setDraft(result.draft); resetPreview(); setStep(1);
+      setAnalysis({ ...result as CharacterImportAnalysis, stats: { totalMessages: samplePlan.relevantCount, sampledMessages: sendSamples.length } }); setDraft(result.draft); resetPreview(); setStep(1);
       setStatus(result.source === "model" ? "已生成待核对的人物设定。" : "已生成本地基础草稿，尚未通过模型提炼。");
     } catch {
       if (mounted.current) setError("暂时无法提炼人物，记录和选择已保留，请重试。");
@@ -261,7 +269,15 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
                 <div className={styles.grid}>{[targetSpeaker, selfSpeaker].map((speaker, index) => <section className={styles.samples} key={index}><h3>{index === 0 ? "目标人物的样本" : "我的样本"}</h3>{speaker ? <><p className={styles.hint}>{speaker} · {transcript.participants.find((participant) => participant.name === speaker)?.count ?? 0} 条，展示前 3 条</p>{samplesFor(transcript, speaker).map((sample, sampleIndex) => <blockquote key={sampleIndex}>{sample}</blockquote>)}</> : <p className={styles.hint}>选择说话者后显示样本。</p>}</section>)}</div>
               </>}
               <aside className={styles.notice}>选择与预览记录时，内容留在你的设备上。点击「提炼人物」后，才会将选中双方的样本发送给你配置的模型；不会保存原始文件。</aside>
-              <div className={styles.actions}>{draft ? <button className={styles.secondary} type="button" onClick={() => go(1)}>继续核对已有设定</button> : null}<button className={styles.primary} type="button" disabled={!validSpeakers} onClick={() => void analyze()}>提炼人物 →</button></div>
+              {validSpeakers ? <section aria-label="将发送的样本">
+                <h3>将发送的样本：{sendSamples.length} 条</h3>
+                <p className={styles.hint}>完整记录留在浏览器。点击提炼只发送下方勾选的双方样本；其他说话者、未勾选内容和原始文件不会上传。双方原有 {samplePlan.relevantCount} 条，已在本地抽样及脱敏{samplePlan.shortened ? "，长消息已缩短" : ""}。请保留双方各至少一条。</p>
+                <div className={styles.sendSamples}>{samplePlan.sample.map((row, index) => <label className={styles.sampleRow} key={index}>
+                  <input type="checkbox" aria-label={`发送样本 ${index + 1}`} checked={!excludedSamples.includes(index)} onChange={(event) => setExcludedSamples((current) => event.target.checked ? current.filter((item) => item !== index) : [...current, index])} />
+                  <span><strong>{row.speaker}</strong><span className={styles.sampleContent}>{row.content}</span></span>
+                </label>)}</div>
+              </section> : null}
+              <div className={styles.actions}>{draft ? <button className={styles.secondary} type="button" onClick={() => go(1)}>继续核对已有设定</button> : null}<button className={styles.primary} type="button" disabled={!canAnalyze} onClick={() => void analyze()}>提炼人物 →</button></div>
             </>}
             {step === 1 && draft && <>
               <aside className={styles.notice}>{analysis?.source === "model" ? "以下内容由模型推断，可能不准确，请逐项核对。" : "以下是本地基础草稿，并非模型学习结果，请自行补充和核对。"} 背景、共同回忆和语气示例都需要你确认。</aside>

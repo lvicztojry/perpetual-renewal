@@ -75,6 +75,8 @@ test("opening proactive history is read-only and manual drafts are clearly separ
   });
   await page.getByRole("button", { name: "手动生成草稿", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText(failure);
+  await expect(page.getByRole("dialog")).toContainText("本页最近检查");
+  await expect(page.getByRole("dialog")).toContainText("切到后台可能被浏览器延迟");
   await expect(page.locator(".message-bubble")).toHaveCount(beforeMessages);
   const unchanged = (await (await page.request.get(`/api/companions/${companion.id}/proactive-drafts`)).json()).data;
   expect(unchanged.length).toBe(saved.length);

@@ -2317,6 +2317,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                   <button className="text-button" type="button" disabled={!proactiveAvailability.effectiveEnabled || isLoadingDrafts || isEnablingProactive} onClick={() => void generateProactiveDrafts(false)}>按当前设置检查一次</button>
                 </> : <p>正在读取开关状态…</p>}
                 <p>本机试用时，请保持聊天页打开并选中此人物；关闭页面或切换人物后，这个人物不会继续自动检查。</p>
+                <p>每分钟检查是否到期，不代表每分钟一定发送。切到后台可能被浏览器延迟；生成失败或内容重复时会跳过，并在下方显示原因。</p>
               </section>
               <section className={`panel ${styles.proactivePanel}`}>
                 <div className="panel-title">
@@ -2339,7 +2340,8 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 ) : null}
                 <div className="status-box" role="status">
                   <Bell size={14} />
-                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts, proactiveAvailability)}
+                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts, proactiveAvailability,
+                    isSending ? "正在等待当前聊天回复，自动检查暂缓" : isSaving ? "正在保存资料，自动检查暂缓" : isImporting ? "正在导入资料，自动检查暂缓" : undefined)}
                 </div>
                 <div className="segmented" aria-label="主动回响状态筛选">
                   {proactiveDraftFilterOptions.map((option) => (
@@ -3206,13 +3208,15 @@ function formatProactiveAutoCheckStatus(
   companion: CompanionProfile | undefined,
   check: ProactiveAutoCheck | null,
   isLoading: boolean,
-  availability?: ProactiveAvailability | null
+  availability?: ProactiveAvailability | null,
+  pauseReason?: string
 ) {
   if (!companion) return "选择关系后显示主动回响状态";
   if (!availability) return "尚未确认开关状态，请刷新状态后重试。";
   if (availability?.accountEnabled === false) return "账号总开关关闭，自动检查已暂停。";
   if (!companion.proactiveMessagesEnabled) return "主动回响已关闭";
   if (isLoading) return "正在生成主动回响草稿";
+  if (pauseReason) return `${pauseReason}${check ? ` · 本页最近检查 ${formatDateTime(check.checkedAt)}：${check.result}` : ""}`;
 
   const cadence = formatProactiveCadence(companion.proactiveFrequencyMinutes);
 
@@ -3220,15 +3224,13 @@ function formatProactiveAutoCheckStatus(
     return `当前节奏 ${cadence} · 自动检查每 1 分钟 · 最近尚未检查`;
   }
 
-  const scheduleHint = check.nextCandidateAt
-    ? ` · 下次候选 ${formatDateTime(check.nextCandidateAt)}`
+  const scheduleHint = check.nextCandidateAt && !/失败|跳过|未生成|无法生成/.test(check.result)
+    ? ` · 预计最早可发送 ${formatDateTime(check.nextCandidateAt)}`
     : "";
   const elapsedHint =
-    typeof check.elapsedMinutes === "number" ? ` · 锚点后已过 ${check.elapsedMinutes} 分钟` : "";
+    typeof check.elapsedMinutes === "number" ? ` · 距离上次互动或回响已过 ${check.elapsedMinutes} 分钟` : "";
 
-  return `${check.result}${scheduleHint}${elapsedHint} · 当前节奏 ${cadence} · 自动检查每 1 分钟 · 下次检查约 ${formatDateTime(
-    check.nextCheckAt
-  )}`;
+  return `本页最近检查 ${formatDateTime(check.checkedAt)}：${check.result}${scheduleHint}${elapsedHint} · 当前节奏 ${cadence} · 自动检查每 1 分钟（后台可能延迟）`;
 }
 
 function formatProactiveCadence(minutes: number) {

@@ -27,17 +27,36 @@ async function complete(userId: string, provider: LlmProvider, messages: LlmMess
 }
 
 export async function analyzeChatCharacter(userId: string, input: Record<string, unknown>, configuredProvider?: LlmProvider): Promise<CharacterImportAnalysis> {
-  if (typeof input.text !== "string" || !input.text.trim() || input.text.length > transcriptLimits.maxChars) {
+  const suppliedSamples = input.messages !== undefined;
+  if (suppliedSamples && (Object.hasOwn(input, "text") || !Array.isArray(input.messages) || input.messages.length < 2 || input.messages.length > 160 || JSON.stringify(input.messages).length > 24000)) {
+    throw new CharacterImportValidationError("仅支持最多 160 条、24,000 字符的已确认样本，不接收完整记录。");
+  }
+  if (!suppliedSamples && (typeof input.text !== "string" || !input.text.trim() || input.text.length > transcriptLimits.maxChars)) {
     throw new CharacterImportValidationError("请提供不超过 20 万字符的文本聊天记录。");
   }
   let parsed: ReturnType<typeof parseTranscript>;
-  try { parsed = parseTranscript(input.text); }
+  try {
+    if (suppliedSamples) {
+      for (const row of input.messages as unknown[]) {
+        if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid sample");
+        const entry = row as Record<string, unknown>;
+        if (Object.keys(entry).some((key) => !["speaker", "content"].includes(key)) ||
+          typeof entry.speaker !== "string" || !entry.speaker.trim() || entry.speaker.length > 100 ||
+          (entry.speaker !== input.targetSpeaker && entry.speaker !== input.selfSpeaker) ||
+          typeof entry.content !== "string" || !entry.content.trim() || entry.content.length > 1000) throw new Error("Invalid sample");
+      }
+    }
+    parsed = parseTranscript(suppliedSamples ? JSON.stringify(input.messages) : input.text as string);
+  }
   catch { throw new CharacterImportValidationError("无法解析聊天记录，请检查格式或分批导入。"); }
   if (typeof input.targetSpeaker !== "string" || typeof input.selfSpeaker !== "string") {
     throw new CharacterImportValidationError("请选择聊天记录中的对方和你。");
   }
   const target = input.targetSpeaker, self = input.selfSpeaker;
-  const { sample, relevantCount, shortened } = selectTranscriptSample(parsed.messages, target, self);
+  const selected = selectTranscriptSample(parsed.messages, target, self);
+  const { sample, relevantCount, shortened } = suppliedSamples
+    ? { sample: parsed.messages.map((row) => ({ speaker: row.speaker, content: redactSensitiveResponseText(row.content) ?? "" })), relevantCount: parsed.messages.length, shortened: false }
+    : selected;
   const provider = configuredProvider ?? await createUserLlmProvider(userId);
   const warnings = [...parsed.warnings, "提炼结果可能包含误判，请核对人物特征、称呼及共同经历后再创建。"];
   if (shortened) warnings.push("已跨记录抽样并缩短长消息，本次提炼未读取所有原文。");

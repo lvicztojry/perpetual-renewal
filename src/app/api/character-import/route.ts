@@ -14,7 +14,10 @@ export async function POST(request: Request) {
   try {
     const session = await getCurrentSession();
     const body = await readJsonObject(request);
-    if (body.action === "analyze") return privateJson(await analyzeChatCharacter(session.userId, body));
+    if (body.action === "analyze") {
+      if (Object.hasOwn(body, "text") || !Array.isArray(body.messages)) throw new CharacterImportValidationError("请在浏览器核对样本后提炼；接口不接收完整聊天记录。");
+      return privateJson(await analyzeChatCharacter(session.userId, body));
+    }
     if (body.action === "preview") return privateJson(await previewChatCharacter(session.userId, body));
     if (body.action === "create") {
       const draft = validateCharacterDraft(body.draft);

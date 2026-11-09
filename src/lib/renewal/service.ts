@@ -144,6 +144,10 @@ export class RenewalService {
 
     const memories: MemoryRecord[] = [];
     for (const candidate of candidates) {
+      if ([...(companion.memories ?? []), ...memories].some((memory) =>
+        memory.userId === this.userId && memory.companionId === companionId &&
+        (memory.status === "pending" || memory.status === "active") && memory.type === candidate.type &&
+        memoryTextKey(memory.content) === memoryTextKey(candidate.content))) continue;
       memories.push(
         await this.repo.createMemory(this.userId, companionId, {
           sourceMessageId: candidate.sourceMessageId ?? null,
@@ -200,17 +204,26 @@ export class RenewalService {
       companion.id,
       userMessage
     );
-    const pendingMemory = shouldCreateMemory(trimmed)
+    const memoryContent = `候选记忆：用户刚刚说过“${trimMemoryQuote(trimmed)}”。`;
+    const possibleDuplicates = (companion.memories ?? []).filter((memory) =>
+      memory.userId === this.userId && memory.companionId === companion.id && memory.type === "user_fact" &&
+      (memory.status === "pending" || memory.status === "active") && memory.sourceMessageId &&
+      memoryTextKey(memory.content) === memoryTextKey(memoryContent));
+    const cachedHistory = possibleDuplicates.length ? await this.repo.listMessages(this.userId, conversationId) : undefined;
+    const duplicate = possibleDuplicates.some((memory) => cachedHistory?.some((message) =>
+      message.id === memory.sourceMessageId && message.role === "user" && message.metadata?.status !== "failed" &&
+      !message.metadata?.deletedAt && memoryTextKey(message.content) === memoryTextKey(trimmed)));
+    const pendingMemory = shouldCreateMemory(trimmed) && !duplicate
       ? await this.repo.createPendingMemory(
           this.userId,
           companion.id,
           userMessage.id,
-          `候选记忆：用户刚刚说过“${trimMemoryQuote(trimmed)}”。`
+          memoryContent
         )
       : null;
 
     try {
-      const history = await this.repo.listMessages(this.userId, conversationId);
+      const history = cachedHistory ?? await this.repo.listMessages(this.userId, conversationId);
       const startedAt = Date.now();
       const llmProvider = await createUserLlmProvider(this.userId);
       const completion = await generateCompanionReply({
@@ -413,6 +426,11 @@ function messagesForPrompt(messages: MessageRecord[]) {
       message.metadata?.status !== "failed" &&
       !message.metadata?.deletedAt
   );
+}
+
+function memoryTextKey(text: string) {
+  // Deliberately preserve punctuation, case, negation and numbers; no semantic merge.
+  return text.normalize("NFKC").trim().replace(/\s+/g, " ");
 }
 
 function trimMemoryQuote(text: string) {

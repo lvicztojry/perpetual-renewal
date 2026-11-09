@@ -92,7 +92,16 @@ test("chat character analysis and trial use the user's provider, retry safely, a
     expect((await page.request.put("/api/me/llm-credential", { data: { provider: "compatible", apiKey: key, baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, model: "character-test-model" } })).ok()).toBe(true);
     await page.goto("/create-from-chat");
     await parse(page);
+  const preview = page.getByRole("region", { name: "将发送的样本" });
+  await expect(preview).not.toContainText("THIRD_PERSON_PRIVATE_MARKER");
+  await page.getByRole("checkbox", { name: "发送样本 3", exact: true }).uncheck();
+  const analyzeRequest = page.waitForRequest((request) => request.url().endsWith("/api/character-import") && request.postDataJSON()?.action === "analyze");
     await page.getByRole("button", { name: "提炼人物 →" }).click();
+  const sent = (await analyzeRequest).postDataJSON();
+  expect(sent).not.toHaveProperty("text");
+  expect(sent.messages).toHaveLength(3);
+  expect(JSON.stringify(sent)).not.toContain("THIRD_PERSON_PRIVATE_MARKER");
+  expect(JSON.stringify(sent)).not.toContain("是呀，下次再一起看海。");
     await expect(page.getByRole("heading", { name: "核对设定", exact: true })).toBeVisible();
     await expect(page.getByLabel("语气示例", { exact: false })).toHaveValue("今天下雨，记得带伞呀。");
     expect(requests[0].auth).toBe(`Bearer ${key}`);
@@ -125,6 +134,8 @@ test("chat character import validates speaker choices, clears stale results, and
   await login(page);
   await page.goto("/create-from-chat");
   await parse(page);
+  const legacy = await page.request.post("/api/character-import", { data: { action: "analyze", text: "legacy-raw", targetSpeaker: "小林", selfSpeaker: "我" } });
+  expect(legacy.status()).toBe(400);
   await expect(page.getByLabel("我在记录中的说话者").locator('option[value="小林"]')).toHaveAttribute("disabled", "");
   await page.getByLabel("我在记录中的说话者").selectOption("");
   await expect(page.getByRole("button", { name: "提炼人物 →" })).toBeDisabled();
