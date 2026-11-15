@@ -59,7 +59,7 @@ test("chat records create a reviewed character with memories, without saving sou
   await expect(page.getByRole("button", { name: "确认创建人物", exact: true })).toBeDisabled();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "确认创建人物", exact: true }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL(/\/\?companion=[^&]+$/);
   const saved = await companions(page);
   expect(saved).toHaveLength(1);
   expect(saved[0]).toMatchObject({ name: "海边的小林", userAddress: "小雨", proactiveMessagesEnabled: false });
@@ -123,7 +123,7 @@ test("chat character analysis and trial use the user's provider, retry safely, a
     await page.getByRole("button", { name: "确认设定 →" }).click();
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: "确认创建人物", exact: true }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(/\/\?companion=[^&]+$/);
     expect((await companions(page))[0].userId).toBe(me.user.id);
   } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });

@@ -3,6 +3,16 @@
   color: var(--ink);
   background: var(--bg);
   line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.account :is(h1, h2, h3) {
+  font-family: var(--font-literary);
+  line-height: 1.5;
+}
+
+.account :is(button, input, select, textarea) {
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
 }
 
 .account :global(.form-grid) {
@@ -29,11 +39,15 @@
   min-height: 46px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-strong);
+  border-radius: 3px;
+  background: var(--bg);
   color: var(--ink);
   box-shadow: none;
   font-size: 16px;
+}
+
+.account :global(.field) :is(input, select, textarea):focus {
+  border-color: var(--teal);
 }
 
 .account input::placeholder {
@@ -65,7 +79,7 @@
   max-width: 100%;
   padding: 10px 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 3px;
   background: transparent;
   color: var(--ink);
   font-size: 14px;
@@ -106,7 +120,7 @@
   gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 3px;
   background: var(--surface-strong);
   color: var(--muted);
   font-size: 13px;
@@ -131,26 +145,50 @@
 .account :global(.empty) {
   padding: 20px;
   border: 1px dashed var(--line);
-  border-radius: 8px;
+  border-radius: 3px;
   color: var(--muted);
   font-size: 14px;
 }
 
-.loginShell {
+.account.loginShell {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  align-items: center;
   min-height: 100svh;
-  padding: 40px 24px;
-  background: linear-gradient(90deg, var(--bg), rgb(25 26 24 / 87%)),
-    url("/visuals/chat-room.webp") center / cover;
+  gap: clamp(32px, 6vw, 96px);
+  padding: 56px clamp(32px, 6vw, 96px);
+  background:
+    linear-gradient(90deg, rgb(19 22 20 / 12%) 0%, rgb(19 22 20 / 32%) 36%, var(--bg) 72%),
+    url("/visuals/bell-scene.png") left center / cover no-repeat,
+    var(--bg);
 }
 
-.loginPanel {
+.loginShell::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 20%, #13161499 54%, var(--bg) 75%),
+    url('/visuals/bell-isolated.png') left center / cover no-repeat;
+  opacity: .8;
+}
+
+.loginShell .loginPanel {
+  grid-column: 2;
+  display: grid;
   width: min(460px, 100%);
-  gap: 28px;
-  padding: 36px;
+  min-width: 0;
+  gap: 32px;
+  padding: 40px 36px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-top-color: var(--teal);
+  border-radius: 4px;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: 0 20px 64px rgb(0 0 0 / 18%);
 }
 
 .loginPanel > :global(.text-button) {
@@ -166,14 +204,15 @@
 
 .wordmark {
   color: var(--teal-strong);
-  font-family: "Noto Serif SC", "Songti SC", SimSun, serif;
+  font-family: var(--font-literary);
   font-size: 34px;
   letter-spacing: 0.18em;
 }
 
-.brandNote {
+.loginHeading .brandNote {
+  margin-top: 8px;
   color: var(--muted);
-  font-family: "Songti SC", SimSun, serif;
+  font-family: var(--font-literary);
   font-size: 13px;
   letter-spacing: 0.18em;
 }
@@ -186,6 +225,7 @@
   margin: 0 0 8px;
   font-size: 23px;
   font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .authTitle p {
@@ -212,14 +252,16 @@
   width: min(1120px, 100%);
   min-height: 100svh;
   margin: 0 auto;
-  padding: 32px 40px 64px;
+  padding: 40px 40px 80px;
 }
 
 .settingsHeader {
   display: grid;
   justify-items: start;
   gap: 28px;
-  padding-bottom: 32px;
+  padding-bottom: 36px;
+  margin-bottom: 36px;
+  border-bottom: 1px solid var(--line);
 }
 
 .settingsHeader > :global(.text-button) {
@@ -242,6 +284,7 @@
 }
 
 .settingsHeading .eyebrow {
+  margin-bottom: 12px;
   color: var(--teal-strong);
   font-size: 12px;
   letter-spacing: 0.14em;
@@ -268,7 +311,8 @@
   align-items: center;
   min-height: 44px;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-left: 2px solid transparent;
+  border-radius: 2px;
   color: var(--muted);
   font-size: 14px;
   text-decoration: none;
@@ -276,6 +320,7 @@
 
 .sectionNav a:hover,
 .sectionNav a:focus-visible {
+  border-left-color: var(--teal);
   color: var(--teal-strong);
   background: var(--soft-teal);
 }
@@ -283,7 +328,7 @@
 .settingsForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: 32px;
   min-width: 0;
 }
 
@@ -291,9 +336,10 @@
   display: grid;
   gap: 24px;
   min-width: 0;
-  padding: 28px;
+  padding: 32px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-top-color: var(--teal);
+  border-radius: 4px;
   background: var(--surface);
   scroll-margin-top: 24px;
 }
@@ -311,6 +357,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .account :global(.pill) {
@@ -392,7 +439,7 @@
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 3px;
   background: transparent;
   color: var(--ink);
   overflow-wrap: anywhere;
@@ -442,6 +489,22 @@
   color: var(--coral);
 }
 
+@media (max-width: 900px) {
+  .account.loginShell {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding: 48px 24px;
+    background:
+      linear-gradient(180deg, rgb(19 22 20 / 38%), rgb(19 22 20 / 88%) 70%, var(--bg)),
+      url("/visuals/bell-scene.png") 35% center / cover no-repeat,
+      var(--bg);
+  }
+
+  .loginShell .loginPanel {
+    grid-column: 1;
+  }
+}
+
 @media (max-width: 700px) {
   .settingsShell {
     padding: 20px 16px 40px;
@@ -450,6 +513,7 @@
   .settingsHeader {
     gap: 20px;
     padding-bottom: 24px;
+    margin-bottom: 24px;
   }
 
   .settingsHeading h1 {
@@ -484,12 +548,18 @@
     gap: 10px;
   }
 
-  .loginShell {
+  .account.loginShell {
     padding: 24px 16px;
   }
 
-  .loginPanel {
+  .loginShell .loginPanel {
     gap: 24px;
     padding: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account :is(button, input, select, textarea) {
+    transition: none;
   }
 }

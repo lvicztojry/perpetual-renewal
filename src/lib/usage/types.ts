@@ -10,6 +10,11 @@ export type ModelUsagePurpose =
   | "safety_check"
   | "character_analysis"
   | "character_preview"
+  | "dream_candidates"
+  | "dream_feedback"
+  | "dream_preview"
+  | "group_reply"
+  | "group_proactive"
   | "other";
 
 export type ModelUsageLog = {

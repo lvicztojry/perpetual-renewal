@@ -9,7 +9,8 @@ const databaseUnavailableCodes = new Set([
   "P1008",
   "P1017",
   "P2021",
-  "P2024"
+  "P2024",
+  "P2028"
 ]);
 
 const unavailableMessageHints = [

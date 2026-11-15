@@ -2,6 +2,8 @@
 
 当前能力、验收日期和施工顺序统一见 [项目当前状态](docs/MVP_STATUS.md)；本页保留操作流程和历史说明。
 
+群聊从侧栏进入：邀请已有的人物，多人逐条接话、确认共同记忆，并可配置主动话题。一键启动同时启动本机群聊调度；配置与首版边界见 [群聊说明](docs/GROUPS.md)。
+
 “生生不息”是一个关系型 AI 陪伴项目：当用户想交流却无法真正抵达某个人或某段关系时，用可设定、可记忆、会回响的 AI 关系对象承接亲情、友情、爱情、纪念、替代和自定义陪伴。
 
 
@@ -122,6 +124,7 @@ npm run smoke
 npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
+npm run qa:dream
 npm run qa:vault
 npm run qa:logging
 npm run qa:response

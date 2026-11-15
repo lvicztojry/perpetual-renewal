@@ -213,6 +213,8 @@ npm run qa:samples
 npm run qa:prompt
 npm run qa:imports
 npm run qa:character-import
+npm run qa:dream
+npm run qa:groups
 npm run qa:vault
 npm run qa:logging
 npm run qa:response

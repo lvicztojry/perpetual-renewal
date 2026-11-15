@@ -54,6 +54,10 @@ jobs:
         run: npm run qa:imports
       - name: Chat character import QA
         run: npm run qa:character-import
+      - name: Dream persona QA
+        run: npm run qa:dream
+      - name: Group conversation QA
+        run: npm run qa:groups
       - name: Proactive availability QA
         run: npm run qa:proactive-availability
 

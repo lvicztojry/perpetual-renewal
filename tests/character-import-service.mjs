@@ -42,7 +42,8 @@ const stubs = {
     state.repositoryFactories++;
     return memoryRepository ??= new (load("@/lib/renewal/in-memory-repository").InMemoryRenewalRepository)();
   } },
-  "@/lib/chat": { generateCompanionReply: forbidden }
+  "@/lib/chat": { generateCompanionReply: forbidden },
+  "@/lib/groups/private-context": { getGroupMemoriesForCompanion: async () => [] }
 };
 function load(specifier, parent = path.join(root, "entry.ts")) {
   if (Object.hasOwn(stubs, specifier)) return stubs[specifier];

@@ -11,6 +11,8 @@ import type {
   RepositoryPersistence
 } from "@/lib/renewal/types";
 import type { UserProfile } from "@/lib/users/profile";
+import type { DreamState } from "@/lib/dream/types";
+import type { GroupState } from "@/lib/groups/types";
 
 export type ExportCollectionLimit = {
   limit: number;
@@ -44,6 +46,8 @@ export type UserExportSnapshot = {
     llm: ExportCredentialSummary;
   };
   companions: ExportCompanionSnapshot[];
+  dreamWorkspaces: DreamState[];
+  groups: GroupState[];
   modelUsageLogs: ModelUsageLog[];
   safetyEvents: SafetyEventLog[];
   counts: {

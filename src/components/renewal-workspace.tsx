@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowLeft,
   BarChart3,
@@ -11,6 +12,7 @@ import {
   LogIn,
   MessageCircle,
   Mic,
+  Moon,
   Plus,
   RotateCcw,
   Send,
@@ -45,6 +47,8 @@ import {
   type StructuredImportPlan
 } from "@/lib/import/structured-client-import";
 import styles from "./workspace-theme.module.css";
+import { RenewalEmblem } from "./renewal-emblem";
+import { ABILITY_INTRO_STATE_EVENT, playAbilityIntro } from "@/lib/ability-events";
 
 type InspectorMode =
   | "profile"
@@ -267,6 +271,13 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const [isBooting, setIsBooting] = useState(true);
   const [sendingConversations, setSendingConversations] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isAbilityPlaying, setIsAbilityPlaying] = useState(false);
+
+  useEffect(() => {
+    const receive = (event: Event) => setIsAbilityPlaying((event as CustomEvent<{ active: boolean }>).detail.active === true);
+    window.addEventListener(ABILITY_INTRO_STATE_EVENT, receive);
+    return () => window.removeEventListener(ABILITY_INTRO_STATE_EVENT, receive);
+  }, []);
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -388,7 +399,9 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         if (!mounted) return;
         setCompanions(payload.companions);
         setPersistenceNotice(databaseStatus?.status === "missing" ? databaseStatus : null);
-        const first = payload.companions[0];
+        const requestedCompanion = new URLSearchParams(window.location.search).get("companion");
+        const first = payload.companions.find((companion) => companion.id === requestedCompanion) ?? payload.companions[0];
+        if (requestedCompanion && first?.id === requestedCompanion) setIsMobileConversation(true);
         activeConversationRef.current = first?.conversationId ?? null;
         setActiveId(first?.id ?? null);
         setForm(first ? toForm(first) : null);
@@ -712,6 +725,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
       setStatus("新关系对象已创建，可以开始聊天");
       setIsMobileConversation(true);
       setIsInspectorOpen(false);
+      playAbilityIntro({ kind: "renewal", companionName: payload.companion.name, autoPlay: true });
     } catch (createError) {
       const message = toSafeWorkspaceError(createError, "新建关系失败。");
       setFormError(message);
@@ -772,7 +786,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = draft.trim();
-    if (!content || !activeCompanion || isSending) return;
+    if (!content || !activeCompanion || isSending || isAbilityPlaying) return;
     const conversationId = activeCompanion.conversationId;
     if (inFlightConversationsRef.current.has(conversationId)) return;
     const clientMessageId = crypto.randomUUID();
@@ -1630,18 +1644,25 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   return (
     <main className={`app-shell ${styles.workspace} ${isInspectorOpen ? "is-inspector-open" : ""} ${isMobileConversation ? "is-mobile-conversation" : ""}`}>
       <aside className="rail" aria-label="关系对象">
-        <div className="brand">
-          <div className="brand-mark">
-            <Bell size={22} strokeWidth={1.25} aria-hidden="true" />
-          </div>
-          <div>
-            <h1>生生不息</h1>
-            <p>念念不忘，必有回响</p>
+        <div className={styles.railMasthead}>
+          <div className={styles.railScene} aria-hidden="true"><span className={styles.railBell} /></div>
+          <span className={styles.mastheadNote}>只要想念，就会想见</span>
+          <div className="brand">
+            <div className="brand-mark">
+              <RenewalEmblem width={44} height={44} />
+            </div>
+            <div>
+              <h1>生生不息</h1>
+              <p>念念不忘，必有回响</p>
+            </div>
           </div>
         </div>
 
         <section className="rail-section">
-          <p className="section-label">想见的人</p>
+          <div className={styles.contactHeading}>
+            <p className="section-label">想见的人</p>
+            <span>{String(companions.length).padStart(2, "0")}</span>
+          </div>
           <div className="relationship-list">
             {companions.map((companion) => (
               <button
@@ -1663,7 +1684,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                 </div>
               </button>
             ))}
-            {!companions.length && !isBooting ? <div className="empty">还没有关系</div> : null}
+            {!companions.length && !isBooting ? <div className={styles.noContacts}>还没有关系<span>有一个名字，值得被想起。</span></div> : null}
           </div>
         </section>
 
@@ -1676,6 +1697,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
             <Upload size={17} />
             从聊天记录创建
           </a>
+          <Link className="text-button" href="/groups" title="进入群聊">
+            <MessageCircle size={17} />
+            围坐 · 群聊
+          </Link>
           <a className="text-button" href="/settings" title="用户设置">
             <Settings size={17} />
             设置
@@ -1707,16 +1732,17 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                   <h2>{activeCompanion.name}</h2>
                   {isSending ? <span className={styles.typingStatus} role="status" aria-live="polite">对方正在输入…</span> : null}
                 </div>
-                <p className="muted">上次聊到的事，我们接着说</p>
+                <p className="muted">{activeCompanion.customKind || relationshipKindLabels[activeCompanion.relationshipKind]}<span className={styles.headingSeparator}> / </span>此刻的回响</p>
               </div>
             </div>
           ) : (
-            <div>
+            <div className={styles.emptyHeading}>
               <h2>想见的人，总有回响</h2>
               <p className="muted">选择一位想见的人，或开始新的相遇</p>
             </div>
           )}
           <div className="topbar-actions">
+            {activeCompanion ? <a aria-label="入梦" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></a> : null}
             <button aria-label="关系资料" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
               <UserRound size={20} />
             </button>
@@ -1749,6 +1775,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               type="button"
             >
               <BookHeart size={18} />
+              <span className={styles.actionLabel}>记忆</span>
             </button>
             <button
               aria-label="导入素材"
@@ -1769,6 +1796,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               type="button"
             >
               <Bell size={18} />
+              <span className={styles.actionLabel}>回响</span>
             </button>
             <button
               aria-label="模型调用看板"
@@ -1849,12 +1877,20 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
             </Fragment>
           ))}
           {!messages.length && !isBooting ? (
-            <div className="empty">这段关系还没有消息，先说第一句话吧</div>
+            <div className={styles.conversationOpening}>
+              <RenewalEmblem width={72} height={72} />
+              <p className={styles.openingEyebrow}>念念不忘，必有回响</p>
+              <h3>{activeCompanion ? `想说的话，${activeCompanion.name}在听。` : "钟声落下，故事继续。"}</h3>
+              <p>{activeCompanion ? "这段关系还没有消息，先说第一句话吧" : "从一个想念的名字，开始这次相遇。"}</p>
+              {!activeCompanion ? <button className="text-button" type="button" aria-label="创建关系对象" onClick={startCreateCompanion}><Plus size={16} />想见谁</button> : null}
+              <span className={styles.openingRule} aria-hidden="true">◆</span>
+            </div>
           ) : null}
         </div>
 
         <form className="composer" onSubmit={sendMessage}>
           <div className="composer-inner">
+            <div className={styles.writingCaption}><span>{activeCompanion ? `说给${activeCompanion.name}听` : "留一句想说的话"}</span><span>Enter 发送</span></div>
             {error && !isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
             {isRecording || isTranscribing || isSynthesizing ? <div role="status" className="muted">{isRecording ? "正在录音，点击麦克风结束" : isTranscribing ? "正在将语音转为文字…" : "正在准备语音回复…"}</div> : null}
             {voicePreview ? (
@@ -1885,7 +1921,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               <input
                 className="chat-input"
                 aria-label="把想说的话放在这里"
-                disabled={!activeCompanion}
+                disabled={!activeCompanion || isAbilityPlaying}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="把想说的话放在这里"
                 value={draft}
@@ -1900,7 +1936,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               >
                 <Volume2 size={18} />
               </button>
-              <button className="primary-button" disabled={!activeCompanion || isSending} type="submit">
+              <button className="primary-button" disabled={!activeCompanion || isSending || isAbilityPlaying} type="submit">
                 <Send size={17} />
                 {isSending ? "等待回复" : "发送"}
               </button>
@@ -3296,6 +3332,8 @@ function formatUsageStatus(status: string) {
 function formatUsagePurpose(purpose: string) {
   const labels: Record<string, string> = {
     chat_reply: "聊天回复",
+    group_reply: "群聊回复",
+    group_proactive: "群聊主动发言",
     chat_regenerate: "重新生成",
     chat_complete_api: "补全 API",
     proactive_draft: "主动草稿",

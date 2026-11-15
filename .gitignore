@@ -9,5 +9,6 @@ test-results/
 .env.local
 .env.*.local
 *.log
+.tmp-group-worker.lock
 *.tsbuildinfo
 prisma/dev.db

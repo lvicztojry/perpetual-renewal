@@ -18,6 +18,8 @@ const steps = [
   ["Prompt QA", ["run", "qa:prompt"]],
   ["Structured import QA", ["run", "qa:imports"]],
   ["Chat character import QA", ["run", "qa:character-import"]],
+  ["Dream persona QA", ["run", "qa:dream"]],
+  ["Group conversation QA", ["run", "qa:groups"]],
   ["Config/vault QA", ["run", "qa:vault"]],
   ["Password auth QA", ["run", "qa:auth"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],

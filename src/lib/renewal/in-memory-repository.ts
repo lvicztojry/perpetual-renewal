@@ -338,9 +338,24 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     if (input.proactiveFrequencyMinutes !== undefined) {
       companion.proactiveFrequencyMinutes = input.proactiveFrequencyMinutes;
     }
-    companion.updatedAt = now();
+    companion.updatedAt = new Date(Math.max(Date.now(), Date.parse(companion.updatedAt) + 1)).toISOString();
 
     return toProfile(store, companion);
+  }
+
+  /** Synchronous critical section: dream snapshot CAS and its restricted profile write. */
+  atomicDreamUpdate<T>(userId: string, companionId: string,
+    run: (companion: CompanionProfile) => { value: T; profile?: { personality: string[]; speakingStyle: string }; updatedAt?: string }) {
+    const store = getStore();
+    const companion = store.companions.find(item => item.userId === userId && item.id === companionId);
+    if (!companion) return null;
+    const result = run(structuredClone(toProfile(store, companion)));
+    if (result.profile) {
+      companion.personality = [...result.profile.personality];
+      companion.speakingStyle = result.profile.speakingStyle;
+      companion.updatedAt = result.updatedAt!;
+    }
+    return result.value;
   }
 
   async deleteCompanion(userId: string, companionId: string) {
@@ -349,6 +364,7 @@ export class InMemoryRenewalRepository implements RenewalRepository {
       (item) => item.userId === userId && item.id === companionId
     );
     if (!companion) return false;
+    globalThis.renewalDreamStore?.delete(companionId);
 
     const conversationIds = new Set(
       store.conversations

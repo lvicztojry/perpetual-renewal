@@ -738,6 +738,7 @@ export function UserSettings() {
               <RotateCcw size={17} aria-hidden="true" />
               重播开场
             </button>
+            <a className="text-button" href="/echoes">回响录 · 能力演示</a>
           </div>
         </section>
 

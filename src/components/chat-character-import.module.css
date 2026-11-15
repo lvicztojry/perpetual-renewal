@@ -9,7 +9,7 @@
 
 .shell { width: min(100%, 900px); margin-inline: auto; }
 .main *, .main *::before, .main *::after { box-sizing: border-box; }
-.header { margin-bottom: 28px; }
+.header { margin-bottom: 28px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
 .back { display: block; padding: 8px 0; margin-bottom: 26px; border: 0; background: transparent; color: var(--muted, #aaa596); cursor: pointer; font: inherit; }
 .eyebrow { color: var(--teal, #b59a6e); font-size: 12px; letter-spacing: .15em; }
 .header h1 { margin: 9px 0; font-family: "Songti SC", SimSun, serif; font-size: clamp(26px, 4vw, 36px); font-weight: 400; letter-spacing: .04em; line-height: 1.4; }
@@ -21,9 +21,9 @@
 .steps .doneStep { color: var(--teal, #b59a6e); }
 .status { min-height: 34px; padding-block: 8px; color: var(--teal, #b59a6e); font-size: 14px; }
 .error { margin-bottom: 16px; padding: 13px 16px; border: 1px solid #966c5d; border-radius: 6px; color: #f0c1b1; background: #392923; }
-.panel { padding: 28px; border: 1px solid var(--line, #504d40); border-radius: 10px; background: var(--surface, #22231f); }
+.panel { padding: 28px; border: 1px solid var(--line, #504d40); border-top-color: var(--teal); border-radius: 3px; background: var(--surface, #22231f); }
 .panel h2 { margin: 0 0 20px; font-family: "Songti SC", SimSun, serif; font-size: 23px; font-weight: 400; }
-.panel h3 { margin: 0 0 12px; font-size: 16px; font-weight: 500; }
+.panel h3 { margin: 0 0 12px; font-family: var(--font-literary); font-size: 17px; font-weight: 400; }
 .fields { display: grid; gap: 20px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .field { display: flex; flex-direction: column; gap: 8px; min-width: 0; font-size: 14px; }
 .field input, .field select, .field textarea {
@@ -75,6 +75,8 @@
 .sampleRow input { flex: 0 0 18px; width: 18px; margin-top: 4px; }
 .sampleRow > span { min-width: 0; }
 .sampleContent { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.main :is(input, select, textarea, button), .main :is(.samples, .chat, .userMessage, .assistantMessage, .error) { border-radius: 3px; }
 
 @media (max-width: 600px) {
   .main { padding: 18px 12px 32px; }

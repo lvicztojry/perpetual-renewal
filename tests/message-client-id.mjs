@@ -10,12 +10,12 @@ const completion = {
   usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 }
 };
 
-function fixture({ failReply = false } = {}) {
+function fixture({ failReply = false, groupsForExport } = {}) {
   const messages = [{
     id: "existing", conversationId: "conversation", role: "user", content: "Earlier",
     metadata: { important: true, source: "existing" }
   }];
-  const state = { writes: 0, providerCalls: 0, replies: 0, usage: [] };
+  const state = { writes: 0, memoryWrites: 0, providerCalls: 0, replies: 0, usage: [], promptInputs: [], groupMemoryReads: [] };
   const memories = [];
   const repo = {
     async getConversation(userId, conversationId) {
@@ -40,13 +40,28 @@ function fixture({ failReply = false } = {}) {
     async updateRelationshipAfterMessage() { state.writes++; return { warmth: 1 }; },
     async createPendingMemory(userId, companionId, sourceMessageId, content) {
       state.writes++;
+      state.memoryWrites++;
       const memory = { id: `pending-${memories.length}`, userId, companionId, sourceMessageId, content, type: "user_fact", status: "pending" };
       memories.push(memory); return memory;
     },
     async createMemory(userId, companionId, input) {
       state.writes++;
+      state.memoryWrites++;
       const memory = { id: `manual-${memories.length}`, userId, companionId, ...input };
       memories.push(memory); return memory;
+    },
+    async getMessage(userId, conversationId, messageId) {
+      assert.equal(userId, "user");
+      assert.equal(conversationId, "conversation");
+      return messages.find(message => message.id === messageId) ?? null;
+    },
+    async updateMessage(conversationId, messageId, input) {
+      assert.equal(conversationId, "conversation");
+      const message = messages.find(message => message.id === messageId);
+      if (!message) return null;
+      state.writes++;
+      Object.assign(message, plain(input));
+      return message;
     },
     async listMessages(userId, conversationId) {
       assert.equal(userId, "user");
@@ -73,14 +88,30 @@ function fixture({ failReply = false } = {}) {
     return compiledModule.exports;
   }
   const types = compile("../src/lib/renewal/types.ts", {});
+  // Default is a closed, empty stub. Integration opts into the real filtering
+  // helper with an explicit repository stub, never the production repository.
+  const groupContext = groupsForExport === undefined
+    ? { getGroupMemoriesForCompanion: async () => [] }
+    : compile("../src/lib/groups/private-context.ts", {
+      "@/lib/groups/repository": { async listGroupsForExport(userId) {
+        assert.equal(userId, "user");
+        return structuredClone(groupsForExport);
+      } },
+      "@/lib/http/response-safety": { redactSensitiveResponseText: value => value }
+    });
   const serviceModule = compile("../src/lib/renewal/service.ts", {
     "./types": types,
     "./repository": { createRenewalRepository: () => repo },
     "@/lib/llm/types": { LlmProviderError: class extends Error {} },
-    "@/lib/chat": { async generateCompanionReply() {
+    "@/lib/chat": { async generateCompanionReply(input) {
       state.replies++;
+      state.promptInputs.push(plain(input));
       if (failReply) throw new Error("Offline failure");
       return completion;
+    } },
+    "@/lib/groups/private-context": { async getGroupMemoriesForCompanion(userId, companionId) {
+      state.groupMemoryReads.push({ userId, companionId });
+      return groupContext.getGroupMemoriesForCompanion(userId, companionId);
     } },
     "@/lib/memory/extractor": { extractMemoryCandidates() { throw new Error("Unexpected extraction"); } },
     "@/lib/http/response-safety": { redactSensitiveResponseText: (value) => value },
@@ -227,4 +258,49 @@ test("failed reply preserves user correlation and existing assistant error metad
   assert.deepEqual(messages[1], result.userMessage);
   assert.equal(f.state.providerCalls, 1);
   assert.equal(f.state.replies, 1);
+});
+
+test("send and regenerate receive only known, source-labelled group memories without persisting formal copies", async () => {
+  const groups = [{
+    id: "group-known", userId: "user", name: "摄影群", members: [],
+    memories: [
+      { id: "known", content: "一起讨论过构图", confirmed: true, knownBy: ["companion"], createdAt: "2026-11-12T10:00:00Z" },
+      { id: "unknown", content: "UNKNOWN_GROUP_SECRET", confirmed: true, knownBy: ["other"], createdAt: "2026-11-12T11:00:00Z" },
+      { id: "pending", content: "UNCONFIRMED_GROUP_SECRET", confirmed: false, knownBy: ["companion"], createdAt: "2026-11-12T12:00:00Z" }
+    ]
+  }, {
+    id: "foreign-group", userId: "other-user", name: "FOREIGN_GROUP", members: [],
+    memories: [{ id: "foreign", content: "FOREIGN_GROUP_SECRET", confirmed: true, knownBy: ["companion"], createdAt: "2026-11-12T13:00:00Z" }]
+  }];
+  const f = fixture({ groupsForExport: groups });
+  f.memories.push({ id: "formal", userId: "user", companionId: "companion", type: "user_fact", status: "active", content: "已有私聊记忆" });
+  const formalBefore = plain(f.memories);
+  const groupsBefore = plain(groups);
+  const sent = await f.service.sendMessage("conversation", "hello");
+  assert.ok(sent.assistantMessage);
+  assert.equal(sent.assistantError, undefined);
+  assert.equal(sent.pendingMemory, null);
+  assert.deepEqual(f.state.groupMemoryReads, [{ userId: "user", companionId: "companion" }]);
+  const promptMemories = f.state.promptInputs[0].memories;
+  assert.equal(promptMemories.length, 2);
+  assert.deepEqual(promptMemories[0], formalBefore[0]);
+  assert.equal(promptMemories[1].type, "relationship_event");
+  assert.match(promptMemories[1].content, /群「摄影群」中你已知的共同经历（不代表私聊发生过）/);
+  assert.match(promptMemories[1].content, /来源：群聊共享记忆，非私人既定事实.*一起讨论过构图/);
+  assert.ok(!JSON.stringify(f.state.promptInputs).includes("GROUP_SECRET"));
+  assert.deepEqual(f.memories, formalBefore);
+  assert.equal(f.state.memoryWrites, 0);
+  assert.deepEqual(plain(groups), groupsBefore);
+
+  // Regeneration must read current shared context again, without caching a copy.
+  groups[0].memories[0].content = "后来讨论了光线";
+  const regenerated = await f.service.regenerateMessage("conversation", sent.assistantMessage.id);
+  assert.ok(regenerated.assistantMessage);
+  assert.equal(f.state.groupMemoryReads.length, 2);
+  assert.equal(f.state.promptInputs[1].memories.length, 2);
+  assert.match(f.state.promptInputs[1].memories[1].content, /后来讨论了光线/);
+  assert.ok(!JSON.stringify(f.state.promptInputs[1]).includes("一起讨论过构图"));
+  assert.ok(!JSON.stringify(f.state.promptInputs[1]).includes("GROUP_SECRET"));
+  assert.deepEqual(f.memories, formalBefore);
+  assert.equal(f.state.memoryWrites, 0);
 });

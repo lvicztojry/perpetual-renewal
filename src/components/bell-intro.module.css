@@ -1,4 +1,5 @@
 .intro {
+  --duration: 6s;
   position: fixed;
   inset: 0;
   width: 100%;
@@ -121,11 +122,49 @@
 .replay { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); right: 16px; z-index: 20; background: #292b27; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.intro[data-phase="playing"] .camera { animation: approach 5s ease-out both; }
-.intro[data-phase="playing"] .bell { animation: swing 5s ease-in-out both; }
-.intro[data-phase="playing"] .dust { animation: drift 5s ease-out both; }
-.intro[data-phase="playing"] .screen { animation: screenPower 5s ease-out both; }
-.intro[data-phase="playing"] { animation: depart 5s linear both; }
+.intro[data-short="true"] { --duration: 2s; }
+.intro[data-phase="playing"] .camera { animation: approach var(--duration) ease-out both; }
+.intro[data-phase="playing"] .bell { animation: swing var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .dust { animation: drift var(--duration) ease-out both; }
+.intro[data-phase="playing"] .screen { animation: screenPower var(--duration) ease-out both; }
+.intro[data-phase="playing"] .film { animation: depart var(--duration) linear both; }
+
+.companion { max-width: 80vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 8px; font-size: 13px; letter-spacing: 0.12em; color: #e1d3bc; }
+.birth, .cityEcho, .reflection, .memories, .dreamVeil { position: absolute; inset: 0; pointer-events: none; }
+.birth { left: 40%; top: 36%; width: 20%; height: 45%; }
+.orb { position: absolute; inset: 0 -15% 0; opacity: 0; border-radius: 50%; background: radial-gradient(ellipse at 50% 45%, #fffdf5 0, #fff8e9ed 14%, #f2d7a6a0 32%, #d6b87b38 54%, transparent 72%); mix-blend-mode: screen; filter: blur(0.45cqw); }
+.silhouette { position: absolute; left: 6%; top: 13%; width: 88%; height: 87%; opacity: 0; background: #050706; mask: url("/visuals/yu-nianan-silhouette.png") center / contain no-repeat; }
+.intro[data-phase="playing"] .orb { animation: birthLight var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .silhouette { animation: emerge var(--duration) ease-out both; }
+.cityEcho { opacity: 0; background: url("/visuals/bell-scene.png") center / 100% 100% no-repeat; mask-image: linear-gradient(transparent 35%, #000 67%, transparent); mix-blend-mode: screen; }
+.reflection { top: 73%; opacity: 0; transform: scaleY(-1); background: repeating-linear-gradient(0deg, transparent 0 7px, #e0ceb417 8px 9px), radial-gradient(ellipse at 45% 25%, #b9c9ce65, transparent 65%); mask-image: linear-gradient(transparent, #000 25%, transparent); }
+.memories { opacity: 0; }
+.memories i { position: absolute; width: 9%; height: 15%; border: 1px solid #e7d9ba55; box-shadow: 0 0 2cqw #dfd1b822; filter: blur(0.14cqw); background: linear-gradient(140deg, #c6bca029, #363a3d55); }
+.memories i:nth-child(1) { left: 20%; top: 52%; transform: rotate(-8deg); background: linear-gradient(90deg, transparent 47%, #dbcdbb70 48% 51%, transparent 52%), linear-gradient(0deg, transparent 47%, #dbcdbb70 48% 51%, transparent 52%), #9a9f9633; }
+.memories i:nth-child(2) { left: 65%; top: 65%; transform: rotate(9deg); background: repeating-linear-gradient(0deg, transparent 0 14%, #e5d6b936 15% 16%, transparent 17% 22%), #b0a89922; }
+.memories i:nth-child(3) { left: 76%; top: 47%; transform: rotate(-3deg); border-radius: 50% 50% 4% 4%; background: radial-gradient(ellipse at 50% 75%, #dbccb33d, transparent 65%); }
+.door { position: absolute; left: 43%; top: 50%; width: 10%; height: 36%; perspective: 55cqw; opacity: 0; border-radius: 48% 48% 2% 2%; background: radial-gradient(ellipse at 50% 70%, #fff7dfcf, #b8c6ca85 35%, #313b48 80%); box-shadow: 0 0 4cqw #cdd9d44d, inset 0 0 0 0.35cqw #817b6855; border: 1px solid #e0d8c555; }
+.doorLeaf { position: absolute; inset: 0; transform-origin: left; border-radius: inherit; background: linear-gradient(90deg, #262b2c, #525149 48%, #292e30); border: 1px solid #c6bba944; box-shadow: inset 0 0 0 0.45cqw #1f252655, inset 0 0 0 0.6cqw #afa38a33; }
+.dreamVeil { opacity: 0; background: radial-gradient(ellipse at 48% 65%, #cad4d0, #445567 45%, #202630); }
+.intro[data-ability="dream"][data-phase="playing"] .camera { animation-name: dreamApproach; }
+.intro[data-ability="dream"][data-phase="playing"] .dust { animation-name: dreamDust; }
+.intro[data-phase="playing"] .cityEcho.loaded { animation: cityDouble var(--duration) ease-out both; }
+.intro[data-phase="playing"] .reflection { animation: waterTime var(--duration) ease-out both; }
+.intro[data-phase="playing"] .memories { animation: memoryGlimpse var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .door { animation: doorway var(--duration) ease-out both; }
+.intro[data-phase="playing"] .doorLeaf { animation: doorOpen var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .dreamVeil { animation: dreamEnter var(--duration) ease-in both; }
+
+@keyframes birthLight { 0% { opacity: 0; transform: scale(0.35); } 16% { opacity: 0.3; } 35% { opacity: 1; transform: scale(1.08); } 60% { opacity: 0.55; } 100% { opacity: 0.14; transform: scale(0.9); } }
+@keyframes emerge { 0%, 42% { opacity: 0; transform: translateY(2%); } 76%, 100% { opacity: 1; transform: translateY(0); } }
+@keyframes cityDouble { 0%, 10% { opacity: 0; transform: translate(0); } 36% { opacity: 0.3; transform: translate(1.1%, -0.4%); } 80%, 100% { opacity: 0.12; transform: translate(1.4%, -0.6%); } }
+@keyframes waterTime { 0% { opacity: 0; background-position: 0 0; } 30%, 100% { opacity: 0.6; background-position: 0 4px; } }
+@keyframes memoryGlimpse { 0%, 22%, 85%, 100% { opacity: 0; } 42%, 62% { opacity: 0.5; } }
+@keyframes doorway { 0%, 32% { opacity: 0; transform: scale(0.97); } 52%, 100% { opacity: 0.9; transform: scale(1); } }
+@keyframes doorOpen { 0%, 46% { transform: rotateY(0); } 83%, 100% { transform: rotateY(-82deg); } }
+@keyframes dreamApproach { 0%, 48% { transform: scale(1.025); transform-origin: 48% 68%; } 76% { transform: scale(1.08); transform-origin: 48% 68%; } 100% { transform: scale(5.5); transform-origin: 48% 68%; } }
+@keyframes dreamDust { 0% { transform: translateY(3px); } 30% { transform: translate(3px, -4px); } 100% { transform: translate(4px, -5px); } }
+@keyframes dreamEnter { 0%, 78% { opacity: 0; } 100% { opacity: 1; } }
 
 @keyframes approach { from { transform: scale(1.025); } to { transform: scale(1.065) translateY(0.4%); } }
 @keyframes swing {
@@ -151,6 +190,10 @@
 .intro[data-reduced-motion="true"] .camera { transform: none; }
 .intro[data-reduced-motion="true"] .bell { transform: none; }
 .intro[data-reduced-motion="true"] .screen { opacity: 1; }
+.intro[data-reduced-motion="true"] .orb { opacity: 0.45; }
+.intro[data-reduced-motion="true"] .silhouette { opacity: 1; }
+.intro[data-reduced-motion="true"] .door { opacity: 0.65; }
+.intro[data-reduced-motion="true"] .doorLeaf { opacity: 0.3; }
 
 @media (prefers-reduced-motion: reduce) {
   .intro, .intro * { animation: none !important; transition: none !important; }

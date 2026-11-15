@@ -4,10 +4,15 @@ export const BELL_VOLUME = 0.85;
 /** Deep bronze modes, a hard clapper and a diffuse hall tail. */
 export function createGiantBellSound(
   context: BaseAudioContext,
-  { muted, reducedMotion }: { muted: boolean; reducedMotion: boolean }
+  { muted, reducedMotion, dream = false, duration = 5 }: {
+    muted: boolean;
+    reducedMotion: boolean;
+    dream?: boolean;
+    duration?: number;
+  }
 ): GainNode {
   const now = context.currentTime;
-  const end = now + (reducedMotion ? 0.8 : 5);
+  const end = now + (reducedMotion ? 0.8 : Math.max(0.8, duration));
   const mix = context.createGain();
   const compressor = context.createDynamicsCompressor();
   compressor.threshold.value = -10;
@@ -46,7 +51,18 @@ export function createGiantBellSound(
   reverb.buffer = impulse;
   const wet = context.createGain();
   wet.gain.value = 0.38;
-  reverb.connect(wet).connect(mix);
+  if (dream) {
+    // Preserve the loud dry attack; only the late hall becomes dark and wide.
+    const low = context.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.setValueAtTime(1800, now);
+    low.frequency.exponentialRampToValueAtTime(320, end);
+    const space = context.createStereoPanner();
+    space.pan.setValueAtTime(-0.65, now);
+    space.pan.linearRampToValueAtTime(0.65, end);
+    wet.gain.value = 0.55;
+    reverb.connect(low).connect(space).connect(wet).connect(mix);
+  } else reverb.connect(wet).connect(mix);
 
   // The hum gives scale; stronger upper modes remain audible on laptop speakers.
   const modes = [
@@ -54,7 +70,7 @@ export function createGiantBellSound(
     [2, 0.72, 4.2], [2.76, 0.38, 3.3], [4.07, 0.25, 2.6],
     [5.43, 0.17, 2], [8.21, 0.09, 1.3], [12.17, 0.08, 0.8]
   ];
-  for (const delay of reducedMotion ? [0] : [0, 2.15]) {
+  for (const delay of reducedMotion || dream || duration <= 2 ? [0] : [0, 2.15]) {
     const start = now + delay;
     const strength = delay === 0 ? 1 : 0.94;
     for (const [ratio, amplitude, decay] of modes) {

@@ -1,5 +1,7 @@
 # 生生不息 QA 与 Smoke 验收 v0.1
 
+群聊专项运行 `npm run qa:groups` 和 `npm run e2e -- tests/e2e/group-flow.spec.ts`，分别验证模型/调度隔离和用户闭环。真实数据库专项使用 `GROUP_DATABASE_QA=1 npm run qa:groups:postgres`，仅在自建临时 schema 中运行。范围与容量见 [GROUPS.md](GROUPS.md)，实测以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
+
 当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
 
 ## 可重复执行命令
@@ -9,6 +11,8 @@
 `npm run qa:proactive-availability`：30 项，验证 GET/POST 持久化双开关、force 无法绕过关闭、skippedReason、账号隔离与只读无副作用。浏览器 `proactive-status.spec.ts` 验证真实内存 API 的停发解释、显式开启保留频率及打开历史不生成；relationship-flow 验证打开面板不推迟一分钟自动投递。
 
 新增 `npm run qa:character-import`，覆盖文本记录解析与人物提炼/预览；完整用户流程由 `tests/e2e/chat-character-import.spec.ts` 验证，含假供应商 BYOK、错误重试、创建前零人物、确认后的共同记忆与临时消息不持久化。
+
+`npm run qa:dream` 验证人物校准的隔离、修订冲突、确认应用、版本恢复、模型错误脱敏与失败响应费用；`dream-flow.spec.ts` 覆盖手机闭环、冲突恢复、草稿续接、导出清理和双能力预览。真实数据库专项 `DREAM_DATABASE_QA=1 npm run qa:dream:postgres` 使用独立临时 schema，包含版本迁移、断开重连和事务回滚，不调用真实模型或邮件。流程与边界见 [DREAM.md](DREAM.md)。
 
 当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
 
@@ -183,7 +187,7 @@ npm run db:smoke
 
 M135 历史验收（2026-08-23）：`npm run e2e` 通过 15 tests；后续结果按日期分列，源码数量不等于通过数量。
 
-2026-11-05 当前基线：Playwright --list JSON 派生 52 tests，完整浏览器回归 52 项通过；涵盖即时消息、人物输入状态、慢响应、跨会话发送、历史去重和失败恢复。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
+2026-11-05 历史验收：完整浏览器回归通过，涵盖即时消息、人物输入状态、慢响应、跨会话发送、历史去重和失败恢复。最新数量与实际通过证据统一见 [MVP_STATUS.md](MVP_STATUS.md)。认证 UI 拦截响应与真实隔离数据库、用户 QQ 注册收件验证分列记录。
 
 ### 10 月增量验收
 

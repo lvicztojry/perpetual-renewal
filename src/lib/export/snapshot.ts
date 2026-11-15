@@ -10,6 +10,9 @@ import type {
 import { listSafetyEventsExportPage } from "@/lib/safety-events";
 import { listModelUsageLogsExportPage } from "@/lib/usage";
 import { getUserProfile } from "@/lib/users/profile";
+import { listDreamWorkspacesForExport } from "@/lib/dream/repository";
+import type { DreamState } from "@/lib/dream/types";
+import { listGroupsForExport } from "@/lib/groups/repository";
 import type {
   ExportCompanionSnapshot,
   ExportCredentialSummary,
@@ -83,12 +86,14 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
 
 export async function buildUserExportSnapshot(userId: string): Promise<UserExportSnapshot> {
   const repository = createRenewalRepository();
-  const [profile, credentialStatus, companions, modelUsagePage, safetyEventPage] = await Promise.all([
+  const [profile, credentialStatus, companions, modelUsagePage, safetyEventPage, dreamWorkspaces, groups] = await Promise.all([
     getUserProfile(userId),
     getLlmCredentialStatus(userId),
     repository.listCompanions(userId),
     listModelUsageLogsExportPage(userId, EXPORT_LIMIT),
-    listSafetyEventsExportPage(userId, EXPORT_LIMIT)
+    listSafetyEventsExportPage(userId, EXPORT_LIMIT),
+    listDreamWorkspacesForExport(userId),
+    listGroupsForExport(userId)
   ]);
   const modelUsageLogs = modelUsagePage.items;
   const safetyEvents = safetyEventPage.items;
@@ -124,6 +129,8 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       llm: toCredentialSummary(credentialStatus)
     },
     companions: companionSnapshots,
+    dreamWorkspaces: scrubSensitiveValue(dreamWorkspaces.map((row) => row.state)) as DreamState[],
+    groups: scrubSensitiveValue(groups) as typeof groups,
     modelUsageLogs: scrubSensitiveValue(modelUsageLogs) as typeof modelUsageLogs,
     safetyEvents: scrubSensitiveValue(safetyEvents) as typeof safetyEvents,
     counts: {

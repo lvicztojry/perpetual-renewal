@@ -92,6 +92,8 @@ model User {
   providerCredentials      ProviderCredential[]
   authCredential           AuthCredential?
   authRecoveryTokens       AuthRecoveryToken[]
+  dreamWorkspaces          DreamWorkspace[]
+  groupWorkspaces          GroupWorkspace[]
 }
 
 model AuthCredential {
@@ -159,6 +161,8 @@ model Companion {
   proactiveMessages ProactiveMessage[]
   safetyEvents      SafetyEvent[]
   modelUsageLogs    ModelUsageLog[]
+
+  dreamWorkspace    DreamWorkspace?
 
   @@index([userId])
 }
@@ -324,4 +328,32 @@ model ProviderCredential {
 
   @@unique([userId, kind])
   @@index([userId, status])
+}
+
+// Bounded dream snapshots contain isolated rounds, confirmed fragments and profile versions.
+model DreamWorkspace {
+  id          String    @id
+  userId      String
+  companionId String    @unique
+  revision    Int
+  state       Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion   Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Group snapshots and durable reply claims are isolated from private conversations.
+model GroupWorkspace {
+  id        String   @id
+  userId    String
+  revision  Int
+  state     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

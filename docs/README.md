@@ -9,6 +9,8 @@
 - 真实配置：优先看 [DEPLOYMENT.md](DEPLOYMENT.md)，根 README 也列出 Neon/PostgreSQL `DATABASE_URL`、TryAnotherOne compatible LLM、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 和 `VOICE_PROVIDER=shared-llm` 的最小配置。
 - 网站内配置：进入设置页保存当前登录用户自己的 API key、读取模型列表、测试连接，并查看只读配置状态；读取模型列表失败时可手动填模型名再测试连接。
 - 本地主动回响：工作台打开时会每分钟检查当前关系对象；生产 all-user 自动调度需要 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
+- 入梦与能力演出：[DREAM.md](DREAM.md) 说明人物校准、独立草稿、确认应用与版本恢复；设置页可进入「回响录」预览两种动画。
+- 群聊：[GROUPS.md](GROUPS.md) 说明邀请人物、多人接话、共同记忆、主动节奏与本机后台调度。
 - 发布候选验收：先跑根 README 的验收命令，其中包含 `npm run docs:check` 的发布口径自动检查和 `npm run git:boundary` 的文件边界检查；再按 [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) 做 20 分钟人工演示。
 
 ## 阅读顺序

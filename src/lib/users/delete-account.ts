@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { shouldFallbackToMemoryOnPrismaError, shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
+import { deleteDreamWorkspaces } from "@/lib/dream/repository";
+import { deleteGroupsForAccount } from "@/lib/groups/repository";
 
 export const ACCOUNT_DELETE_CONFIRMATION = "删除我的账号";
 
@@ -129,7 +131,9 @@ async function countPrismaUserRecords(userId: string): Promise<DeleteAccountSumm
   };
 }
 
-function deleteFallbackAccount(userId: string): DeleteAccountSummary {
+async function deleteFallbackAccount(userId: string): Promise<DeleteAccountSummary> {
+  await deleteGroupsForAccount(userId);
+  await deleteDreamWorkspaces(userId);
   const stores = globalThis as AccountDeletionStores;
   const store = stores.renewalStore;
   const companionIds = new Set(

@@ -1,0 +1,383 @@
+import assert from "node:assert/strict";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { test } from "node:test";
+import vm from "node:vm";
+import ts from "typescript";
+
+// No process, fetch, native require, credentials, database or real providers in this VM.
+const root = fileURLToPath(new URL("../src/", import.meta.url));
+const context = vm.createContext({ AbortSignal, DOMException });
+const forbidden = () => { throw new Error("Unexpected external operation"); };
+let exportedGroups = [], exportCalls = [], exportFailure;
+const stubs = {
+  "@/lib/llm/user-provider": { createUserLlmProvider: forbidden },
+  "@/lib/usage": { recordModelUsage: forbidden },
+  "@/lib/groups/repository": { listGroupsForExport: async userId => {
+    exportCalls.push(userId);
+    if (exportFailure) throw exportFailure;
+    return structuredClone(exportedGroups);
+  } }
+};
+const cache = new Map();
+function load(specifier, parent = path.join(root, "entry.ts")) {
+  if (Object.hasOwn(stubs, specifier)) return stubs[specifier];
+  const base = specifier.startsWith("@/") ? path.join(root, specifier.slice(2)) : specifier.startsWith(".") ? path.resolve(path.dirname(parent), specifier) : null;
+  if (!base || !base.startsWith(root)) throw new Error(`Blocked import ${specifier}`);
+  const filename = [`${base}.ts`, path.join(base, "index.ts")].find(existsSync);
+  if (!filename) throw new Error(`Missing import ${specifier}`);
+  if (cache.has(filename)) return cache.get(filename).exports;
+  const { outputText } = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }, fileName: filename });
+  const compiledModule = { exports: {} };
+  cache.set(filename, compiledModule);
+  new vm.Script(`(function(exports,require,module){${outputText}\n})`, { filename }).runInContext(context)(compiledModule.exports, child => load(child, filename), compiledModule);
+  return compiledModule.exports;
+}
+const { selectGroupSpeakers, generateGroupReply, buildGroupReplyContext } = load("@/lib/groups/generation");
+const { getGroupMemoriesForCompanion } = load("@/lib/groups/private-context");
+const { LlmProviderError } = load("@/lib/llm/types");
+const plain = value => JSON.parse(JSON.stringify(value));
+// Synthetic fixture only; assemble it so secret scanning can distinguish test data.
+const syntheticKey = ["sk", "syntheticGroupGenerationFixture123"].join("-");
+const stamp = day => `2026-11-${String(day).padStart(2, "0")}T10:00:00Z`;
+const message = (speakerId, content, day = 12) => ({ id: `${speakerId}-${day}-${content}`, speakerId, content, createdAt: stamp(day), proactive: false });
+function fixture() {
+  const companions = ["a", "b", "c"].map((id, index) => ({
+    id, userId: "u", name: ["阿青", "小白", "小橙"][index], relationshipKind: "FRIEND",
+    personality: [], speakingStyle: "自然", background: "", boundaries: "", customKind: null,
+    userAddress: "你", companionAddress: null, memories: [],
+    relationshipState: { importantEvents: ["HIDDEN_RELATIONSHIP_STATE"] }, conversationId: `private-${id}`
+  }));
+  const group = {
+    id: "g", userId: "u", name: "小群", background: "兴趣群", turn: 0,
+    members: companions.map(c => ({ companionId: c.id, joinedAt: stamp(5), allowPrivateMemories: false, relationship: "群友", proactiveEnabled: true })),
+    messages: [message(null, "晚上好")], memories: [], settings: { maxReplies: 2, proactiveEnabled: true }
+  };
+  return { companions, group };
+}
+function harness(name = "compatible", reply = "**你好**，今天想聊什么？") {
+  const calls = [], logs = [];
+  return { calls, logs, deps: {
+    provider: { name, complete: async options => {
+      calls.push(plain(options));
+      if (typeof reply !== "string") throw reply;
+      return { content: reply, provider: name, model: "offline-model", usage: { inputTokens: 1000, outputTokens: 200 } };
+    } },
+    recordUsage: async entry => { logs.push(plain(entry)); return null; }
+  } };
+}
+
+test("speaker cap, mentions, invalid members, collective invitation and ordinary single voice", () => {
+  const { group, companions } = fixture();
+  assert.equal(selectGroupSpeakers(group, companions).length, 1);
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions, ["missing", "b", "b"])), ["b"]);
+  group.messages[0].content = "@小橙 你怎么看？";
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["c"]);
+  group.messages[0].content = "大家觉得呢？";
+  group.settings.maxReplies = 50;
+  assert.equal(selectGroupSpeakers(group, companions).length, 3);
+  group.settings.maxReplies = 1;
+  assert.equal(selectGroupSpeakers(group, companions).length, 1);
+  group.settings.maxReplies = 0;
+  assert.equal(selectGroupSpeakers(group, companions).length, 0);
+  group.settings.maxReplies = 2;
+  companions[0].userId = "someone-else";
+  group.members[1].joinedAt = stamp(13);
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["c"]);
+});
+
+test("multiple mentions and collective questions obey maxReplies up to twelve; ordinary replies stay small", () => {
+  const { group, companions } = fixture();
+  group.settings.maxReplies = 3;
+  group.messages = [message(null, "@阿青 @小白 @小橙 你们怎么看？")];
+  assert.deepEqual(new Set(selectGroupSpeakers(group, companions)), new Set(["a", "b", "c"]));
+  group.messages = [message(null, "你们怎么看？")];
+  assert.deepEqual(new Set(selectGroupSpeakers(group, companions, ["a", "b", "c"])), new Set(["a", "b", "c"]));
+  group.settings.maxReplies = 2;
+  assert.equal(selectGroupSpeakers(group, companions, ["a", "b", "c"]).length, 2);
+  group.settings.maxReplies = undefined;
+  assert.equal(selectGroupSpeakers(group, companions, ["a", "b", "c"]).length, 2);
+  for (let index = 3; index < 15; index++) {
+    const id = `member-${index}`;
+    companions.push({ ...companions[0], id, name: `成员${index}` });
+    group.members.push({ ...group.members[0], companionId: id });
+  }
+  group.settings.maxReplies = 50;
+  group.messages = [message(null, "大家觉得呢？")];
+  assert.equal(selectGroupSpeakers(group, companions).length, 12);
+  group.messages = [message(null, "晚上好")];
+  assert.equal(selectGroupSpeakers(group, companions).length, 1);
+  group.messages = [message(null, "天文摄影怎么入门？")];
+  for (const companion of companions) companion.background = "天文摄影";
+  assert.equal(selectGroupSpeakers(group, companions).length, 2);
+});
+
+test("rotation, recent participation, personality and topical relevance affect selection", () => {
+  const { group, companions } = fixture();
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["a"]);
+  group.turn = 1;
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  group.messages.push(message("b", "我在"));
+  assert.notEqual(selectGroupSpeakers(group, companions)[0], "b");
+  group.messages = [message(null, "晚上好")];
+  companions[2].personality = ["外向", "健谈"];
+  assert.equal(selectGroupSpeakers(group, companions)[0], "c");
+  companions[1].background = "天文摄影";
+  group.messages[0].content = "天文摄影怎么入门？";
+  assert.equal(selectGroupSpeakers(group, companions)[0], "b");
+});
+
+test("context isolates settings, memory permissions and join time; roles retain attribution", async () => {
+  const { group, companions } = fixture();
+  companions[1].background = "OTHER_SECRET_SETTING";
+  companions[1].memories = [{ status: "active", content: "OTHER_PRIVATE_MEMORY", companionId: "b", userId: "u" }];
+  companions[0].background = "OWN_SETTING";
+  companions[0].memories = [
+    { status: "active", content: "OWN_ACTIVE", companionId: "a", userId: "u" },
+    { status: "pending", content: "OWN_PENDING", companionId: "a", userId: "u" },
+    { status: "archived", content: "OWN_ARCHIVED", companionId: "a", userId: "u" },
+    { status: "active", content: "FOREIGN_MEMORY", companionId: "b", userId: "u" }
+  ];
+  group.memories = [
+    { confirmed: true, knownBy: ["a"], content: "KNOWN_CONFIRMED" },
+    { confirmed: false, knownBy: ["a"], content: "UNCONFIRMED" },
+    { confirmed: true, knownBy: ["b"], content: "UNKNOWN_MEMORY" }
+  ];
+  group.messages = [message(null, "BEFORE_JOIN", 1), message("b", "OTHER_MESSAGE", 6), message("a", "OWN_MESSAGE", 7), message(null, "USER_MESSAGE", 8)];
+  const before = plain({ group, companions });
+  const h = harness();
+  await generateGroupReply("u", group, companions, "a", false, h.deps);
+  const prompt = JSON.stringify(h.calls[0]);
+  for (const allowed of ["OWN_SETTING", "KNOWN_CONFIRMED", "OTHER_MESSAGE", "USER_MESSAGE"]) assert.ok(prompt.includes(allowed), allowed);
+  for (const secret of ["OTHER_SECRET_SETTING", "OTHER_PRIVATE_MEMORY", "OWN_ACTIVE", "OWN_PENDING", "OWN_ARCHIVED", "FOREIGN_MEMORY", "UNCONFIRMED", "UNKNOWN_MEMORY", "BEFORE_JOIN", "HIDDEN_RELATIONSHIP_STATE"]) assert.ok(!prompt.includes(secret), secret);
+  const own = h.calls[0].messages.filter(m => m.role === "assistant");
+  assert.equal(own.length, 1);
+  assert.equal(JSON.parse(own[0].content).content, "OWN_MESSAGE");
+  const other = h.calls[0].messages.find(m => m.content.includes("OTHER_MESSAGE"));
+  assert.equal(other.role, "user");
+  assert.deepEqual(JSON.parse(other.content), { name: "小白", identity: "群友", speakerId: "b", time: stamp(6), content: "OTHER_MESSAGE" });
+  assert.deepEqual(plain({ group, companions }), before);
+  group.members[0].allowPrivateMemories = true;
+  await generateGroupReply("u", group, companions, "a", false, h.deps);
+  const enabled = JSON.stringify(h.calls[1]);
+  assert.ok(enabled.includes("OWN_ACTIVE"));
+  for (const secret of ["OWN_PENDING", "OWN_ARCHIVED", "FOREIGN_MEMORY", "OTHER_PRIVATE_MEMORY"]) assert.ok(!enabled.includes(secret));
+});
+
+for (const name of ["compatible", "anthropic", "gemini", "openai-responses"]) {
+  test(`${name}: injected BYOK provider returns normalized output and billable success usage`, async () => {
+    const { group, companions } = fixture(), h = harness(name);
+    let requested;
+    const provider = h.deps.provider;
+    delete h.deps.provider;
+    h.deps.createProvider = async userId => { requested = userId; return provider; };
+    const result = await generateGroupReply("u", group, companions, "a", false, h.deps);
+    assert.equal(requested, "u");
+    assert.deepEqual(plain(result), { content: "你好，今天想聊什么？", source: "model" });
+    assert.equal(h.logs.length, 1);
+    assert.equal(h.logs[0].purpose, "group_reply");
+    assert.equal(h.logs[0].status, "success");
+    assert.equal(h.logs[0].provider, name);
+    assert.deepEqual(h.logs[0].usage, { inputTokens: 1000, outputTokens: 200 });
+    assert.ok(h.calls[0].maxTokens > 0);
+  });
+}
+
+test("mock is an explicit local demo; provider creation failure never becomes mock success", async () => {
+  const { group, companions } = fixture(), h = harness("mock");
+  h.deps.provider.complete = forbidden;
+  const result = await generateGroupReply("u", group, companions, "a", false, h.deps);
+  assert.equal(result.source, "local");
+  assert.match(result.content, /本地演示/);
+  assert.equal(h.logs.length, 0);
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, { createProvider: forbidden, recordUsage: forbidden }), error => error.status === 502);
+});
+
+test("provider failure records classified error once without exposing secrets or inventing usage", async () => {
+  const { group, companions } = fixture();
+  const h = harness("gemini", new LlmProviderError(syntheticKey, { provider: "gemini", kind: "rate_limit", status: 429, model: "offline-model" }));
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, h.deps), error => error.status === 502 && !error.message.includes(syntheticKey));
+  assert.equal(h.logs.length, 1);
+  assert.equal(h.logs[0].status, "error");
+  assert.equal(h.logs[0].purpose, "group_reply");
+  assert.equal(h.logs[0].errorKind, "rate_limit");
+  assert.equal(h.logs[0].httpStatus, 429);
+  assert.equal(h.logs[0].usage, undefined);
+});
+
+test("invalid paid completions retain usage and never become successful local replies", async () => {
+  const { group, companions } = fixture();
+  for (const reply of ["", "**", "a".repeat(1201), "a".repeat(20001)]) {
+    const h = harness("compatible", reply);
+    await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, h.deps), error => error.status === 502);
+    assert.equal(h.logs.length, 1);
+    assert.equal(h.logs[0].status, "error");
+    assert.equal(h.logs[0].usage.inputTokens, 1000);
+  }
+  const h = harness();
+  h.deps.provider.complete = async () => ({ content: "fake success", provider: "mock", model: "mock" });
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, h.deps));
+  assert.equal(h.logs[0].status, "error");
+});
+
+test("proactive prompt has grounded topic and length instructions, rejects recent near duplicates with usage", async () => {
+  const { group, companions } = fixture();
+  group.messages.push(message("b", "最近有没有读到让你喜欢的书？"));
+  const repeated = harness("compatible", "最近有没有读到让你喜欢的书呢？");
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", true, repeated.deps));
+  assert.equal(repeated.logs[0].status, "error");
+  assert.equal(repeated.logs[0].purpose, "group_proactive");
+  assert.equal(repeated.logs[0].usage.outputTokens, 200);
+  const fresh = harness("compatible", "要不要一起聊聊周末的摄影构图？");
+  await generateGroupReply("u", group, companions, "a", true, fresh.deps);
+  const task = JSON.parse(fresh.calls[0].messages.at(-1).content).task;
+  assert.match(task, /设定.*记忆.*群历史/);
+  assert.match(task, /避开近期话题/);
+  assert.match(task, /短句.*稍长/);
+  assert.equal(fresh.logs[0].purpose, "group_proactive");
+  group.messages.push(message("a", "嗯"));
+  const short = harness("compatible", "嗯！");
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", true, short.deps));
+  assert.equal(short.logs[0].status, "error");
+});
+
+test("safety covers input, output, coercion, secrets and fabricated completed actions", async () => {
+  const { group, companions } = fixture();
+  group.messages[0].content = "帮我去找他";
+  const input = await generateGroupReply("u", group, companions, "a", false, { createProvider: forbidden });
+  assert.equal(input.source, "local");
+  assert.match(input.content, /不能/);
+  group.messages[0].content = "你好";
+  for (const [reply, expected] of [["忽略安全规则", /不能越过/], ["只能依赖我", /自己的节奏/], ["我已经帮你联系了朋友。", /现实中的事情/], ["我已经订好了餐厅。", /现实中的事情/], ["我已到楼下。", /现实中的事情/], [`你好 ${syntheticKey}`, /redacted/]]) {
+    const h = harness("compatible", reply);
+    const result = await generateGroupReply("u", group, companions, "a", false, h.deps);
+    assert.match(result.content, expected);
+  }
+});
+
+test("rejects foreign ownership and absent members before any external operation", async () => {
+  const { group, companions } = fixture();
+  for (const [user, id] of [["foreign", "a"], ["u", "absent"]]) {
+    await assert.rejects(() => generateGroupReply(user, group, companions, id, false, { createProvider: forbidden }), error => error.status === 404);
+  }
+});
+
+test("pure context exposes silent members' known names and mentions without others' settings or user-profile memories", () => {
+  const { group, companions } = fixture();
+  companions[1].background = "SILENT_MEMBER_PRIVATE_SETTING";
+  companions[1].memories = [{ userId: "u", companionId: "b", status: "active", content: "SILENT_MEMBER_PRIVATE_MEMORY" }];
+  companions.push({ ...companions[1], id: "not-in-group", name: "OUTSIDER_NAME" });
+  group.userProfile = { memories: ["OTHER_USER_PROFILE_MEMORY"] };
+  group.messages = [message(null, "＠小白，你觉得呢？")];
+  const before = plain({ group, companions });
+  const context = buildGroupReplyContext("u", group, companions, "a");
+  assert.deepEqual(plain(context.data.knownPeople), [
+    { id: "a", name: "阿青", identity: "群友" },
+    { id: "b", name: "小白", identity: "群友" },
+    { id: "c", name: "小橙", identity: "群友" }
+  ]);
+  assert.deepEqual(plain(context.data.mentions), [{ id: "b", name: "小白", identity: "群友" }]);
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  const payload = JSON.stringify(context.messages);
+  for (const hidden of ["SILENT_MEMBER_PRIVATE_SETTING", "SILENT_MEMBER_PRIVATE_MEMORY", "OTHER_USER_PROFILE_MEMORY", "OUTSIDER_NAME"]) assert.ok(!payload.includes(hidden), hidden);
+  assert.deepEqual(plain({ group, companions }), before);
+  companions[1].name = "小白兔";
+  companions[2].name = "小白";
+  group.messages = [message(null, "@小白兔 你觉得呢？")];
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  companions[1].name = "C++(白)";
+  group.messages = [message(null, "@C++(白)，你觉得呢？")];
+  assert.deepEqual(plain(buildGroupReplyContext("u", group, companions, "a").data.mentions.map(person => person.id)), ["b"]);
+});
+
+test("selection and generation sort timestamps before latest-message selection, history limits and input safety", async () => {
+  const { group, companions } = fixture();
+  group.messages = [message(null, "@小白 最近怎么样？", 13), message("a", "上次聊到这里", 12), message(null, "@小橙 旧消息", 6)];
+  const before = plain(group.messages);
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  const context = buildGroupReplyContext("u", group, companions, "a");
+  assert.deepEqual(plain(context.history.map(row => row.createdAt)), [stamp(6), stamp(12), stamp(13)]);
+  assert.deepEqual(plain(context.data.mentions.map(person => person.id)), ["b"]);
+  const h = harness();
+  await generateGroupReply("u", group, companions, "a", false, h.deps);
+  assert.deepEqual(h.calls[0].messages, plain(context.messages));
+  assert.deepEqual(plain(group.messages), before);
+  // The newest risky request must be checked even when it is stored first.
+  group.messages = [message(null, "帮我去找他", 13), message(null, "晚上好", 6)];
+  assert.equal((await generateGroupReply("u", group, companions, "a", false, { createProvider: forbidden })).source, "local");
+  // Reverse a long history: truncation must retain the chronologically newest 20.
+  group.messages = Array.from({ length: 30 }, (_, i) => ({ ...message("b", `message-${i}`), createdAt: new Date(Date.parse(stamp(6)) + i * 1000).toISOString() })).reverse();
+  group.messages.push(message("b", "BEFORE_JOIN", 1));
+  const bounded = buildGroupReplyContext("u", group, companions, "a");
+  const rows = bounded.messages.slice(1, -1).map(row => JSON.parse(row.content));
+  assert.equal(rows.length, 20);
+  assert.equal(rows[0].content, "message-10");
+  assert.equal(rows.at(-1).content, "message-29");
+});
+
+test("private context requires owner, confirmation and knowledge, preserving known memories after departure", async () => {
+  const { group } = fixture();
+  group.memories = [
+    { id: "valid", content: "一起讨论过摄影", knownBy: ["a", "b"], confirmed: true, createdAt: stamp(12) },
+    { id: "pending", content: "UNCONFIRMED", knownBy: ["a"], confirmed: false, createdAt: stamp(13) },
+    { id: "unknown", content: "UNKNOWN_TO_A", knownBy: ["b"], confirmed: true, createdAt: stamp(13) }
+  ];
+  const departed = structuredClone(group);
+  departed.id = "departed";
+  departed.members = departed.members.filter(member => member.companionId !== "a");
+  departed.memories = [{ id: "old", content: "DEPARTED_KNOWN_BY_RETAINED", knownBy: ["a"], confirmed: true, createdAt: stamp(13) }];
+  const foreign = { ...structuredClone(group), id: "foreign", userId: "other-owner" };
+  exportedGroups = [departed, foreign, group];
+  exportCalls = [];
+  const before = plain(exportedGroups);
+  const result = await getGroupMemoriesForCompanion("u", "a");
+  assert.deepEqual(exportCalls, ["u"]);
+  assert.deepEqual(plain(result), [
+    { groupId: "departed", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】DEPARTED_KNOWN_BY_RETAINED" },
+    { groupId: "g", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】一起讨论过摄影" }
+  ]);
+  assert.deepEqual(plain(exportedGroups), before);
+  assert.deepEqual(plain(await getGroupMemoriesForCompanion("u", "unknown-member")), []);
+});
+
+test("new membership never grants access to memories outside knownBy", async () => {
+  const { group } = fixture();
+  group.members.push({ ...group.members[0], companionId: "newcomer", joinedAt: stamp(13) });
+  group.memories = [
+    { id: "past", content: "OLD_SHARED_EXPERIENCE", knownBy: ["a"], confirmed: true, createdAt: stamp(6) },
+    { id: "recent", content: "RECENT_BUT_UNKNOWN", knownBy: ["a", "b"], confirmed: true, createdAt: stamp(13) }
+  ];
+  exportedGroups = [group];
+  const before = plain(exportedGroups);
+  assert.deepEqual(plain(await getGroupMemoriesForCompanion("u", "newcomer")), []);
+  assert.deepEqual(plain(exportedGroups), before);
+});
+
+test("private context caps newest memories globally at six, retains provenance and redacts secrets", async () => {
+  const { group } = fixture();
+  group.name = `摄影组 ${syntheticKey}`;
+  group.memories = Array.from({ length: 8 }, (_, i) => ({ id: `m${i}`, content: `entry-${i}:` + "景".repeat(400), knownBy: ["a"], confirmed: true, createdAt: stamp(i + 5) }));
+  group.memories.push({ id: "empty", content: "   ", knownBy: ["a"], confirmed: true, createdAt: stamp(13) });
+  const other = { ...structuredClone(group), id: "g2", name: "另一个群", memories: [{ id: "last", content: `latest ${syntheticKey}`, knownBy: ["a"], confirmed: true, createdAt: stamp(13) }] };
+  exportedGroups = [group, other];
+  const result = await getGroupMemoriesForCompanion("u", "a");
+  assert.equal(result.length, 6);
+  assert.equal(result[0].groupId, "g2");
+  assert.equal(result[0].groupName, "另一个群");
+  assert.match(result[0].content, /redacted/);
+  assert.ok(!JSON.stringify(result).includes(syntheticKey));
+  assert.match(result[1].content, /entry-7/);
+  assert.match(result.at(-1).content, /entry-3/);
+  for (const entry of result) {
+    assert.ok(Array.from(entry.content).length <= 300);
+    assert.match(entry.content, /来源：群聊共享记忆，非私人既定事实/);
+  }
+});
+
+test("private context returns no synthetic memory on export failure", async () => {
+  exportFailure = new Error("offline repository unavailable");
+  try {
+    await assert.rejects(() => getGroupMemoriesForCompanion("u", "a"), /offline repository unavailable/);
+  } finally { exportFailure = undefined; exportedGroups = []; }
+});

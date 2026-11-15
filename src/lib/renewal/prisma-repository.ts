@@ -573,7 +573,13 @@ export class PrismaRenewalRepository implements RenewalRepository {
         }
       });
       return { proactiveMessage: toProactiveMessageRecord(updated), message: toMessageRecord(message) };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      // Delivery performs several network round trips; allow more than Prisma's
+      // default 5s while bounding both pool wait and transaction execution.
+      maxWait: 5000,
+      timeout: 20000
+    }));
   }
 
   async updateRelationshipState(

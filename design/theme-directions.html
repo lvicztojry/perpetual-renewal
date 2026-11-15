@@ -1,0 +1,148 @@
+<div id="renewal-theme-directions">
+<style>
+#renewal-theme-directions { width:100%; }
+#renewal-theme-directions * { box-sizing:border-box; }
+#renewal-theme-directions .direction { --paper:#e9e5da; --ink:#24251f; --soft:#716f65; --brand:#a43527; --rule:#c8c5b9; --body-size:14px; color:var(--ink); font:400 var(--body-size)/1.65 "Microsoft YaHei",sans-serif; }
+#renewal-theme-directions .letter { --paper:#f4efdf; --ink:#343e34; --soft:#727666; --brand:#6a7654; --rule:#d5d2bb; }
+#renewal-theme-directions .radio { --paper:#17252e; --ink:#e0e8e3; --soft:#a5b9bc; --brand:#dfb87e; --rule:#3e555e; }
+#renewal-theme-directions .direction h2,#renewal-theme-directions .direction h3,#renewal-theme-directions .direction p { margin:0; }
+#renewal-theme-directions .stage { display:grid; grid-template-columns:35% 65%; min-height:680px; background:var(--paper); overflow:hidden; }
+#renewal-theme-directions .cover { position:relative; min-height:680px; padding:30px 26px; border-right:1px solid var(--rule); display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; }
+#renewal-theme-directions .eyebrow { font:400 11px/1.6 Consolas,monospace; letter-spacing:2px; text-transform:uppercase; }
+#renewal-theme-directions .cover h2 { font:400 76px/1.1 "Songti SC","SimSun",serif; letter-spacing:-4px; position:relative; z-index:1; }
+#renewal-theme-directions .cover-foot { position:relative; z-index:1; font-size:12px; }
+#renewal-theme-directions .cover-foot strong { display:block; font-weight:500; letter-spacing:3px; margin-bottom:6px; }
+#renewal-theme-directions .poster .cover { background:var(--paper); }
+#renewal-theme-directions .poster .cover:after { content:""; position:absolute; inset:0; opacity:.16; pointer-events:none; background:repeating-linear-gradient(0deg,transparent 0 4px,var(--rule) 4px 5px); }
+#renewal-theme-directions .bell-art { position:absolute; width:184px; height:220px; left:50%; top:245px; transform:translateX(-50%) rotate(-8deg); color:var(--ink); }
+#renewal-theme-directions .bell-body { position:absolute; inset:15px 22px 35px; border-radius:58% 58% 8% 8%; background:currentColor; clip-path:polygon(12% 80%,20% 22%,31% 6%,68% 6%,80% 22%,88% 80%,100% 91%,100% 98%,0 98%,0 91%); }
+#renewal-theme-directions .bell-top { position:absolute; width:37px; height:28px; left:74px; top:8px; border:8px solid currentColor; border-radius:50%; }
+#renewal-theme-directions .bell-tongue { position:absolute; width:17px; height:37px; background:var(--brand); bottom:15px; left:84px; border-radius:0 0 50% 50%; }
+#renewal-theme-directions .screen { position:absolute; bottom:116px; right:-8px; width:210px; padding:13px 17px; background:var(--ink); color:var(--paper); font-size:12px; transform:rotate(-4deg); z-index:2; }
+#renewal-theme-directions .screen em { font-style:normal; color:var(--brand); background:var(--paper); padding:0 3px; }
+#renewal-theme-directions .app { min-width:0; display:flex; flex-direction:column; }
+#renewal-theme-directions .app-head { display:flex; align-items:center; gap:12px; padding:22px 24px; border-bottom:1px solid var(--rule); }
+#renewal-theme-directions .mark { width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center; background:var(--brand); color:var(--paper); font:400 23px/1 "SimSun",serif; }
+#renewal-theme-directions .mark:before { content:""; width:19px; height:19px; border:2px solid currentColor; border-bottom-color:transparent; border-radius:50%; }
+#renewal-theme-directions .mark:after { content:""; position:absolute; width:4px; height:7px; background:var(--paper); margin-top:17px; }
+#renewal-theme-directions .wordmark { font:400 22px/1.2 "SimSun",serif; letter-spacing:3px; }
+#renewal-theme-directions .app-head .edition { margin-left:auto; color:var(--soft); font-size:11px; text-align:right; }
+#renewal-theme-directions .app-body { display:grid; grid-template-columns:125px minmax(0,1fr); flex:1; min-height:420px; }
+#renewal-theme-directions .people { padding:24px 14px; border-right:1px solid var(--rule); display:flex; flex-direction:column; gap:22px; }
+#renewal-theme-directions .people small { color:var(--soft); font-size:11px; }
+#renewal-theme-directions .person { border-left:2px solid transparent; padding-left:10px; }
+#renewal-theme-directions .person.active { border-left-color:var(--brand); }
+#renewal-theme-directions .person span { display:block; font-size:12px; color:var(--soft); }
+#renewal-theme-directions .people-footer { margin-top:auto; display:flex; gap:12px; color:var(--soft); }
+#renewal-theme-directions .thread { padding:24px; min-width:0; display:flex; flex-direction:column; gap:24px; position:relative; }
+#renewal-theme-directions .thread-head { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+#renewal-theme-directions .thread-head h3 { font:400 25px/1.2 "SimSun",serif; }
+#renewal-theme-directions .thread-head small { color:var(--soft); font-size:11px; }
+#renewal-theme-directions .direction button { font:inherit; color:inherit; background:none; border:1px solid var(--rule); padding:6px 11px; border-radius:0; }
+#renewal-theme-directions .direction button:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+#renewal-theme-directions .date { color:var(--soft); font:400 11px/1.5 Consolas,monospace; letter-spacing:1px; padding-bottom:8px; border-bottom:1px solid var(--rule); }
+#renewal-theme-directions .turn { display:flex; flex-direction:column; gap:8px; }
+#renewal-theme-directions .turn small { font-size:11px; color:var(--soft); }
+#renewal-theme-directions .incoming { max-width:95%; }
+#renewal-theme-directions .outgoing { align-self:flex-end; max-width:85%; padding:9px 13px; color:var(--paper); background:var(--ink); }
+#renewal-theme-directions .outgoing small { color:inherit; opacity:.7; text-align:right; }
+#renewal-theme-directions .write { display:flex; align-items:center; gap:10px; border-top:1px solid var(--rule); padding-top:14px; margin-top:auto; color:var(--soft); }
+#renewal-theme-directions .write span { flex:1; font-size:12px; }
+#renewal-theme-directions .write button { color:var(--brand); border:0; padding:5px; }
+#renewal-theme-directions .kit { display:flex; flex-wrap:wrap; gap:16px 26px; padding:17px 23px; background:var(--paper); border-top:1px solid var(--rule); font-size:11px; align-items:center; }
+#renewal-theme-directions .kit-label { color:var(--soft); margin-right:8px; }
+#renewal-theme-directions .swatch { display:inline-block; width:14px; height:14px; vertical-align:middle; margin-right:4px; border:1px solid var(--rule); }
+#renewal-theme-directions .icons { display:inline-flex; gap:14px; vertical-align:middle; color:var(--brand); }
+#renewal-theme-directions .icons svg { width:17px; height:17px; }
+#renewal-theme-directions .memory { position:absolute; inset:84px 16px auto; padding:20px; z-index:5; background:var(--paper); border:1px solid var(--rule); box-shadow:0 12px 30px #0002; }
+#renewal-theme-directions .memory p { margin-top:10px; }
+#renewal-theme-directions .memory small { color:var(--soft); }
+#renewal-theme-directions .letter .cover h2 { font-family:"Kaiti SC","KaiTi",serif; font-size:68px; line-height:1.28; letter-spacing:2px; }
+#renewal-theme-directions .letter .cover { padding:34px; }
+#renewal-theme-directions .postmark { position:absolute; width:110px; height:110px; border:1px solid var(--brand); border-radius:50%; right:18px; top:24px; display:grid; place-items:center; color:var(--brand); transform:rotate(14deg); opacity:.6; font:400 20px/1.3 "KaiTi",serif; text-align:center; }
+#renewal-theme-directions .envelope { width:210px; height:142px; position:absolute; top:270px; left:50%; transform:translateX(-50%) rotate(-7deg); border:1px solid var(--rule); background:#ebe4cf; box-shadow:9px 14px 20px #343e3412; }
+#renewal-theme-directions .envelope:before { content:""; position:absolute; inset:0; background:var(--paper); clip-path:polygon(0 0,100% 0,50% 59%); filter:drop-shadow(0 1px var(--rule)); }
+#renewal-theme-directions .envelope:after { content:"生"; position:absolute; bottom:25px; left:87px; width:32px; height:32px; border:1px solid #a0523d; color:#a0523d; text-align:center; font:400 23px/30px "KaiTi",serif; transform:rotate(9deg); }
+#renewal-theme-directions .letter .cover-foot { padding-top:20px; border-top:1px solid var(--rule); }
+#renewal-theme-directions .letter .mark { border:1px solid var(--brand); color:var(--brand); background:transparent; font-family:"KaiTi",serif; }
+#renewal-theme-directions .letter .mark:before { content:"息"; border:0; width:auto; height:auto; }
+#renewal-theme-directions .letter .mark:after { display:none; }
+#renewal-theme-directions .letter .app-body { grid-template-columns:145px minmax(0,1fr); }
+#renewal-theme-directions .letter .person { border-left:0; padding:0; }
+#renewal-theme-directions .letter .person.active { color:var(--brand); }
+#renewal-theme-directions .letter .incoming { font-family:"KaiTi","SimSun",serif; font-size:18px; line-height:1.9; }
+#renewal-theme-directions .letter .outgoing { color:var(--ink); background:transparent; border-left:1px solid var(--brand); border-radius:0; font-family:"SimSun",serif; }
+#renewal-theme-directions .letter .thread { background:repeating-linear-gradient(transparent 0 31px,#d5d2bb28 31px 32px); }
+#renewal-theme-directions .radio .cover { background:#101d26; border-color:var(--rule); }
+#renewal-theme-directions .radio .cover h2 { font-size:59px; letter-spacing:2px; }
+#renewal-theme-directions .signal-art { position:absolute; width:320px; height:320px; left:50%; top:170px; transform:translateX(-50%); border:1px solid #64848c55; border-radius:50%; }
+#renewal-theme-directions .signal-art:before,#renewal-theme-directions .signal-art:after { content:""; position:absolute; inset:34px; border:1px solid #64848c55; border-radius:50%; }
+#renewal-theme-directions .signal-art:after { inset:72px; border-color:#dfb87e66; }
+#renewal-theme-directions .signal-art .bell-art { transform:translateX(-50%) scale(.65); top:43px; color:var(--brand); }
+#renewal-theme-directions .radio .cover-foot { letter-spacing:2px; }
+#renewal-theme-directions .radio .app-body { display:flex; flex-direction:column; }
+#renewal-theme-directions .radio .people { flex-direction:row; border-right:0; border-bottom:1px solid var(--rule); padding:17px 24px; gap:24px; }
+#renewal-theme-directions .radio .people > small,#renewal-theme-directions .radio .people-footer { display:none; }
+#renewal-theme-directions .radio .person { padding:0; border:0; }
+#renewal-theme-directions .radio .person.active { color:var(--brand); }
+#renewal-theme-directions .radio .person span { display:none; }
+#renewal-theme-directions .radio .thread { padding:24px 38px; flex:1; }
+#renewal-theme-directions .radio .turn { border-radius:14px 14px 14px 3px; }
+#renewal-theme-directions .radio .incoming { border-left:2px solid #86afb1; padding-left:15px; }
+#renewal-theme-directions .radio .outgoing { color:var(--ink); background:#283e49; border-radius:14px 14px 3px 14px; }
+#renewal-theme-directions .radio .mark { background:transparent; color:var(--brand); border:1px solid var(--rule); border-radius:50%; }
+#renewal-theme-directions .radio .mark:before { width:17px; height:17px; border:1px solid currentColor; border-right-color:transparent; }
+#renewal-theme-directions .radio .mark:after { width:3px; height:3px; margin:0 0 0 17px; border-radius:50%; background:var(--brand); }
+@media(max-width:680px) {
+#renewal-theme-directions .stage { grid-template-columns:1fr; min-height:900px; }
+#renewal-theme-directions .cover { min-height:290px; height:290px; padding:24px; border-right:0; border-bottom:1px solid var(--rule); }
+#renewal-theme-directions .cover h2,#renewal-theme-directions .letter .cover h2,#renewal-theme-directions .radio .cover h2 { font-size:57px; line-height:1.08; }
+#renewal-theme-directions .bell-art { top:65px; left:76%; transform:translateX(-50%) rotate(-8deg) scale(.7); }
+#renewal-theme-directions .screen { bottom:70px; right:8px; width:174px; font-size:11px; }
+#renewal-theme-directions .letter .envelope { top:110px; left:74%; width:150px; height:105px; }
+#renewal-theme-directions .letter .envelope:after { left:62px; bottom:18px; }
+#renewal-theme-directions .postmark { width:80px; height:80px; font-size:15px; }
+#renewal-theme-directions .signal-art { width:230px; height:230px; left:77%; top:65px; }
+#renewal-theme-directions .signal-art .bell-art { left:50%; top:2px; transform:translateX(-50%) scale(.5); }
+#renewal-theme-directions .app-head { padding:20px 17px; }
+#renewal-theme-directions .app-body,#renewal-theme-directions .letter .app-body { grid-template-columns:90px minmax(0,1fr); min-height:440px; }
+#renewal-theme-directions .people { padding:20px 10px; }
+#renewal-theme-directions .thread,#renewal-theme-directions .radio .thread { padding:20px 16px; gap:20px; }
+#renewal-theme-directions .thread-head { align-items:flex-start; flex-direction:column; gap:8px; }
+#renewal-theme-directions .kit { padding:16px; gap:12px; }
+#renewal-theme-directions .letter .incoming { font-size:16px; }
+}
+</style>
+<div class="viz-carousel" aria-label="生生不息主题提案" data-previous-label="上一个方案" data-next-label="下一个方案">
+<section data-variant="钟响之后" aria-label="钟响之后主题">
+ <div class="direction poster"><div class="stage">
+  <div class="cover" aria-label="钟响之后封面"><div class="eyebrow">钟响之后 / 城市回响</div><h2>生生<br>不息</h2><div class="bell-art" aria-hidden="true"><div class="bell-top"></div><div class="bell-body"></div><div class="bell-tongue"></div></div><div class="screen">我看到了<br><em>【生生不息】</em>的激荡</div><div class="cover-foot"><strong>钟声落下，想念有了去处。</strong>旧纸白 / 炭墨 / 朱砂红</div></div>
+  <div class="app"><div class="app-head"><span class="mark" aria-label="钟口印记"></span><span class="wordmark">生生不息</span><span class="edition">念念不忘<br>必有回响</span></div><div class="app-body"><aside class="people"><small>想见的人</small><div class="person active">小林<span>刚刚来过</span></div><div class="person">妈妈<span>昨天 19:30</span></div><div class="person">阿远<span>周日的约定</span></div><div class="people-footer"><i data-lucide="plus" aria-hidden="true"></i><i data-lucide="settings-2" aria-hidden="true"></i></div></aside><div class="thread"><div class="thread-head"><h3>小林</h3><button type="button" class="cursor-interaction" data-memory-toggle aria-expanded="false">共同记忆</button></div><div class="date">2026.11.11　星期三</div><div class="turn incoming"><p>你上次提到的那本书，<br>后来读到哪一页了？</p><small>小林　19:24</small></div><div class="turn outgoing"><p>还停在那一页。</p><small>19:25</small></div><div class="turn incoming"><p>那就先停一会儿。<br>我想听你说说，为什么是那一页。</p><small>小林　19:25</small></div><div class="write"><i data-lucide="mic" aria-hidden="true"></i><span>把想说的话写在这里</span><button type="button" data-memory-toggle class="cursor-interaction" aria-label="查看共同记忆"><i data-lucide="corner-up-left" aria-hidden="true"></i></button></div><aside class="memory" hidden><h3>共同记忆</h3><p>一起讨论过的书<br>那个一直没有说完的结尾</p><small>你可以保留，也可以修改。</small></aside></div></div></div>
+ </div><div class="kit"><span><span class="kit-label">字形</span>宋体标题 · 黑体正文</span><span><span class="kit-label">图标</span><span class="icons"><i data-lucide="bell" aria-hidden="true"></i><i data-lucide="radio" aria-hidden="true"></i><i data-lucide="book-open" aria-hidden="true"></i><i data-lucide="archive" aria-hidden="true"></i></span></span><span><i class="swatch" style="background:#e9e5da"></i><i class="swatch" style="background:#24251f"></i><i class="swatch" style="background:#a43527"></i>纸白 / 炭墨 / 朱砂</span></div></div>
+</section>
+<section data-variant="旧日来信" aria-label="旧日来信主题" hidden>
+ <div class="direction letter"><div class="stage">
+  <div class="cover" aria-label="旧日来信封面"><div class="eyebrow">旧日来信 / 记忆信笺</div><div class="postmark" aria-hidden="true">生生<br>不息</div><h2>见字<br>如面。</h2><div class="envelope" aria-hidden="true"></div><div class="cover-foot"><strong>只要想念，就会想见。</strong>纸张、邮戳、折痕、留白</div></div>
+  <div class="app"><div class="app-head"><span class="mark" aria-label="息字邮印"></span><span class="wordmark">生生不息</span><span class="edition">把想念<br>寄到这里</span></div><div class="app-body"><aside class="people"><small>来信的人</small><div class="person active">小林<span>一封新来信</span></div><div class="person">妈妈<span>熟悉的叮嘱</span></div><div class="person">阿远<span>还没聊完的话</span></div><div class="people-footer"><i data-lucide="plus" aria-hidden="true"></i><i data-lucide="settings-2" aria-hidden="true"></i></div></aside><div class="thread"><div class="thread-head"><h3>来自，小林</h3><button type="button" class="cursor-interaction" data-memory-toggle aria-expanded="false">翻开旧事</button></div><div class="date">十一月十一日 · 晚间来信</div><div class="turn incoming"><p>你上次提到的那本书，<br>后来读到哪一页了？</p><small>小林写于 19:24</small></div><div class="turn outgoing"><p>还停在那一页。</p><small>我 · 19:25</small></div><div class="turn incoming"><p>那就先停一会儿。<br>我想听你说说，为什么是那一页。</p></div><div class="write"><i data-lucide="paperclip" aria-hidden="true"></i><span>见字如面，慢慢写。</span><button type="button" data-memory-toggle class="cursor-interaction" aria-label="翻开共同记忆"><i data-lucide="send-horizontal" aria-hidden="true"></i></button></div><aside class="memory" hidden><h3>一页旧事</h3><p>一起讨论过的书<br>那个一直没有说完的结尾</p><small>记忆由你保管。</small></aside></div></div></div>
+ </div><div class="kit"><span><span class="kit-label">字形</span>楷体封面 · 宋体信笺</span><span><span class="kit-label">图标</span><span class="icons"><i data-lucide="mail" aria-hidden="true"></i><i data-lucide="bookmark" aria-hidden="true"></i><i data-lucide="notebook-pen" aria-hidden="true"></i><i data-lucide="stamp" aria-hidden="true"></i></span></span><span><i class="swatch" style="background:#f4efdf"></i><i class="swatch" style="background:#6a7654"></i><i class="swatch" style="background:#a0523d"></i>米纸 / 苔绿 / 印泥</span></div></div>
+</section>
+<section data-variant="长夜电台" aria-label="长夜电台主题" hidden>
+ <div class="direction radio"><div class="stage">
+  <div class="cover" aria-label="长夜电台封面"><div class="eyebrow">长夜电台 / 同频回声</div><h2>总有人<br>听得见。</h2><div class="signal-art" aria-hidden="true"><div class="bell-art"><div class="bell-top"></div><div class="bell-body"></div><div class="bell-tongue"></div></div></div><div class="cover-foot"><strong>生生不息</strong>念念不忘，必有回响。</div></div>
+  <div class="app"><div class="app-head"><span class="mark" aria-label="同频回声标记"></span><span class="wordmark">生生不息</span><span class="edition">今晚的回声<br>仍在继续</span></div><div class="app-body"><aside class="people"><div class="person active">小林<span>当前</span></div><div class="person">妈妈</div><div class="person">阿远</div></aside><div class="thread"><div class="thread-head"><div><h3>小林</h3><small>正在输入…</small></div><button type="button" class="cursor-interaction" data-memory-toggle aria-expanded="false">回声档案</button></div><div class="date">2026.11.11 / 19:24</div><div class="turn incoming"><p>你上次提到的那本书，后来读到哪一页了？</p></div><div class="turn outgoing"><p>还停在那一页。</p><small>19:25</small></div><div class="turn incoming"><p>那就先停一会儿。<br>我想听你说说，为什么是那一页。</p></div><div class="write"><i data-lucide="audio-lines" aria-hidden="true"></i><span>此刻，想说点什么？</span><button type="button" data-memory-toggle class="cursor-interaction" aria-label="打开回声档案"><i data-lucide="arrow-up-right" aria-hidden="true"></i></button></div><aside class="memory" hidden><h3>回声档案</h3><p>一起讨论过的书<br>那个一直没有说完的结尾</p><small>保存、修改，或让它淡去。</small></aside></div></div></div>
+ </div><div class="kit"><span><span class="kit-label">字形</span>宋体标题 · 中性黑体 · 等宽时间</span><span><span class="kit-label">图标</span><span class="icons"><i data-lucide="radio-tower" aria-hidden="true"></i><i data-lucide="audio-lines" aria-hidden="true"></i><i data-lucide="disc-3" aria-hidden="true"></i><i data-lucide="orbit" aria-hidden="true"></i></span></span><span><i class="swatch" style="background:#17252e"></i><i class="swatch" style="background:#86afb1"></i><i class="swatch" style="background:#dfb87e"></i>夜蓝 / 灰青 / 微光</span></div></div>
+</section>
+</div>
+<script>
+(function(){
+ const root=document.getElementById('renewal-theme-directions');
+ root.querySelectorAll('.write button').forEach(function(button){button.removeAttribute('data-memory-toggle');button.disabled=true;button.setAttribute('aria-label','发送，仅布局预览');});
+ root.querySelectorAll('[data-memory-toggle]').forEach(function(button){button.addEventListener('click',function(){const thread=button.closest('.thread');const panel=thread.querySelector('.memory');panel.hidden=!panel.hidden;thread.querySelectorAll('[data-memory-toggle]').forEach(function(item){item.setAttribute('aria-expanded',String(!panel.hidden));});});});
+ root.querySelectorAll('.direction').forEach(function(panel){
+   const state={accent:getComputedStyle(panel).getPropertyValue('--brand').trim(),textSize:14};
+   function render(){panel.style.setProperty('--brand',state.accent);panel.style.setProperty('--body-size',state.textSize+'px');}
+   if(globalThis.Tweak){const tweak=new Tweak({container:panel,onChange:render});tweak.addColorPicker(state,'accent',{label:'强调色',reference:'--brand'});tweak.addSlider(state,'textSize',{label:'正文大小',min:13,max:17,step:1,unit:'px'});}
+ });
+})();
+</script>
+</div>

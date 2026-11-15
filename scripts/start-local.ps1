@@ -79,5 +79,22 @@ if (Test-ProjectReady) {
     }
 }
 
+$workerScript = Join-Path $projectRoot 'scripts/group-worker.mjs'
+$workerRunning = $false
+$workerLock = Join-Path $projectRoot '.tmp-group-worker.lock'
+if (Test-Path -LiteralPath $workerLock) {
+    $workerPidText = (Get-Content -LiteralPath $workerLock -Raw).Trim()
+    $workerPidValue = 0
+    if ([int]::TryParse($workerPidText, [ref]$workerPidValue) -and $workerPidValue -gt 0) {
+        $workerRunning = $null -ne (Get-Process -Id $workerPidValue -ErrorAction SilentlyContinue)
+    }
+}
+if ((Test-Path -LiteralPath $workerScript) -and -not $workerRunning) {
+    $null = Start-Process -FilePath $nodeCommand.Source `
+        -ArgumentList @('scripts/group-worker.mjs') `
+        -WorkingDirectory $projectRoot -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $projectRoot '.tmp-group-worker.out.log') `
+        -RedirectStandardError (Join-Path $projectRoot '.tmp-group-worker.err.log') -PassThru
+}
 Start-Process $siteUrl
 Write-Host "Opened $siteUrl" -ForegroundColor Green

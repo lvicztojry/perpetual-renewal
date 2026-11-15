@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="生生不息">
-  <rect width="512" height="512" fill="#191a18"/>
-  <g fill="none" stroke="#b89a68" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M169 316c22-26 24-44 24-101a63 63 0 0 1 126 0c0 57 2 75 24 101z"/>
-    <path d="M241 152v-17a15 15 0 0 1 30 0v17M234 341a23 23 0 0 0 44 0M141 234a122 122 0 0 1 13-46M371 234a122 122 0 0 0-13-46"/>
+  <rect width="512" height="512" fill="#131714"/>
+  <g transform="translate(115 104) scale(4.4)" fill="none" stroke="#ddbf88" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M15 14a25 25 0 0 0 0 36M49 14a25 25 0 0 1 0 36"/>
+    <path d="M28 10h8v7h-8zM32 4v6M21 30c0-8 4-13 11-13s11 5 11 13v9l4 6H17l4-6z"/>
+    <path d="M24 26h16M21 39h22M32 45v9M28 54l4 4 4-4-4-4zM26 62h12"/>
   </g>
 </svg>

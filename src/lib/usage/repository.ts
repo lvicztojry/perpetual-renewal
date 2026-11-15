@@ -198,7 +198,10 @@ function normalizeCreateInput(input: CreateModelUsageLogInput): ModelUsageLog {
     inputTokens,
     outputTokens,
     totalTokens,
-    estimatedCostUsd: input.status === "success" ? estimateCostUsd(provider, input.usage) : 0,
+    estimatedCostUsd: estimateCostUsd(provider, {
+      inputTokens: inputTokens ?? 0,
+      outputTokens: outputTokens ?? 0
+    }),
     latencyMs: normalizeToken(input.latencyMs),
     errorKind: sanitizeNullableUsageMetadata(input.errorKind, MAX_ERROR_KIND_LENGTH),
     httpStatus: normalizeToken(input.httpStatus),

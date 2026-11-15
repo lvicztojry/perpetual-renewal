@@ -21,6 +21,8 @@ import {
   relationshipKinds
 } from "./types";
 import { createRenewalRepository } from "./repository";
+import { getGroupMemoriesForCompanion } from "@/lib/groups/private-context";
+import type { PromptMemory } from "@/lib/prompt-builder";
 
 const repository = createRenewalRepository();
 
@@ -72,6 +74,13 @@ export function getRenewalService(userId = DEMO_USER_ID) {
 }
 
 export class RenewalService {
+  private async memoriesForPrompt(companion: { id: string; memories: MemoryRecord[] }): Promise<PromptMemory[]> {
+    const shared = await getGroupMemoriesForCompanion(this.userId, companion.id);
+    return [...companion.memories, ...shared.map(memory => ({
+      type: "relationship_event", status: "active", confidence: 1,
+      content: `群「${memory.groupName}」中你已知的共同经历（不代表私聊发生过）：${memory.content}`
+    }))];
+  }
   constructor(
     private readonly repo: RenewalRepository,
     private readonly userId: string
@@ -239,7 +248,7 @@ export class RenewalService {
           boundaries: companion.boundaries,
           immersionEnabled: companion.immersionEnabled
         },
-        memories: companion.memories,
+        memories: await this.memoriesForPrompt(companion),
         relationshipState: companion.relationshipState,
         recentMessages: messagesForPrompt(history),
         temperature: 0.7
@@ -357,7 +366,7 @@ export class RenewalService {
         boundaries: companion.boundaries,
         immersionEnabled: companion.immersionEnabled
       },
-      memories: companion.memories,
+      memories: await this.memoriesForPrompt(companion),
       relationshipState: companion.relationshipState,
       recentMessages: promptHistory,
       temperature: 0.75

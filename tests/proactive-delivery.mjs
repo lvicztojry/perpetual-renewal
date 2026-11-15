@@ -31,7 +31,8 @@ function fixture(mode) {
       ],
       messages: [], proactiveMessages: [], memories: [], relationshipStates: []
     },
-    serial: 0, version: 0, transactions: 0, retries: 0, failure: null, forcedConflict: null
+    serial: 0, version: 0, transactions: 0, retries: 0, failure: null, forcedConflict: null,
+    elapsedMs: 0, queueWaitMs: 0, stagedMessageCount: 0
   };
   const profiles = new Map(db.state.users.map((u) => [u.id, u]));
   const context = vm.createContext({
@@ -102,10 +103,17 @@ function fixture(mode) {
     ...api(db.state),
     async $transaction(operation, options) {
       assert.equal(options.isolationLevel, "Serializable");
+      assert.equal(options.maxWait, 5000);
+      assert.equal(options.timeout, 20000);
       db.transactions++;
+      if (db.queueWaitMs > options.maxWait) throw conflict("P2028");
       const version = db.version;
       const snapshot = structuredClone(db.state);
       const result = await operation(api(snapshot, true));
+      db.stagedMessageCount = snapshot.messages.length;
+      // Virtual elapsed time exercises the expiration boundary without sleeping
+      // or contacting a DB. An expired transaction never commits its snapshot.
+      if (db.elapsedMs > options.timeout) throw conflict("P2028");
       // Optimistic serializable simulator: simultaneous snapshots cannot both
       // commit. All local writes disappear on failure, including message insert.
       if (db.forcedConflict) {
@@ -305,6 +313,42 @@ for (const code of ["P2002", "P2034"]) {
     assert.equal(db.state.messages.length, 1);
     assert.equal(db.transactions, 2);
   });
+}
+
+test("prisma: 5467ms network delivery fits the explicit bounded transaction budget", async () => {
+  const { db, repository: r } = fixture("prisma");
+  const p = await r.createProactiveMessage("u1", "c1", input("slow-network"));
+  db.elapsedMs = 5467;
+  const result = await r.deliverProactiveMessage("u1", p.id, { automatic: true });
+  assert.equal(result.proactiveMessage.status, "sent");
+  assert.equal(db.transactions, 1);
+  assert.equal(db.state.messages.length, 1);
+});
+
+for (const path of ["automatic", "manual"]) {
+  for (const failure of ["timeout", "maxWait"]) {
+    test(`prisma: ${path} ${failure} P2028 rolls back and propagates once without retry or memory fallback`, async () => {
+      const { db, repository: r } = fixture("prisma");
+      const p = await r.createProactiveMessage("u1", "c1", input(`${path}-${failure}`));
+      const before = JSON.stringify(db.state), version = db.version;
+      if (failure === "timeout") db.elapsedMs = 20001;
+      else db.queueWaitMs = 5001;
+      const deliver = () => path === "automatic"
+        ? r.deliverProactiveMessage("u1", p.id, { automatic: true })
+        : r.updateProactiveMessage("u1", p.id, { status: "sent", content: "uncommitted edit" });
+      await assert.rejects(deliver(), error => error.code === "P2028");
+      if (failure === "timeout") assert.equal(db.stagedMessageCount, 1, "expiration occurs after staged writes");
+      assert.equal(JSON.stringify(db.state), before, "message, status, edits and lastMessageAt all roll back");
+      assert.equal(db.version, version);
+      assert.equal(db.transactions, 1); assert.equal(db.retries, 0);
+      assert.equal(r.persistence, "prisma");
+      db.elapsedMs = 0; db.queueWaitMs = 0;
+      assert.ok(await deliver());
+      const receipt = await r.deliverProactiveMessage("u1", p.id);
+      assert.equal(receipt.proactiveMessage.status, "sent");
+      assert.equal(db.state.messages.length, 1, "explicit recovery and receipt retry do not duplicate delivery");
+    });
+  }
 }
 
 test("schema and additive migration encode nullable uniqueness and SetNull without changing cascade ownership", () => {
