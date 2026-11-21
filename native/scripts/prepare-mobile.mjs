@@ -11,3 +11,10 @@ if (!manifest.includes("android.permission.RECORD_AUDIO")) {
   writeFileSync(path, manifest);
 }
 console.log("Android microphone permission is declared. Runtime recording permission still requires device verification.");
+
+const gradlePath = fileURLToPath(new URL("../src-tauri/gen/android/app/build.gradle.kts", import.meta.url));
+if (existsSync(gradlePath)) {
+  const gradle = readFileSync(gradlePath, "utf8").replace(/compileSdk = \d+/, "compileSdk = 36").replace(/targetSdk = \d+/, "targetSdk = 36");
+  writeFileSync(gradlePath, gradle);
+  console.log("Pinned Android SDK to installed stable API 36.");
+}

@@ -78,6 +78,20 @@ for (const path of app.pages) {
   JSON.parse(readFileSync(new URL(`../miniprogram/${path}.json`, import.meta.url)));
   assert.ok(readFileSync(new URL(`../miniprogram/${path}.wxml`, import.meta.url), 'utf8').includes('<view'));
 }
+// The LAN launcher rewrites local-server.generated.js; a missing or unusable file must fall back to loopback.
+const localServerSource = readFileSync(new URL('../miniprogram/utils/local-server.js', import.meta.url), 'utf8');
+for (const config of [null, {}, { base: 'http://192.168.1.20:3000' }]) {
+  const sandbox = { exports: {} };
+  sandbox.module = sandbox;
+  vm.runInNewContext(localServerSource, {
+    module: sandbox,
+    exports: sandbox.exports,
+    require: () => { if (!config) throw new Error('missing'); return config; }
+  });
+  const expected = config?.base || 'http://localhost:3000';
+  assert.equal(sandbox.exports.base, expected);
+  normalizeBase(sandbox.exports.base);
+}
 const scope = JSON.parse(readFileSync(new URL('../miniprogram/feature-scope.json', import.meta.url)));
 assert.equal(scope.scope, 'all-existing-web-features');
 const declared = scope.features.flatMap(feature => feature.routes).sort();

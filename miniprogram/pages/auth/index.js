@@ -2,6 +2,7 @@
 const { page, app } = require('../../utils/runtime');
 const { createClient } = require('../../utils/client');
 const { field } = require('../../utils/schema');
+const localServer = require('../../utils/local-server');
 page({
  data: { schema: [], form: {}, mode: '', title: '' },
  init(params) {
@@ -12,7 +13,7 @@ page({
   if (params.mode === 'register') schema.push(field('nickname','昵称'));
   if (['register','reset-password'].includes(params.mode)) schema.push(field('password','密码（至少12位）','password'));
   if (['verify-email','reset-password'].includes(params.mode)) schema.push(field('token','邮件中的完整链接或验证令牌','long'));
-  this.setData({ mode: params.mode, title: modes[params.mode], schema, form: { base: app().authBase || 'http://localhost:3000', token: '', password: '', email: '', nickname: '' } });
+  this.setData({ mode: params.mode, title: modes[params.mode], schema, form: { base: app().authBase || localServer.base, token: '', password: '', email: '', nickname: '' } });
  },
  submit() { return this.run(async () => {
   const { base, ...form } = this.data.form, match = /[?&]token=([^&#]+)/.exec(form.token || '');

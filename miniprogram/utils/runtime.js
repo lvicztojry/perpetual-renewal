@@ -22,8 +22,11 @@ function page(definition) {
         if (this.alive && this.visible && !this.initialized) this.initialization = this.run(async () => { await definition.init.call(this, this.params); this.initialized = true; });
       });
       if (definition.refresh) {
-        this.run(() => definition.refresh.call(this));
-        this.timer = setInterval(() => { if (!this.data.busy && this.visible) this.run(() => definition.refresh.call(this)); }, definition.interval || 5000);
+        if (this.timer) clearInterval(this.timer);
+        this.run(() => definition.refresh.call(this), true);
+        this.timer = setInterval(() => {
+          if (this.visible && !this.refreshing && !this.data.busy) this.run(() => definition.refresh.call(this), true);
+        }, definition.interval || 5000);
       }
       if (definition.show) definition.show.call(this);
     },
@@ -36,9 +39,11 @@ function page(definition) {
       if (!this.alive || this.visible === false || epoch !== app().epoch || version !== this.version) { const e = new Error('页面已离开'); e.stale = true; throw e; }
       return result;
     },
-    async run(operation) {
-      if (this.data.busy || !this.alive) return;
-      this.setData({ busy: true, error: '', notice: '' });
+    async run(operation, silent) {
+      // 轮询用 silent：不占用 busy/按钮状态，也不覆盖用户正在看的错误提示。
+      if (!this.alive) return;
+      if (silent) { if (this.refreshing || this.data.busy) return; this.refreshing = true; }
+      else { if (this.data.busy) return; this.setData({ busy: true, error: '', notice: '' }); }
       try { await operation(); }
       catch (e) {
         if (e.stale || !this.alive) return;
@@ -46,8 +51,24 @@ function page(definition) {
           if (app().client) app().client.clear();
           app().client = null; app().epoch++; app().drafts = {};
           wx.reLaunch({ url: '/pages/home/index' });
-        } else this.setData({ error: e.message || '操作未完成，请重试。' });
-      } finally { if (this.alive) this.setData({ busy: false }); }
+        } else if (!silent) this.setData({ error: e.message || '操作未完成，请重试。' });
+      } finally {
+        if (silent) this.refreshing = false;
+        else if (this.alive) this.setData({ busy: false });
+      }
+    },
+    // 后台任务（如生成回响草稿）：不占用 busy/轮询锁，慢任务不会阻塞对话刷新。
+    async background(operation) {
+      if (!this.alive) return;
+      try { await operation(); }
+      catch (e) {
+        if (e.stale || !this.alive) return;
+        if (e.status === 401) {
+          if (app().client) app().client.clear();
+          app().client = null; app().epoch++; app().drafts = {};
+          wx.reLaunch({ url: '/pages/home/index' });
+        }
+      }
     },
     edit(event) { this.setData({ ['form.' + event.detail.key]: event.detail.value }); },
     input(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }); },

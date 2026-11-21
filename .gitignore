@@ -11,6 +11,7 @@ test-results/
 *.log
 .tmp-group-worker.lock
 .tmp-lan-address.txt
+miniprogram/utils/local-server.generated.js
 .tmp-mobile-qa/
 *.tsbuildinfo
 prisma/dev.db
@@ -27,3 +28,6 @@ native/src-tauri/target/
 native/src-tauri/gen/
 .tmp-native-qa/
 .release-keys/
+
+.build-tools/
+.tmp-native-build/

@@ -133,7 +133,15 @@ pub fn run() {
     }));
     builder
         .setup(|app| {
-            let directory = app.path().app_data_dir()?;
+            // Optional per-process profile directory supports portable use and isolated upgrade QA.
+            let directory = match std::env::var_os("RENEWAL_DATA_DIR") {
+                Some(value) => {
+                    let path = PathBuf::from(value);
+                    if !path.is_absolute() { return Err(std::io::Error::other("RENEWAL_DATA_DIR must be absolute.").into()); }
+                    path
+                }
+                None => app.path().app_data_dir()?,
+            };
             let database = open_database(directory).map_err(std::io::Error::other)?;
             app.manage(database);
             Ok(())

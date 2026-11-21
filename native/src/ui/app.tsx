@@ -1,3 +1,4 @@
+import clientPackage from "../../package.json";
 import { useEffect, useState, type FormEvent } from "react";
 import { RenewalWorkspace } from "@/components/renewal-workspace";
 import { GroupWorkspace } from "@/components/group-workspace";
@@ -105,7 +106,7 @@ export function App() {
   else if (path.startsWith("/dream/")) content = <DreamWorkspace companionId={decodeURIComponent(path.slice(7))}/>;
   else if (path === "/groups" || path.startsWith("/groups/")) content = <GroupWorkspace key={path} userId={session.userId} groupId={path.startsWith("/groups/") ? decodeURIComponent(path.slice(8)) : undefined}/>;
   else content = <RenewalWorkspace userId={session.userId} signedIn/>;
-  return <><div className="local-toolbar"><span>本地测试 · {session.email}</span>
+  return <><div className="local-toolbar"><span data-native-version={clientPackage.version}>本地测试 {clientPackage.version} · {session.email}</span>
     <button onClick={async () => { try { const name = await exclusive(createBackup); setNotice(`备份已保存：${name}`); } catch { setNotice("备份未完成，请保留原数据重试。"); } }}>备份数据</button>
     <button onClick={async () => { try { const names = await exclusive(listBackups); setBackups(names); setBackupName(names[0] ?? ""); setConfirmation(""); } catch { setNotice("未能读取备份，请保留原数据。"); } }}>恢复</button>
     <button onClick={() => { setLocking(true); void exclusive(async () => { clearLocalSession(); setProfile(null); refresh(); setLocking(false); }); }}>锁定</button></div>

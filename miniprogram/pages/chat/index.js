@@ -14,15 +14,32 @@ page({
  input(e) { this.setData({ [e.currentTarget.dataset.field]: e.detail.value }); app().drafts['private:' + this.params.id] = this.data.draft; },
  async refresh() {
   if (!this.data.person) return;
+  // 轮询与发送可能同时请求历史；只让最新一次结果落地，避免旧响应把刚发出的消息抹掉。
+  const token = this.refreshToken = (this.refreshToken || 0) + 1;
   const result = await this.api('conversations/' + encodeURIComponent(this.data.person.conversationId) + '/messages');
-  this.setData({ messages: result.messages.filter(m => !m.metadata?.deletedAt && !m.metadata?.hidden).map(m => ({ ...m, time: m.createdAt.slice(0,16).replace('T',' '), failed: m.metadata?.status === 'failed', important: !!m.metadata?.important })) });
-  this.observeMessages();
-  if(!this.lastProactive || Date.now() - this.lastProactive > 60000) {
-   this.lastProactive = Date.now();
-   if(this.data.person.proactiveMessagesEnabled) await this.api('companions/' + this.params.id + '/proactive-drafts','POST',{});
+  if (token !== this.refreshToken) return;
+  const messages = result.messages.filter(m => !m.metadata?.deletedAt && !m.metadata?.hidden).map(m => ({ ...m, time: m.createdAt.slice(0,16).replace('T',' '), failed: m.metadata?.status === 'failed', important: !!m.metadata?.important }));
+  // 轮询每 5 秒回来一次；内容没变就不要 setData，否则列表重渲染会把滚动位置顶回去。
+  const signature = messages.map(m => m.id + ':' + m.content + ':' + (m.important ? 1 : 0)).join('|');
+  if (signature !== this.messageSignature) {
+   this.messageSignature = signature;
+   this.setData({ messages });
+   this.observeMessages();
+  }
+  this.checkProactive();
+ },
+ checkProactive() {
+  if (!this.data.person.proactiveMessagesEnabled) return;
+  if (this.proactiveBusy) return;
+  if (this.lastProactive && Date.now() - this.lastProactive < 60000) return;
+  this.proactiveBusy = true;
+  this.lastProactive = Date.now();
+  // 生成草稿可能耗时十几秒；走 background，不占用轮询锁，也不拖住对话。
+  this.background(async () => {
+   await this.api('companions/' + this.params.id + '/proactive-drafts','POST',{});
    const drafts = await this.api('companions/' + this.params.id + '/proactive-drafts');
    this.setData({ proactive: drafts.data, availability:drafts.availability });
-  }
+  }).finally(() => { this.proactiveBusy = false; });
  },
  observeMessages() {
   if(this.observer) this.observer.disconnect();

@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { page, app, navigate, confirm } = require('../../utils/runtime');
 const { createClient } = require('../../utils/client');
+const localServer = require('../../utils/local-server');
 page({
- data: { base: 'http://localhost:3000', email: '', password: '', loggedIn: false, companions: [], groups: [], starters: [], companionCount:0, groupCount:0, showConnection:false, heroFailed:false },
+ data: { base: localServer.base, email: '', password: '', loggedIn: false, companions: [], groups: [], starters: [], companionCount:0, groupCount:0, showConnection:false, heroFailed:false },
  init() { this.setData({ loggedIn: !!app().client }); },
  async refresh() {
   if (!app().client) return;

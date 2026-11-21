@@ -43,6 +43,16 @@
     ],
     "android": {
       "versionCode": 1
+    },
+    "windows": {
+      "nsis": {
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": true,
+        "installMode": "currentUser"
+      }
     }
   }
 }
