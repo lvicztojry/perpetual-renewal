@@ -6,6 +6,7 @@ $env:CARGO_HOME = Join-Path $nativeToolRoot 'cargo'
 $env:RUSTUP_HOME = Join-Path $nativeToolRoot 'rustup'
 $env:GRADLE_USER_HOME = Join-Path $nativeToolRoot 'gradle'
 $env:ANDROID_USER_HOME = Join-Path $nativeToolRoot 'android-user'
+$env:ANDROID_AVD_HOME = Join-Path $env:ANDROID_USER_HOME 'avd'
 $env:ANDROID_HOME = Join-Path $nativeToolRoot 'android-sdk'
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 $nativeJdk = Get-ChildItem -LiteralPath (Join-Path $nativeToolRoot 'java') -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin/java.exe') } | Select-Object -First 1

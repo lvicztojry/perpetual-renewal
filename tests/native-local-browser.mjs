@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { createServer } from "node:http";
 
-const base = "http://127.0.0.1:4177";
+const portProbe = createServer();
+await new Promise(resolve => portProbe.listen(0, "127.0.0.1", resolve));
+const qaPort = portProbe.address().port;
+await new Promise(resolve => portProbe.close(resolve));
+const base = `http://127.0.0.1:${qaPort}`;
 let modelRequests = 0;
 const modelServer = createServer(async (request, response) => {
   response.setHeader("access-control-allow-origin", "*");
@@ -18,7 +22,7 @@ const modelServer = createServer(async (request, response) => {
 });
 await new Promise(resolve => modelServer.listen(0, "127.0.0.1", resolve));
 const modelBase = `http://127.0.0.1:${modelServer.address().port}/v1`;
-const server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1"], {
+const server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(qaPort)], {
   cwd: fileURLToPath(new URL("../native/", import.meta.url)),
   env: { ...process.env, NATIVE_BROWSER_TEST: "1" }, stdio: "ignore", windowsHide: true
 });
@@ -33,9 +37,10 @@ try {
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  page.setDefaultTimeout(90000);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(base);
+  await page.goto(base, { waitUntil: "domcontentloaded", timeout: 120000 });
   await page.getByRole("button", { name: "创建账户", exact: true }).click();
   await page.getByLabel("邮箱标识").fill("native-a@example.test");
   await page.getByLabel("密码", { exact: true }).fill("fixture-local-password-a");

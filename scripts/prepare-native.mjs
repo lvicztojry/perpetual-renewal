@@ -57,6 +57,7 @@ function main() {
   }
   try {
     for (const input of ["package.json", "package-lock.json", "tsconfig.json", "prisma/schema.prisma", "scripts/prisma-command.mjs", "scripts/database-url.mjs", "scripts/load-local-env.mjs", "tests/native-local-storage.mjs", "tests/native-local-browser.mjs", "tests/native-release-policy.mjs", "src", "public", "native/package.json", "native/package-lock.json", "native/tsconfig.json", "native/index.html", "native/vite.config.ts", "native/release-policy.json", "native/src", "native/migrations", "native/scripts", "native/src-tauri/Cargo.toml", "native/src-tauri/build.rs", "native/src-tauri/tauri.conf.json", "native/src-tauri/Info.plist", "native/src-tauri/capabilities", "native/src-tauri/icons", "native/src-tauri/src", "scripts/prepare-native.mjs", "docs/LOCAL_CLIENTS.md"]) copy(input);
+    copy("scripts/native-env.ps1");
     if (existsSync(join(root, "native/src-tauri/Cargo.lock"))) copy("native/src-tauri/Cargo.lock");
     const release = { kind: "source-preparation-not-an-installer", version: pkg.version, ...policy, platforms: ["windows", "macos", "android", "ios"], migrations: files.filter(item => item.path.startsWith("native/migrations/")), files };
     const args = process.argv.slice(2), previousIndex = args.indexOf("--previous");

@@ -35,7 +35,7 @@ if (args.includes("--init")) {
   mkdirSync(dirname(resolve(output)), { recursive: true });
   execFileSync(join(tools, "zipalign.exe"), ["-f", "-P", "16", "4", resolve(input), aligned], { stdio: "pipe", windowsHide: true });
   const jar = join(tools, "lib/apksigner.jar");
-  execFileSync(join(javaHome, "bin/java.exe"), ["-jar", jar, "sign", "--ks", keyStore, "--ks-key-alias", credentials.alias, "--ks-pass", "env:RENEWAL_ANDROID_STORE_PASSWORD", "--key-pass", "env:RENEWAL_ANDROID_STORE_PASSWORD", "--out", resolve(output), aligned], { env, stdio: "pipe", windowsHide: true });
+  execFileSync(join(javaHome, "bin/java.exe"), ["-jar", jar, "sign", "--v4-signing-enabled", "false", "--ks", keyStore, "--ks-key-alias", credentials.alias, "--ks-pass", "env:RENEWAL_ANDROID_STORE_PASSWORD", "--key-pass", "env:RENEWAL_ANDROID_STORE_PASSWORD", "--out", resolve(output), aligned], { env, stdio: "pipe", windowsHide: true });
   const result = execFileSync(join(javaHome, "bin/java.exe"), ["-jar", jar, "verify", "--verbose", "--print-certs", resolve(output)], { env, encoding: "utf8", windowsHide: true });
   console.log(result.split(/\r?\n/).filter(line => /Verified using|certificate SHA-256|Signer #1 certificate DN/.test(line)).join("\n"));
   rmSync(aligned);

@@ -53,7 +53,10 @@ try {
     $nativeProperties = $nativeProperties -replace 'org.gradle.jvmargs=.*','org.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8'
     if ($nativeProperties -notmatch '(?m)^org.gradle.workers.max=') { $nativeProperties += "`norg.gradle.workers.max=2`nkotlin.compiler.execution.strategy=in-process`n" }
     Set-Content -LiteralPath $nativeGradleProperties -Value $nativeProperties -Encoding UTF8
-    $nativeGradleArguments = @("assembleUniversal$nativeProfileTitle",'--no-daemon','--max-workers=2',"-PabiList=$(($Targets | ForEach-Object {$nativeMap[$_][1]}) -join ',')","-ParchList=$(($Targets | ForEach-Object {$nativeMap[$_][2]}) -join ',')","-PtargetList=$($Targets -join ',')")
+    $nativeGradleArguments = @("assembleUniversal$nativeProfileTitle",'--no-daemon','--no-configuration-cache','--max-workers=2',"-PabiList=$(($Targets | ForEach-Object {$nativeMap[$_][1]}) -join ',')","-ParchList=$(($Targets | ForEach-Object {$nativeMap[$_][2]}) -join ',')","-PtargetList=$($Targets -join ',')")
+    if ($env:HTTPS_PROXY -match '^http://([^:]+):(\d+)$') {
+        $nativeGradleArguments += @("-Dhttps.proxyHost=$($Matches[1])","-Dhttps.proxyPort=$($Matches[2])","-Dhttp.proxyHost=$($Matches[1])","-Dhttp.proxyPort=$($Matches[2])")
+    }
     foreach ($nativeTarget in $Targets) { $nativeGradleArguments += @('-x',"rustBuild$($nativeMap[$nativeTarget][3])$nativeProfileTitle") }
     Push-Location $nativeGenerated
     try { & ./gradlew.bat @nativeGradleArguments; if($LASTEXITCODE -ne 0) { throw 'Android Gradle packaging failed.' } }

@@ -5,6 +5,6 @@
   "keyDistribution": "per-tester-limited",
   "delivery": "manual-platform-signed-update",
   "productName": "生生不息",
-  "androidVersionCode": 1,
-  "iosBuildNumber": 1
+  "androidVersionCode": 2,
+  "iosBuildNumber": 2
 }

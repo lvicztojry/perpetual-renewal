@@ -1,6 +1,6 @@
 # 四端独立运行的本地测试客户端
 
-当前交付是 **Windows、macOS、Android、iPhone 的共享客户端源码准备**，不是已经签名、验收的四个平台安装包。现有网页、小程序和云端部署包仍保留；本目录新增 `native/`，用于让设备独立保存数据并直接连接模型服务。用户不需要为本地客户端运行一台电脑服务器或 PostgreSQL/Docker。
+当前优先交付 Windows 和 Android 的本地安装包，Mac 和 iPhone 构建暂缓。共享客户端在 `native/`，设备独立保存数据并直接连接模型服务，测试者无需安装 Node.js、PostgreSQL 或 Docker。安装包和当前验收结果见 `dist/installers/` 中的说明；共享源码包仍单独提供。
 
 2026-11-21 确认的范围：四端均独立运行；保留原网页设计及业务功能；测试者各自使用单独的限额 Key；接受手机后台调度受系统限制；目前没有 Mac 和 Apple 开发者会员，先准备代码，再解决 Apple 构建、签名与分发。
 
@@ -10,12 +10,12 @@
 | --- | --- | --- |
 | 原网页界面 | 复用人物/私聊、群聊、记忆、入梦、设置、资料、导入和回响录组件及原素材 | 四端原生窗口、键盘、安全区域与无障碍检查 |
 | 本地业务 | 复用既有服务和接口处理逻辑，由设备内请求分发器执行；不启动 HTTP 服务 | 原生完整功能验收 |
-| 数据 | 每个账户独立的密码包装主密钥、AES-GCM 加密状态；SQLite 原子比较版本写入 | Rust 桥接编译、设备读写/断电恢复和容量测试 |
+| 数据 | 每个账户独立的密码包装主密钥、AES-GCM 加密状态；SQLite 原子比较版本写入；Windows/Android 已实际写入 | 实体手机断电恢复和容量测试；Apple 构建暂缓 |
 | 账号 | 本地创建、登录、锁定、恢复码重设密码；重设时保留原主密钥和数据 | 原生生命周期与密码管理器检查 |
 | 模型与语音 | 沿用多供应商适配器和个人 vault，原生 HTTPS 请求传输 | 测试者真实限额 Key、录音/播放和权限真机验收 |
 | 后台任务 | 应用运行时检查私聊和群聊；群聊使用现有完整 scheduled 流程；手机返回前台检查 | Android/iOS 实际生命周期；没有实现系统定时唤醒的承诺 |
 | 文件 | 保留已有 JSON/资料导入导出；原生保存对话框与文件写入已接入 | 各系统文件选择、Android content URI 与 iOS 保存验收 |
-| 更新保护 | 固定应用 ID、SQLite 迁移历史校验、升级前备份、事务回滚、拒绝降级、旧版本来源检查 | Rust 单元测试及真正的旧安装包→新安装包覆盖更新演练 |
+| 更新保护 | 固定应用 ID、SQLite 迁移历史校验、升级前备份、事务回滚、拒绝降级、旧版本来源检查；Rust 3 项测试和 Windows/Android 实际覆盖更新通过 | 实体设备及 Apple 平台另验，详细结果见交付报告 |
 
 浏览器 QA 使用显式测试构建中的 IndexedDB 适配器，验证共享业务和加密状态；不能代替原生 SQLite/IPC 或真机验证。正式构建不启用此适配器，普通浏览器打开正式页面会拒绝启动。
 
@@ -101,7 +101,11 @@ npm --prefix native run ios:init
 npm --prefix native run ios:build
 ```
 
-在具备 Rust 与原生工具链的机器，还要运行 `cargo test --manifest-path native/src-tauri/Cargo.toml`，验证实际 Rust 迁移和路径边界。当前 Windows 环境缺 Rust/MSVC/Android SDK，且没有 Mac，本轮没有运行 Rust 测试、编译四端可执行文件或进行手机验收。
+本机已准备 Rust/MSVC、JDK 21、Android SDK 36 和 NDK 29，开发缓存位于忽略目录 `.build-tools/`。`scripts/native-env.ps1 -WithProxy` 只配置当前构建进程的环境及已有本机代理，不修改系统代理。Rust 迁移、失败回滚及安全恢复路径的 3 项测试已通过。
+
+Windows 已完成 NSIS 0.1.0 → 0.1.1 实际覆盖安装，原生 SQLite 中的账户、聊天、群聊、入梦、密码包装主密钥、恢复码包装密钥和模型 Key 配置均保留，更新前自动备份存在。测试使用 `RENEWAL_DATA_DIR` 指定的隔离目录；普通启动仍使用固定应用 ID 的系统数据目录。该变量只接受绝对路径，普通测试者无需设置。
+
+Windows 的 Android 构建可使用 `native/scripts/build-android.ps1`；它在系统不允许符号链接时复制已编译原生库再交由 Gradle 打包，不需要启用 Windows 开发者模式。首次先运行 `android:init`。签名使用 `native/scripts/sign-android.mjs`；固定私钥和凭据保存在忽略目录 `.release-keys/android/`，必须由发布者安全备份。后续 APK 必须沿用同一私钥并递增版本号，不能重新生成签名身份。
 
 ## 发布源码准备包
 
@@ -109,7 +113,7 @@ npm --prefix native run ios:build
 npm run native:package
 ```
 
-生成 `dist/renewal-local-source-0.1.0.tar.gz` 和同名 `.release.json`。清单写明 `source-preparation-not-an-installer`，列出源文件哈希、应用 ID、数据格式和迁移哈希；不含 `.env.local`、测试者数据、API Key、构建输出、系统运行时或签名私钥。
+生成 `dist/renewal-local-source-0.1.1.tar.gz` 和同名 `.release.json`。清单写明 `source-preparation-not-an-installer`，列出源文件哈希、应用 ID、数据格式和迁移哈希；不含 `.env.local`、测试者数据、API Key、构建输出、系统运行时或签名私钥。
 
 制作后续版本源码包时，将原清单作为更新来源：
 
@@ -126,3 +130,7 @@ node scripts/prepare-native.mjs --previous path/to/previous.release.json
 手机处于后台、被系统挂起或关闭时，不能保证每分钟实时生成。当前实现应用运行时检查与回到前台检查，没有静默唤醒的保证，也不把补处理伪装成过去已发送的消息。iOS 运行时间由系统安排，见 [Apple 后台任务说明](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app)。
 
 已经通过和仍待执行的项目以开发仓库 `docs/MVP_STATUS.md` 为准，源码准备不等于全功能原生验收完成。
+
+## 本轮安装包验收
+
+0.1.1 安装包、使用说明、SHA256SUMS.txt 和 VALIDATION.json 位于 dist/installers/。Android API 36 模拟器将同签名 0.1.0 基线覆盖为关闭调试的 0.1.1 release，SQLite 完整性及加密账户逐字节保留检查通过，原密码和恢复码可解密聊天、群聊、入梦和原模型 Key；界面旧账户登录及原人物显示通过。APK 包含 ARM64/ARMv7/x86_64，v2/v3 签名验证、ZIP 16KB 对齐及两个 64 位 ELF 的 0x4000 对齐通过。Windows NSIS 没有 Authenticode 发布者证书。未将模拟器通过记为实体手机录音、播放、文件或后台生命周期验收。
