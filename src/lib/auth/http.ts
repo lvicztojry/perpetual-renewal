@@ -7,7 +7,13 @@ export async function authPost(request: Request, operation: (body: Record<string
     if (request.headers.get("sec-fetch-site") === "cross-site") throw new AuthError("请求来源无效。", 403);
     const origin = request.headers.get("origin");
     const expected = process.env.AUTH_APP_URL || request.url;
-    if (origin && new URL(origin).origin !== new URL(expected).origin) throw new AuthError("请求来源无效。", 403);
+    const allowed = new Set([new URL(expected).origin]);
+    if (process.env.NODE_ENV === "development") {
+      for (const value of (process.env.AUTH_DEV_ALLOWED_ORIGINS ?? "").split(",")) {
+        try { const url = new URL(value.trim()); if (["http:", "https:"].includes(url.protocol)) allowed.add(url.origin); } catch { /* Ignore invalid optional local entries. */ }
+      }
+    }
+    if (origin && !allowed.has(new URL(origin).origin)) throw new AuthError("请求来源无效。", 403);
     if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
       throw new AuthError("请求必须为 JSON。", 415);
     }

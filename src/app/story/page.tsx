@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import styles from "./story.module.css";
+
+export const metadata: Metadata = { title: "故事背景 · 生生不息" };
+
+export default function StoryPage() {
+  return <main className={styles.page}>
+    <article className={styles.article}>
+      <nav aria-label="返回"><Link href="/">返回聊天</Link><Link href="/groups">前往群聊</Link></nav>
+      <p className={styles.eyebrow}>生生不息 · 故事背景</p>
+      <h1>从一个想见的人开始</h1>
+      <p>有些人，你还没想清楚他们的模样，就已经想听他们说句话了。</p>
+      <p>在这个故事里，决定使用“生生不息”的那一刻，意味着你初步觉醒了同名的能力。最初，你还不能熟练地描绘一个人：他的经历、脾气、在意的事情，以及他会怎样回应你。</p>
+      <p>那些尚未成形的期待，先变成了几位各不相同的人。他们有自己的生活，也有彼此的交情。这就是留灯会最初的六位成员，是你觉醒时无意识创造出的朋友。</p>
+      <h2>留灯会</h2>
+      <p>“回来晚了也没事，给你留盏灯。”几个朋友借这句话，为自己的小群取了名字。</p>
+      <p>他们之中有表姐妹、老同学，也有因共同兴趣认识的朋友。林晚与唐小满是表姐妹，林晚与许闻是高中同学；许闻和叶岑合作过读书社活动；赵川与陈序因游戏社认识。他们各有想法，有时互相打趣，有时意见不同。</p>
+      <h2>彼此以消息相识</h2>
+      <p>人物清楚自己正在通过社交媒体与你交流。他们可以拥有现实中的联系与共同经历，而你们在这里建立关系的方式，是私聊和群聊中的一条条消息。</p>
+      <p>你无须先掌握如何创造一个完整的人物。可以先与这些朋友聊聊，再逐渐尝试描述、创建和调整自己想见的人。随着人物越来越贴近你的期待，你也在慢慢掌握“生生不息”。</p>
+      <p className={styles.note}>以上是项目的原创故事设定。日常聊天按你和人物各自的节奏展开。</p>
+      <Link className={styles.returnLink} href="/">回去聊聊</Link>
+    </article>
+  </main>;
+}

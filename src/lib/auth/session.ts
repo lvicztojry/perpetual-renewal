@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
 import { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
+import { assertEmailAllowed, isEmailAllowed } from "./allowed-emails";
 
 export { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
 
@@ -34,6 +35,7 @@ export async function getCurrentSession(): Promise<AppSession> {
   const current = await getOptionalSession();
   if (current) return current;
   if (!isLocalEmailAuthEnabled()) throw new AuthenticationRequiredError();
+  assertEmailAllowed(process.env.DEV_MOCK_USER_EMAIL ?? "dev@perpetual-renewal.local");
   const cookieStore = await cookies();
 
   if (shouldUseFallbackSession()) {
@@ -62,23 +64,25 @@ export async function getOptionalSession(): Promise<AppSession | null> {
       where: { id: payload.userId },
       select: { id: true, email: true, authCredential: { select: { sessionVersion: true } } }
     });
-    return user?.authCredential && user.authCredential.sessionVersion === payload.sessionVersion
+    return user?.authCredential && isEmailAllowed(user.email) && user.authCredential.sessionVersion === payload.sessionVersion
       ? { userId: user.id, email: user.email, provider: "password" } : null;
   }
   if (!isLocalEmailAuthEnabled()) return null;
   const userId = payload?.provider === "local-email" ? payload.userId : readSessionCookie(value);
   if (!userId) return null;
   if (shouldUseFallbackSession()) {
-    return getFallbackSessionStore().has(userId) ? getFallbackSession(userId) : null;
+    const record = getFallbackSessionStore().get(userId);
+    return record && isEmailAllowed(record.email) ? getFallbackSession(userId) : null;
   }
   const user = await prisma.user.findUnique({
     where: { id: userId }, select: { id: true, email: true, authCredential: { select: { userId: true } } }
   });
   // Even explicit local mode cannot use a passwordless cookie for a password-auth user.
-  return user && !user.authCredential ? { userId: user.id, email: user.email, provider: "local-email" } : null;
+  return user && isEmailAllowed(user.email) && !user.authCredential ? { userId: user.id, email: user.email, provider: "local-email" } : null;
 }
 
 export async function createPasswordSession(input: { userId: string; email: string; sessionVersion: string }): Promise<AppSession> {
+  assertEmailAllowed(input.email);
   const cookieStore = await cookies();
   setV2SessionCookie(cookieStore, input.userId, "password", input.sessionVersion);
   return { userId: input.userId, email: input.email, provider: "password" };
@@ -91,6 +95,7 @@ export async function createEmailSession(input: {
   if (!isLocalEmailAuthEnabled()) throw new AuthenticationRequiredError();
   const cookieStore = await cookies();
   const email = normalizeEmail(input.email);
+  assertEmailAllowed(email);
   const nickname = input.nickname?.trim() || email.split("@")[0] || "用户";
 
   if (shouldUseFallbackSession()) {

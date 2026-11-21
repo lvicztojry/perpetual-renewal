@@ -8,6 +8,11 @@ const config = [
     ignores: [
       ".next/**",
       "node_modules/**",
+      "miniprogram/vendor/**",
+      "native/dist/**",
+      "native/src-tauri/target/**",
+      "native/src-tauri/gen/**",
+      ".tmp-native-qa/**",
       "dist/**",
       "coverage/**",
       "prisma/dev.db"

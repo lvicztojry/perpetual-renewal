@@ -115,6 +115,7 @@ test("done reply is idempotent without model calls, writes, or a capacity check"
   const first = await f.post(action); const second = await f.restart().post("u", f.id, action);
   assert.deepEqual(plain(second), plain(first)); assert.equal(f.calls.length, 1);
   assert.equal(first.source, "model"); assert.equal(first.group.messages.at(-1).content, "offline reply");
+  assert.deepEqual(f.calls[0][5], { now: "2026-11-13T04:00:00.000Z", timeZone: "Asia/Shanghai" });
 });
 
 test("live lease excludes concurrent retries; metadata is persisted before generation", async () => {
@@ -232,6 +233,21 @@ test("group proactive is independent of private companion switch; global/member/
   assert.equal((await f.scheduled()).skipped, "no-speakers");
   g = await f.read(); await f.update({ quietStart: "11:00", quietEnd: "13:00" }, g.members.map(m => ({ ...m, proactiveEnabled: true })));
   assert.equal((await f.scheduled()).skipped, "quiet-time"); assert.equal(f.calls.length, 1);
+});
+
+test("settled automatic conversation spends no model call or new turn and a new user message resumes it", async () => {
+  const f = await fixture(); await f.enable();
+  const select = f.deps.selectGroupSpeakers;
+  f.deps.selectGroupSpeakers = () => [];
+  const before = await f.stored();
+  assert.equal((await f.scheduled()).skipped, "conversation-settled");
+  assert.equal(f.calls.length, 0);
+  assert.deepEqual(await f.stored(), before);
+  f.deps.selectGroupSpeakers = select;
+  const sent = await f.message();
+  const result = await f.post({ action: "reply", turn: sent.group.turn, speakerId: sent.speakers[0] });
+  assert.equal(result.group.messages.length, 2);
+  assert.equal(f.calls.length, 1);
 });
 
 for (const mode of ["group", "member", "global"]) test(`disabling ${mode} fences in-flight proactive result`, async () => {

@@ -344,7 +344,36 @@ try {
   assert.equal((await session.createEmailSession({ email: "local@example.test" })).provider, "local-email");
   assert.equal((await session.getOptionalSession()).email, "local@example.test");
 
-  console.log("Auth backend passed: async salted scrypt, registration email proof, password login, legacy recovery, single-use/expiring tokens, rollback/retry, session expiry/revocation, local-mode isolation, DB rate limits, mail failure sanitization and nonenumerating HTTP responses.");
+  process.env.AUTH_ALLOWED_EMAILS = " LOCAL@EXAMPLE.TEST ";
+  assert.equal((await session.getOptionalSession()).email, "local@example.test");
+  process.env.AUTH_ALLOWED_EMAILS = "";
+  assert.equal(await session.getOptionalSession(), null, "removing an invitation revokes an existing local session");
+  await assert.rejects(session.createEmailSession({ email: "local@example.test" }), { status: 403 });
+  process.env.NODE_ENV = "production";
+  process.env.RENEWAL_REPOSITORY = "prisma";
+  process.env.AUTH_ALLOWED_EMAILS = "new@example.test,invited@example.test";
+  assert.equal((await post("login", { email: "new@example.test", password: newer })).status, 200);
+  assert.equal((await session.getOptionalSession()).email, "new@example.test");
+  const invitedCookie = cookieValues.get(cookieName);
+  const beforeDeniedMail = sent.length;
+  assert.equal((await post("register", { email: "uninvited@example.test", password: good })).status, 403);
+  assert.equal((await post("login", { email: "legacy@example.test", password: good })).status, 403);
+  assert.deepEqual(await post("forgot-password", { email: "legacy@example.test" }), unknownForgot);
+  assert.equal(sent.length, beforeDeniedMail, "uninvited mail is never sent");
+  assert.equal((await post("register", { email: "invited@example.test", password: good })).status, 200);
+  const pendingInvitation = emailToken();
+  await post("forgot-password", { email: "new@example.test" });
+  const pendingReset = emailToken();
+  process.env.AUTH_ALLOWED_EMAILS = "other@example.test";
+  cookieValues.set(cookieName, invitedCookie);
+  assert.equal(await session.getOptionalSession(), null, "removing an invitation revokes an existing password session");
+  assert.equal((await post("verify-email", { token: pendingInvitation })).status, 403, "pending verification cannot bypass invitation removal");
+  assert.equal((await post("reset-password", { token: pendingReset, password: good })).status, 403, "pending reset cannot bypass invitation removal");
+  assert(!state.users.some(user => user.email === "invited@example.test"));
+  delete process.env.AUTH_ALLOWED_EMAILS;
+  assert.equal((await session.getOptionalSession()).email, "new@example.test", "unset preserves existing deployments");
+
+  console.log("Auth backend passed: password/email proof, recovery, transactions, rate limits, sanitization, invitation enforcement and session revocation.");
 } finally {
   process.env = originalEnv;
 }

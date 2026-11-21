@@ -80,6 +80,7 @@ export type MessageRecord = {
 };
 
 export type MemoryRecord = {
+  supersededById?: string | null;
   id: string;
   userId: string;
   companionId: string;
@@ -271,6 +272,7 @@ export type RenewalRepository = {
     userId: string,
     memoryId: string,
     input: {
+      expectedUpdatedAt?: string;
       type?: MemoryType;
       status?: MemoryStatus;
       content?: string;

@@ -211,6 +211,8 @@ npm run typecheck
 npm run lint
 npm run qa:samples
 npm run qa:prompt
+npm run qa:memory-lifecycle
+npm run qa:sync
 npm run qa:imports
 npm run qa:character-import
 npm run qa:dream

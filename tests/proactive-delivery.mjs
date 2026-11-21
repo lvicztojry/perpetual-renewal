@@ -148,6 +148,7 @@ function fixture(mode) {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }
     });
     const localRequire = (name) => {
+      if (name === "node:crypto") return { randomUUID: require("node:crypto").randomUUID };
       if (Object.hasOwn(stubs, name)) return stubs[name];
       assert.ok(name.startsWith(".") || name.startsWith("@/"));
       return moduleAt((name.startsWith("@/") ? path.join(root, "src", name.slice(2)) : path.resolve(path.dirname(filename), name)) + ".ts");

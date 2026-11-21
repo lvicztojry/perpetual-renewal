@@ -3,6 +3,8 @@ import { shouldFallbackToMemoryOnPrismaError, shouldUseMemoryFallback } from "@/
 import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { deleteDreamWorkspaces } from "@/lib/dream/repository";
 import { deleteGroupsForAccount } from "@/lib/groups/repository";
+import { clearMemoryHistory } from "@/lib/memory/lifecycle";
+import { clearMessageReadReceipts } from "@/lib/sync/read-receipts-core";
 
 export const ACCOUNT_DELETE_CONFIRMATION = "删除我的账号";
 
@@ -168,6 +170,8 @@ async function deleteFallbackAccount(userId: string): Promise<DeleteAccountSumma
     providerCredentials: stores.renewalCredentialStore?.has(userId) ? 1 : 0
   };
 
+  // Keep memory and history cleanup synchronous after the last await. In-flight
+  // supersedes either finish before this section or find their targets missing.
   if (store) {
     store.companions = store.companions.filter((item) => item.userId !== userId);
     store.conversations = store.conversations.filter(
@@ -184,6 +188,9 @@ async function deleteFallbackAccount(userId: string): Promise<DeleteAccountSumma
       (item) => !companionIds.has(item.companionId)
     );
   }
+
+  clearMemoryHistory(userId);
+  clearMessageReadReceipts(userId);
 
   stores.renewalCredentialStore?.delete(userId);
   if (stores.renewalSafetyEventStore) {

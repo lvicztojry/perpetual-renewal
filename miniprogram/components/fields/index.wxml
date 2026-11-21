@@ -1,0 +1,11 @@
+<view wx:for="{{renderFields}}" wx:key="key" class="field">
+  <view class="label">{{item.label}}</view>
+  <switch wx:if="{{item.type === 'boolean'}}" checked="{{values[item.key]}}" data-key="{{item.key}}" bindchange="change" disabled="{{disabled}}" color="#b89a66" />
+  <picker wx:elif="{{item.type === 'select'}}" range="{{item.options}}" range-key="label" data-key="{{item.key}}" bindchange="change" disabled="{{disabled}}">
+    <view class="value">{{item.display}} · 点击选择</view>
+  </picker>
+  <textarea wx:elif="{{item.type === 'long'}}" value="{{values[item.key]}}" data-key="{{item.key}}" bindinput="change" maxlength="{{item.max || 8000}}" disabled="{{disabled}}" auto-height />
+  <input wx:else type="{{item.type === 'number' ? 'number' : 'text'}}" password="{{item.type === 'password'}}" value="{{values[item.key]}}" data-key="{{item.key}}" bindinput="change" maxlength="{{item.max || 4096}}" disabled="{{disabled}}" />
+  <view wx:if="{{item.help}}" class="help">{{item.help}}</view>
+</view>
+

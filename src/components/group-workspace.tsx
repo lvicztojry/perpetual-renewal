@@ -1,12 +1,18 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent, type SetStateAction } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BookHeart, MessageCircle, Plus, Send, Settings, Users, X } from "lucide-react";
 import type { GroupAction, GroupMember, GroupMessage, GroupResult, GroupState, GroupSummary } from "@/lib/groups/types";
 import type { CompanionProfile } from "@/lib/renewal/types";
 import { RenewalEmblem } from "./renewal-emblem";
+import { StarterPackEntry } from "./starter-pack-entry";
+import { useForegroundPoll } from "./use-foreground-poll";
+import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
+import { useInboxSync, useReadMessages } from "./use-inbox-sync";
+import { SyncAccessNotice, UnreadBadge } from "./sync-access-notice";
+import { createClientId } from "@/lib/client-sync/id";
 import styles from "./group-workspace.module.css";
 
 type Delivery = { message: GroupMessage; mentionIds: string[]; status: "sending" | "failed" | "sent"; error?: string };
@@ -18,6 +24,7 @@ const skippedNotices = new Map<string, string>([
   ["max-auto-rounds", "本轮自动聊天已停止或达到轮数上限，请发送新消息开始下一轮。"],
   ["pending-replies", "当前还有待完成的回复，请等待本轮回复结束。"],
   ["no-speakers", "没有可主动发言的成员，请检查群成员的“允许主动发言”开关。"],
+  ["conversation-settled", "这段话已自然收尾，发送新消息后会继续。"],
   ["reply-in-progress", "已有成员正在回复，请等待当前回复完成。"],
   ["reply-attempts-exhausted", "本轮回复已达到重试上限，请发送新消息开始下一轮。"],
   ["plan-changed", "回复计划已变更，请读取最新群聊或发送新消息。"],
@@ -61,9 +68,14 @@ function messageDate(value: string, today: Date) {
   return { day, label, time: `${day} ${time}`, full, dateTime: date.toISOString() };
 }
 
-export function GroupWorkspace({ groupId }: { groupId?: string }) {
+export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?: string }) {
+  const inbox = useInboxSync(userId);
+  const groupsRevision = useRef(0);
+  const [atLatest, setAtLatest] = useState(true);
+  const viewportRef = useChatViewport();
   const router = useRouter();
-  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groups, setGroupsState] = useState<GroupSummary[]>([]);
+  function setGroups(value: SetStateAction<GroupSummary[]>) { groupsRevision.current++; setGroupsState(value); }
   const [companions, setCompanions] = useState<CompanionProfile[]>([]);
   const [group, setGroup] = useState<GroupState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +118,9 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
   const mentionButton = useRef<HTMLButtonElement>(null);
   const mentionChoices = useRef<HTMLFieldSetElement>(null);
   const api = `/api/groups/${encodeURIComponent(groupId ?? "")}`;
+  useFollowLatestOnResize(log, follow, group?.id);
+  useReadMessages(userId, "group", group?.id, (group?.messages ?? []).filter(message => message.speakerId !== null).map(message => message.id),
+    inbox.state === "ready" && atLatest && !panel, () => Boolean(log.current?.getClientRects().length));
   const person = (id: string) => companions.find((item) => item.id === id)?.name ?? "已移除的成员";
 
   function accept(next: GroupState) {
@@ -165,15 +180,18 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
     const controller = new AbortController();
     void Promise.resolve().then(async () => {
       setLoading(true); setLoadError("");
+      if (!current.current || current.current.id !== groupId) {
+        follow.current = true; setAtLatest(true);
+      }
       const results = await Promise.allSettled([
-        request<{ groups: GroupSummary[] }>("/api/groups", { signal: controller.signal }),
-        request<{ companions: CompanionProfile[] }>("/api/companions", { signal: controller.signal }),
+        request<{ userId?: string; groups: GroupSummary[] }>("/api/groups", { signal: controller.signal }),
+        request<{ userId?: string; companions: CompanionProfile[] }>("/api/companions", { signal: controller.signal }),
         groupId ? request<{ group: GroupState }>(api, { signal: controller.signal }) : Promise.resolve(null),
       ]);
       if (controller.signal.aborted) return;
       const [list, people, detail] = results;
-      if (list.status === "fulfilled") setGroups(list.value.groups);
-      if (people.status === "fulfilled") setCompanions(people.value.companions);
+      if (list.status === "fulfilled" && (!list.value.userId || list.value.userId === userId)) setGroups(list.value.groups);
+      if (people.status === "fulfilled" && (!people.value.userId || people.value.userId === userId)) setCompanions(people.value.companions);
       if (detail.status === "fulfilled" && detail.value) accept(detail.value.group);
       const failed = results.find((result) => result.status === "rejected");
       if (failed?.status === "rejected") setLoadError(failureText(failed.reason));
@@ -206,6 +224,16 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, typing]);
 
+  useForegroundPoll(userId ? `group-list:${userId}` : null, async signal => {
+    if (loading || inbox.state === "signed-out" || inbox.state === "account-changed") return;
+    const revision = groupsRevision.current;
+    try {
+      const result = await request<{ userId?: string; groups: GroupSummary[] }>("/api/groups", { signal });
+      if (result.userId && result.userId !== userId) return;
+      if (!signal.aborted && live.current && revision === groupsRevision.current) setGroups(result.groups);
+    } catch { /* Existing detail and inbox states own safe connection feedback. */ }
+  }, 15000);
+
   useEffect(() => {
     if (creating) createDialog.current?.showModal();
     else createDialog.current?.close();
@@ -214,7 +242,6 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
   useEffect(() => {
     if (!panel) return;
     inspector.current?.focus({ preventScroll: true });
-    if (window.matchMedia("(max-width: 1180px)").matches) inspector.current?.scrollIntoView({ block: "start" });
   }, [panel]);
 
   useEffect(() => {
@@ -225,7 +252,6 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
     setPanel(null);
     const trigger = panelReturnFocus.current;
     trigger?.focus({ preventScroll: true });
-    if (window.matchMedia("(max-width: 1180px)").matches) trigger?.scrollIntoView({ block: "nearest" });
   }
 
   useEffect(() => {
@@ -286,7 +312,7 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
   function submitMessage(event: FormEvent) {
     event.preventDefault();
     if (!text.trim() || !group || editLock.current) return;
-    const clientId = crypto.randomUUID();
+    const clientId = createClientId();
     const delivery: Delivery = { message: { id: `local-${clientId}`, clientId, speakerId: null, content: text.trim(), createdAt: new Date().toISOString(), proactive: false }, mentionIds: mentions, status: "sending" };
     setText(""); setMentions([]); setMentionOpen(false);
     void send(delivery); composer.current?.focus();
@@ -343,27 +369,31 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
   const today = new Date();
   const messageDates = messages.map((message) => messageDate(message.createdAt, today));
 
-  return <main className={styles.page}>
+  if (inbox.state === "signed-out" || inbox.state === "account-changed") return <SyncAccessNotice reason={inbox.state} />;
+
+  return <main ref={viewportRef} className={`${styles.page} ${groupId ? styles.detailPage : ""}`}>
     <aside className={`${styles.rail} ${groupId ? styles.detailRail : ""}`} aria-label="群聊列表">
-      <Link className={styles.back} href="/"><ArrowLeft size={16} /> 返回私聊</Link>
+      <Link className={styles.back} href="/"><ArrowLeft size={16} /> 返回私聊<UnreadBadge count={inbox.total("private")} /></Link>
       <div className={styles.brand}><RenewalEmblem width={38} height={44} /><div><h1>围坐</h1><p>旧城灯下，故人同席</p></div></div>
       <div className={styles.row}><span className={styles.eyebrow}>相聚的地方 · {groups.length}</span><button className={styles.icon} aria-label="创建群聊" onClick={() => { setCreating(true); setError(""); }}><Plus size={19} /></button></div>
-      <nav className={styles.groupList}>{groups.map((item) => <Link key={item.id} href={`/groups/${encodeURIComponent(item.id)}`} className={styles.groupLink} aria-current={item.id === groupId ? "page" : undefined}><span className={styles.avatar}><Users size={20} /></span><span><strong>{item.name}</strong><small>{item.lastMessage?.content ?? `${item.members.length} 位成员 · 等你开口`}</small></span></Link>)}</nav>
+      <StarterPackEntry />
+      <nav className={styles.groupList}>{groups.map((item) => <Link key={item.id} href={`/groups/${encodeURIComponent(item.id)}`} className={styles.groupLink} aria-current={item.id === groupId ? "page" : undefined}><span className={styles.avatar}><Users size={20} /></span><span><strong>{item.name}<UnreadBadge count={inbox.count("group", item.id)} /></strong><small>{item.lastMessage?.content ?? `${item.members.length} 位成员 · 等你开口`}</small></span></Link>)}</nav>
       {!loading && !groups.length && !loadError && <p className={styles.hint}>还没有群聊。邀几位想见的人，在这里围坐。</p>}
       <p className={styles.railNote}>一盏灯，一张桌。<br />把想说的话，留给同席的人。</p>
     </aside>
 
     <section className={styles.main} aria-label="群聊工作区">
-      <header className={styles.header}><div><Link className={styles.back} href="/groups"><ArrowLeft size={15} /> 全部群聊</Link><h2>{group?.name ?? "故人同席"}</h2><p>{group ? `${group.members.length} 位成员 · ${group.members.map((member) => person(member.companionId)).join("、")}` : "让不同的声音，在同一盏灯下相遇。"}</p></div>
-        <div className={styles.actions}>{group ? <><button className={styles.secondary} aria-pressed={panel === "memories"} aria-expanded={panel === "memories"} aria-controls="group-inspector" onClick={(event) => { if (panel === "memories") closePanel(); else { panelReturnFocus.current = event.currentTarget; setPanel("memories"); } }}><BookHeart size={16} /> 群记忆</button><button className={styles.secondary} aria-pressed={panel === "settings"} aria-expanded={panel === "settings"} aria-controls="group-inspector" onClick={(event) => { if (panel === "settings") closePanel(); else { panelReturnFocus.current = event.currentTarget; setDraft(structuredClone(group)); setConfirmDelete(false); setPanel("settings"); } }}><Settings size={16} /> 成员与设置</button></> : <button className={styles.primary} onClick={() => setCreating(true)}><Plus size={16} /> 创建群聊</button>}</div>
+      <header className={styles.header}><div><Link className={styles.back} href="/groups"><ArrowLeft size={15} /> 全部群聊</Link><h2 title={group?.name}>{group?.name ?? "故人同席"}</h2>{!group && <p>让不同的声音，在同一盏灯下相遇。</p>}
+        {group && <details className={styles.groupDetails}><summary>{group.members.length} 位成员 · 群简介</summary><div><p>{group.members.map(member => person(member.companionId)).join("、")}</p>{group.background && <p>{group.background}</p>}</div></details>}</div>
+        <div className={styles.actions}>{group ? <><button className={styles.secondary} aria-label="群记忆" title="群记忆" aria-pressed={panel === "memories"} aria-expanded={panel === "memories"} aria-controls="group-inspector" onClick={(event) => { if (panel === "memories") closePanel(); else { panelReturnFocus.current = event.currentTarget; setPanel("memories"); } }}><BookHeart size={16} /><span className={styles.actionText}>群记忆</span></button><button className={styles.secondary} aria-label="成员与设置" title="成员与设置" aria-pressed={panel === "settings"} aria-expanded={panel === "settings"} aria-controls="group-inspector" onClick={(event) => { if (panel === "settings") closePanel(); else { panelReturnFocus.current = event.currentTarget; setDraft(structuredClone(group)); setConfirmDelete(false); setPanel("settings"); } }}><Settings size={16} /><span className={styles.actionText}>成员与设置</span></button></> : <button className={styles.primary} onClick={() => setCreating(true)}><Plus size={16} /> 创建群聊</button>}</div>
       </header>
       {loadError && <div className={styles.error} role="alert">{loadError} <button className={styles.secondary} onClick={() => setReload((value) => value + 1)}>重新读取</button></div>}
       {error && <div className={styles.error} role="alert">{error} <button className={styles.secondary} onClick={() => { stopPlan(); setReload((value) => value + 1); }}>读取最新群聊</button></div>}
       <p className={styles.notice} role="status">{loading ? "正在点亮灯火，读取群聊…" : notice}</p>
       {syncError && <p className={styles.error} role="status">{syncError} 页面会继续尝试刷新。</p>}
+      {inbox.state === "offline" && <p className={styles.notice} role="status">未读状态暂时未能同步，恢复连接后会继续。</p>}
       {group ? <>
-        {group.background && <p className={styles.background}>{group.background}</p>}
-        <div className={styles.conversation} ref={log} onScroll={() => { const node = log.current; if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 100; }}>
+        <div className={styles.conversation} aria-label="群聊天记录" ref={log} onScroll={() => { const node = log.current; if (node) { const latest = node.scrollHeight - node.scrollTop - node.clientHeight < 100; follow.current = latest; setAtLatest(latest); } }}>
           {!messages.length && <div className={styles.empty}><MessageCircle size={32} /><h3>人已到齐，话从这里开始</h3><p>说声你好，或 @ 一位成员。</p></div>}
           <ol className={styles.messages}>{messages.map((message, index) => {
             const delivery = deliveries.find((item) => item.message.clientId === message.clientId && item.status !== "sent");
@@ -381,18 +411,19 @@ export function GroupWorkspace({ groupId }: { groupId?: string }) {
           {replyFailure && <button className={styles.secondary} disabled={busy} onClick={() => { const plan = replyFailure; setReplyFailure(null); setError(""); void runPlan(plan); }}>重试剩余回复</button>}
         </div>
         <form className={styles.composer} onSubmit={submitMessage}>
-          <div className={styles.row}><button ref={mentionButton} type="button" className={styles.secondary} aria-expanded={mentionOpen} aria-controls="group-mention-members" onClick={() => setMentionOpen(!mentionOpen)}>＠ 选择成员</button><button type="button" className={styles.secondary} disabled={busy || Boolean(typing)} onClick={() => void proactive(true)}>邀请主动发言</button></div>
+          <div className={`${styles.row} ${styles.composerActions}`}><button ref={mentionButton} type="button" className={styles.secondary} aria-expanded={mentionOpen} aria-controls="group-mention-members" onClick={() => setMentionOpen(!mentionOpen)}>＠ 选择成员</button><button type="button" className={styles.secondary} disabled={busy || Boolean(typing)} onClick={() => void proactive(true)}>邀请主动发言</button></div>
           {mentionOpen && <fieldset ref={mentionChoices} id="group-mention-members" className={styles.mentions} onKeyDown={(event) => {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMentionOpen(false); mentionButton.current?.focus(); }
             else if (event.key === "Enter" && event.target instanceof HTMLInputElement && event.target.type === "checkbox") { event.preventDefault(); event.target.click(); }
           }}><legend>本条消息邀请谁回应</legend>{group.members.map((member) => <label key={member.companionId} className={styles.check}><input type="checkbox" checked={mentions.includes(member.companionId)} onChange={() => setMentions(toggle(mentions, member.companionId))} />@{person(member.companionId)}</label>)}<button type="button" className={styles.secondary} onClick={() => { setMentionOpen(false); composer.current?.focus(); }}>完成选择</button></fieldset>}
           {mentions.length > 0 && <p className={styles.hint}>邀请：{mentions.map((id) => `@${person(id)}`).join(" ")}</p>}
-          <label className={styles.srOnly} htmlFor="group-message">群聊消息</label><textarea ref={composer} id="group-message" value={text} maxLength={8000} rows={3} placeholder="说点什么，让灯下热闹起来…" onChange={(event) => setText(event.target.value)} disabled={busy} />
-          <div className={styles.row}><small>新消息会打断尚未开始的旧回复。</small><button type="submit" className={styles.primary} disabled={busy || !text.trim()}><Send size={16} /> 发送</button></div>
+          <label className={styles.srOnly} htmlFor="group-message">群聊消息</label><textarea ref={composer} id="group-message" value={text} maxLength={8000} rows={2} placeholder="说点什么，让灯下热闹起来…" onChange={(event) => setText(event.target.value)} disabled={busy} />
+          <div className={`${styles.row} ${styles.sendRow}`}><small>新消息会打断尚未开始的旧回复。</small><button type="submit" className={styles.primary} disabled={busy || !text.trim()}><Send size={16} /> 发送</button></div>
         </form>
       </> : !loading && <div className={styles.empty}><Users size={44} /><h3>{groupId ? "暂时无法进入这场相聚" : "空一张桌，等故人来"}</h3><p>{groupId ? "请重新读取，或从列表选择其他群聊。" : "选择已有群聊，或邀请人物创建新的群聊。"}</p></div>}
     </section>
 
+    {group && panel && <button type="button" className={styles.panelBackdrop} tabIndex={-1} aria-label="关闭群聊侧栏" onClick={closePanel} />}
     {group && panel && <aside ref={inspector} id="group-inspector" tabIndex={-1} className={styles.inspector} aria-label={panel === "settings" ? "成员与群设置" : "群记忆"} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closePanel(); } }}>
       <div className={styles.row}><h2>{panel === "settings" ? "同席的人与约定" : "共同记得的事"}</h2><button className={styles.icon} aria-label="关闭面板" onClick={closePanel}><X size={19} /></button></div>
       {panel === "settings" && draft && <form onSubmit={async (event) => { event.preventDefault(); if (await mutate(() => ({ action: "update", revision: draft.revision, name: draft.name.trim(), background: draft.background.trim(), members: draft.members, settings: draft.settings }))) closePanel(); }}>

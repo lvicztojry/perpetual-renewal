@@ -2,6 +2,8 @@
 
 当前能力、验收日期和施工顺序统一见 [项目当前状态](docs/MVP_STATUS.md)；本页保留操作流程和历史说明。
 
+微信开发者工具本地预览入口：导入 `miniprogram/`，步骤见 [小程序联调说明](docs/WECHAT_MINIPROGRAM.md)。
+
 群聊从侧栏进入：邀请已有的人物，多人逐条接话、确认共同记忆，并可配置主动话题。一键启动同时启动本机群聊调度；配置与首版边界见 [群聊说明](docs/GROUPS.md)。
 
 “生生不息”是一个关系型 AI 陪伴项目：当用户想交流却无法真正抵达某个人或某段关系时，用可设定、可记忆、会回响的 AI 关系对象承接亲情、友情、爱情、纪念、替代和自定义陪伴。
@@ -123,6 +125,8 @@ npm run db:smoke
 npm run smoke
 npm run qa:samples
 npm run qa:prompt
+npm run qa:memory-lifecycle
+npm run qa:sync
 npm run qa:imports
 npm run qa:dream
 npm run qa:vault
@@ -160,3 +164,17 @@ REAL_PROVIDER_QA=1 REAL_LLM_API_KEY="..." REAL_LLM_BASE_URL="..." REAL_LLM_MODEL
 - [RELEASE_ACCEPTANCE](docs/RELEASE_ACCEPTANCE.md)
 - [RELEASE_HANDOFF](docs/RELEASE_HANDOFF.md)
 - [ERROR_COPY](docs/ERROR_COPY.md)
+
+## 初始人物与线上群聊
+
+私聊和群聊侧栏中的「认识留灯会」可以预览并添加六位 19—25 岁的初始人物，同时建立留灯会群聊。人物拥有各自的生活背景、现实交情、性格弱点和文字交流样例；只通过社交媒体交流，不输出动作或场景旁白。示例用于表达风格，不作为用户真实经历或记忆。
+
+添加操作按账号隔离，可重复执行；保留已经修改的人物、问候语删除状态、群设置和聊天记录。初始关系从零开始，不预置用户发言、用户记忆或亲密关系。新增人物的私聊主动消息和初始群主动聊天默认关闭。
+
+群聊调度适用于所有用户自定义人物：结合点名、话题、连续追问、最近参与情况选择少量发言者，以每轮回复上限约束人数。自动续聊跟随最新群友消息；生成时只加载当前说话者的完整资料，其他成员仅提供公开姓名和群内身份。共享记忆先按知情范围过滤再检索，私聊记忆须显式授权，入群前历史不可见。
+
+参考：[SillyTavern 人物卡与示例](https://docs.sillytavern.app/usage/core-concepts/characterdesign/)、[群聊发言与人物卡切换](https://docs.sillytavern.app/usage/core-concepts/groupchats/)、[RisuAI Lorebook](https://github.com/kwaroran/RisuAI/wiki/Lorebook)。人物内容及本次实现均为原创，没有引入这些项目的代码依赖。
+
+验证：运行 npm run qa:groups（含初始人物安装、账号隔离、群聊生成和并发测试），以及 npm run e2e -- --grep "starter|group"。离线及浏览器测试不调用付费模型；自然度仍需在实际选用的模型上进行对话评估。
+
+故事背景独立放在 /story，可从人物预览中的“故事背景”进入。觉醒、人物来源和交流媒介的叙事说明不放在日常操作文案与群介绍中；内部提示继续约束人物以文字聊天方式交流。

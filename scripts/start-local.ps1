@@ -1,17 +1,47 @@
+param([switch]$Lan, [string]$LanAddress, [switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $siteUrl = 'http://localhost:3000'
+if ($Lan) {
+    if (-not $LanAddress) {
+        $candidates = foreach ($adapter in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
+            if ($adapter.OperationalStatus -ne 'Up' -or $adapter.Description -match 'Virtual|VPN|TAP|TUN|Hyper-V|VMware') { continue }
+            $properties = $adapter.GetIPProperties()
+            if (-not ($properties.GatewayAddresses | Where-Object { $_.Address.AddressFamily -eq 'InterNetwork' -and $_.Address.ToString() -ne '0.0.0.0' })) { continue }
+            foreach ($entry in $properties.UnicastAddresses) {
+                $address = $entry.Address.ToString()
+                if ($entry.Address.AddressFamily -eq 'InterNetwork' -and $address -match '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)') {
+                    [pscustomobject]@{ Address = $address; Wireless = ($adapter.NetworkInterfaceType -eq 'Wireless80211') }
+                }
+            }
+        }
+        $LanAddress = ($candidates | Sort-Object Wireless -Descending | Select-Object -First 1).Address
+    }
+    $parsedAddress = $null
+    if (-not [System.Net.IPAddress]::TryParse($LanAddress, [ref]$parsedAddress) -or $parsedAddress.AddressFamily -ne 'InterNetwork' -or $LanAddress -notmatch '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)') {
+        throw 'No private LAN IPv4 address found. Supply -LanAddress with this computer''s Wi-Fi address.'
+    }
+    $isLocal = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces().GetIPProperties().UnicastAddresses | Where-Object { $_.Address.ToString() -eq $LanAddress }
+    if (-not $isLocal) { throw 'The selected LAN address does not belong to this computer.' }
+    $siteUrl = "http://${LanAddress}:3000"
+    $env:AUTH_APP_URL = $siteUrl
+    $env:AUTH_DEV_ALLOWED_ORIGINS = "$siteUrl,http://localhost:3000,http://127.0.0.1:3000"
+    $env:RENEWAL_DEV_HOSTS = "$LanAddress,localhost,127.0.0.1"
+    Write-Host "Phone address (same Wi-Fi): $siteUrl" -ForegroundColor Cyan
+    Set-Content -LiteralPath (Join-Path $projectRoot '.tmp-lan-address.txt') -Value $siteUrl -Encoding ASCII
+}
 $loginUrl = "$siteUrl/login"
 $logOut = Join-Path $projectRoot '.tmp-local-dev.out.log'
 $logErr = Join-Path $projectRoot '.tmp-local-dev.err.log'
 
 function Test-TcpPort {
-    param([int]$Port)
+    param([int]$Port, [string]$HostAddress = '127.0.0.1')
 
-    $client = [System.Net.Sockets.TcpClient]::new()
+    $family = if ($HostAddress.Contains(':')) { [System.Net.Sockets.AddressFamily]::InterNetworkV6 } else { [System.Net.Sockets.AddressFamily]::InterNetwork }
+    $client = [System.Net.Sockets.TcpClient]::new($family)
     try {
-        $pending = $client.BeginConnect('127.0.0.1', $Port, $null, $null)
+        $pending = $client.BeginConnect($HostAddress, $Port, $null, $null)
         if (-not $pending.AsyncWaitHandle.WaitOne(500)) { return $false }
         $client.EndConnect($pending)
         return $true
@@ -27,7 +57,16 @@ function Test-ProjectReady {
         $response = Invoke-WebRequest -Uri $loginUrl -UseBasicParsing -TimeoutSec 3
         $isNextApp = $response.Headers['X-Powered-By'] -match 'Next\.js' -or
             $response.Content.Contains('/_next/')
-        return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500 -and $isNextApp)
+        $ready = ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500 -and $isNextApp)
+        if (-not $ready -or -not $Lan) { return $ready }
+        # An empty login is validation-only: confirm a reused server trusts this
+        # LAN origin, without creating an account or sending any credentials.
+        try {
+            $null = Invoke-WebRequest -Uri "$siteUrl/api/auth/login" -Method Post -Headers @{ Origin = $siteUrl } -ContentType 'application/json' -Body '{}' -UseBasicParsing -TimeoutSec 3
+            return $false
+        } catch {
+            return ($null -ne $_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 400)
+        }
     } catch {
         return $false
     }
@@ -52,13 +91,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $projectRoot '.env.local'))) {
 if (Test-ProjectReady) {
     Write-Host 'The app is already running. Opening the existing page.' -ForegroundColor Green
 } else {
-    if (Test-TcpPort -Port 3000) {
+    if ((Test-TcpPort -Port 3000) -or (Test-TcpPort -Port 3000 -HostAddress '::1')) {
         throw 'Port 3000 is occupied by another app. Close it or change the port in scripts/start-local.ps1.'
     }
 
     Write-Host 'Starting the app in the background...' -ForegroundColor Cyan
+    $bindHost = if ($Lan) { '0.0.0.0' } else { 'localhost' }
     $null = Start-Process -FilePath $nodeCommand.Source `
-        -ArgumentList @('node_modules/next/dist/bin/next', 'dev', '--hostname', 'localhost', '--port', '3000') `
+        -ArgumentList @('node_modules/next/dist/bin/next', 'dev', '--hostname', $bindHost, '--port', '3000') `
         -WorkingDirectory $projectRoot `
         -WindowStyle Hidden `
         -RedirectStandardOutput $logOut `
@@ -96,5 +136,5 @@ if ((Test-Path -LiteralPath $workerScript) -and -not $workerRunning) {
         -RedirectStandardOutput (Join-Path $projectRoot '.tmp-group-worker.out.log') `
         -RedirectStandardError (Join-Path $projectRoot '.tmp-group-worker.err.log') -PassThru
 }
-Start-Process $siteUrl
+if (-not $NoBrowser) { Start-Process $siteUrl }
 Write-Host "Opened $siteUrl" -ForegroundColor Green

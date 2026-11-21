@@ -33,6 +33,7 @@ const cache = new Map();
 const sandbox = vm.createContext({ AbortSignal, DOMException });
 let memoryRepository;
 const stubs = {
+  "@/lib/users/profile": { getUserProfile: forbidden },
   "@/lib/llm/user-provider": {
     async createUserLlmProvider(userId) { state.users.push(userId); return state.provider; }
   },

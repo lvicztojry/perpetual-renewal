@@ -109,13 +109,14 @@ function fixture({ failReply = false, groupsForExport } = {}) {
       if (failReply) throw new Error("Offline failure");
       return completion;
     } },
-    "@/lib/groups/private-context": { async getGroupMemoriesForCompanion(userId, companionId) {
+    "@/lib/groups/private-context": { async getGroupMemoriesForCompanion(userId, companionId, query) {
       state.groupMemoryReads.push({ userId, companionId });
-      return groupContext.getGroupMemoriesForCompanion(userId, companionId);
+      return groupContext.getGroupMemoriesForCompanion(userId, companionId, query);
     } },
     "@/lib/memory/extractor": { extractMemoryCandidates() { throw new Error("Unexpected extraction"); } },
     "@/lib/http/response-safety": { redactSensitiveResponseText: (value) => value },
     "@/lib/usage": { async recordModelUsage(entry) { state.usage.push(plain(entry)); } },
+    "@/lib/users/profile": { async getUserProfile() { return { timezone: "Asia/Shanghai", nickname: "测试用户", language: "zh-CN" }; } },
     "@/lib/llm/user-provider": { async createUserLlmProvider() { state.providerCalls++; return {}; } },
     "@/lib/relationship/proactive-frequency": { normalizeProactiveFrequency() {
       throw new Error("Unexpected frequency normalization");
@@ -260,11 +261,35 @@ test("failed reply preserves user correlation and existing assistant error metad
   assert.equal(f.state.replies, 1);
 });
 
+test("shared recall retrieves old relevant evidence and regeneration keeps the original question", async () => {
+  const shared = [{ id: "shared-photo", userId: "user", name: "摄影群", members: [], memories: [
+    { id: "old", content: "无关的天气。".repeat(100) + "摄影镜头预算八百，不是一千。", confirmed: true, knownBy: ["companion"], createdAt: "2020-01-01T00:00:00Z", sourceMessageIds: ["old-photo"] },
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `recent-${i}`, content: `晚饭和跑步的新话题 ${i}`, confirmed: true, knownBy: ["companion"], createdAt: "2026-11-17T00:00:00Z" })),
+    { id: "unknown", content: "摄影 SECRET_UNKNOWN", confirmed: true, knownBy: ["other"], createdAt: "2026-11-17T00:00:00Z" }
+  ] }];
+  const f = fixture({ groupsForExport: shared });
+  const sent = await f.service.sendMessage("conversation", "摄影镜头预算是多少？");
+  assert.equal(sent.assistantError, undefined);
+  const recalled = f.state.promptInputs[0].memories.filter(memory => memory.sourceGroupId === "shared-photo");
+  assert.equal(f.state.promptInputs[0].user.timezone, "Asia/Shanghai");
+  assert.equal(recalled.length, 6);
+  assert.match(recalled[0].content, /摄影镜头预算八百，不是一千/);
+  assert.equal(recalled[0].createdAt, "2020-01-01T00:00:00Z");
+  assert.deepEqual(recalled[0].sourceMessageIds, ["old-photo"]);
+  assert.ok(!JSON.stringify(recalled).includes("SECRET_UNKNOWN"));
+  assert.ok(Array.from(recalled[0].content).length <= 300);
+  await f.service.sendMessage("conversation", "晚饭和跑步怎么样？");
+  assert.doesNotMatch(f.state.promptInputs[1].memories.find(memory => memory.sourceGroupId === "shared-photo").content, /摄影镜头预算/);
+  const restored = await f.service.regenerateMessage("conversation", sent.assistantMessage.id);
+  assert.ok(restored.assistantMessage);
+  assert.match(f.state.promptInputs[2].memories.find(memory => memory.sourceGroupId === "shared-photo").content, /摄影镜头预算八百，不是一千/);
+});
+
 test("send and regenerate receive only known, source-labelled group memories without persisting formal copies", async () => {
   const groups = [{
     id: "group-known", userId: "user", name: "摄影群", members: [],
     memories: [
-      { id: "known", content: "一起讨论过构图", confirmed: true, knownBy: ["companion"], createdAt: "2026-11-12T10:00:00Z" },
+      { id: "known", content: "一起讨论过构图", confirmed: true, knownBy: ["companion"], createdAt: "2026-11-12T10:00:00Z", sourceMessageIds: ["message-composition"] },
       { id: "unknown", content: "UNKNOWN_GROUP_SECRET", confirmed: true, knownBy: ["other"], createdAt: "2026-11-12T11:00:00Z" },
       { id: "pending", content: "UNCONFIRMED_GROUP_SECRET", confirmed: false, knownBy: ["companion"], createdAt: "2026-11-12T12:00:00Z" }
     ]
@@ -285,6 +310,9 @@ test("send and regenerate receive only known, source-labelled group memories wit
   assert.equal(promptMemories.length, 2);
   assert.deepEqual(promptMemories[0], formalBefore[0]);
   assert.equal(promptMemories[1].type, "relationship_event");
+  assert.equal(promptMemories[1].createdAt, "2026-11-12T10:00:00Z");
+  assert.equal(promptMemories[1].sourceGroupId, "group-known");
+  assert.deepEqual(promptMemories[1].sourceMessageIds, ["message-composition"]);
   assert.match(promptMemories[1].content, /群「摄影群」中你已知的共同经历（不代表私聊发生过）/);
   assert.match(promptMemories[1].content, /来源：群聊共享记忆，非私人既定事实.*一起讨论过构图/);
   assert.ok(!JSON.stringify(f.state.promptInputs).includes("GROUP_SECRET"));

@@ -33,6 +33,12 @@ export class GroupService {
     return (await this.repository.list(userId)).map(g => ({ id: g.id, name: g.name, updatedAt: g.updatedAt, members: g.members, settings: g.settings, lastMessage: g.messages.at(-1) ?? null }));
   }
   async get(userId: string, id: string): Promise<GroupState> { return publicGroup(await this.repository.read(userId, id)); }
+  /** Owned delivery progress for reconnecting native clients; never expose claim tokens. */
+  async progress(userId: string, id: string) {
+    const state = await this.repository.read(userId, id);
+    const plan = state._control.plan;
+    return { turn: state.turn, speakers: plan?.turn === state.turn ? plan.speakers.filter(id => plan.claims[id]?.status !== "done") : [] };
+  }
   async create(userId: string, value: unknown): Promise<GroupState> {
     const input = object(value), companionIds = ids(input.companionIds, 12, 1);
     const owned = await this.repository.companions(userId);
@@ -128,7 +134,7 @@ export class GroupService {
     const companions = await this.companions(userId, snapshot);
     if (!companions.some(c => c.id === speakerId)) throw missing();
     if (snapshot.messages.length >= 1000) throw capacity();
-    const profile = snapshot._control.plan?.proactive ? await (this.deps.getUserProfile ?? getUserProfile)(userId) : undefined;
+    const profile = await (this.deps.getUserProfile ?? getUserProfile)(userId);
     const token = randomUUID();
     let completed = false, exhausted = false;
     const claimed = await this.repository.mutate(userId, id, state => {
@@ -150,7 +156,7 @@ export class GroupService {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       generated = await Promise.race([
-        (this.deps.generateGroupReply ?? generateGroupReply)(userId, publicGroup(claimed), companions, speakerId, claimed._control.plan!.proactive),
+        (this.deps.generateGroupReply ?? generateGroupReply)(userId, publicGroup(claimed), companions, speakerId, claimed._control.plan!.proactive, { now: this.now(), timeZone: profile.timezone }),
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(modelFailure()), GROUP_GENERATION_TIMEOUT_MS); })
       ]);
       generated.content = text(generated.content, 8000);
@@ -219,7 +225,7 @@ export class GroupService {
       skipped = this.proactiveReason(state, profile, currentEligible, now);
       if (skipped) return state;
       speakers = this.speakers(state, currentEligible);
-      if (!speakers.length) { skipped = "no-speakers"; return state; }
+      if (!speakers.length) { skipped = currentEligible.length && state.settings.autoChat ? "conversation-settled" : "no-speakers"; return state; }
       if (state.messages.length + speakers.length > 1000) throw capacity();
       state.turn++; state._control.autoRounds++; state.lastProactiveAt = now; state.updatedAt = now;
       state._control.plan = { turn: state.turn, speakers, proactive: true, claims: {} };

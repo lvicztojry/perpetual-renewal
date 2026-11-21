@@ -16,6 +16,8 @@ const steps = [
   ["Lint", ["run", "lint"]],
   ["QA samples", ["run", "qa:samples"]],
   ["Prompt QA", ["run", "qa:prompt"]],
+  ["Memory lifecycle QA", ["run", "qa:memory-lifecycle"]],
+  ["Message sync QA", ["run", "qa:sync"]],
   ["Structured import QA", ["run", "qa:imports"]],
   ["Chat character import QA", ["run", "qa:character-import"]],
   ["Dream persona QA", ["run", "qa:dream"]],

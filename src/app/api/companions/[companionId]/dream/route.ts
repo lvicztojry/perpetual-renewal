@@ -1,5 +1,6 @@
 import { getOptionalSession, AuthenticationRequiredError } from "@/lib/auth/session";
 import { privateJson } from "@/lib/http/private-response";
+import { isTrustedMutationOrigin } from "@/lib/http/request-origin";
 import { JsonRequestError } from "@/lib/http/json";
 import { DreamService } from "@/lib/dream/service";
 import { DreamError } from "@/lib/dream/errors";
@@ -27,8 +28,7 @@ export async function POST(request: Request, context: Context) {
     const session = await getOptionalSession();
     if (!session) throw new AuthenticationRequiredError();
     // Session does authentication only. Fail closed on absent/null/foreign Origin.
-    const origin = request.headers.get("origin");
-    if (!origin || origin !== new URL(request.url).origin || request.headers.get("sec-fetch-site") === "cross-site") return privateJson({ error: "仅允许同源请求。" }, { status: 403 });
+    if (!isTrustedMutationOrigin(request)) return privateJson({ error: "仅允许同源请求。" }, { status: 403 });
     const { userId } = session;
     const companionId = (await context.params).companionId;
     const service = new DreamService();

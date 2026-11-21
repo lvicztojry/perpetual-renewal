@@ -29,6 +29,9 @@ export type PromptUserProfile = {
 };
 
 export type PromptMemory = {
+  sourceMessageId?: string | null;
+  sourceMessageIds?: string[];
+  sourceGroupId?: string;
   type: PromptMemoryType | string;
   content: string;
   status: PromptMemoryStatus | string;
@@ -56,6 +59,8 @@ export type PromptRelationshipState = {
 
 export type BuildPromptInput = {
   companion: PromptCompanionProfile;
+  /** Server clock; never inferred from the last message or memory edit. */
+  now?: Date | string;
   user?: PromptUserProfile;
   userBoundaries?: string[];
   memories?: PromptMemory[];

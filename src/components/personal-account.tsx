@@ -6,7 +6,7 @@ import { useRef, useState, type FormEvent } from "react";
 import type { UserProfile } from "@/lib/users/profile";
 import styles from "./personal-account.module.css";
 
-export function PersonalAccount({ initialUser, passwordAccount }: { initialUser: UserProfile; passwordAccount: boolean }) {
+export function PersonalAccount({ initialUser, passwordAccount, onSignedOut }: { initialUser: UserProfile; passwordAccount: boolean; onSignedOut?: () => void }) {
   const [user, setUser] = useState(initialUser);
   const [nickname, setNickname] = useState(initialUser.nickname);
   const [timezone, setTimezone] = useState(initialUser.timezone);
@@ -51,7 +51,8 @@ export function PersonalAccount({ initialUser, passwordAccount }: { initialUser:
     void perform("logout", async () => {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error("logout_failed");
-      window.location.replace("/login");
+      if (onSignedOut) onSignedOut();
+      else window.location.replace("/login");
     });
   }
 

@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 type Context = { params: Promise<{ groupId: string }> };
 export async function GET(request: Request, context: Context) {
-  try { const { userId } = await groupSession(request); return privateJson({ group: await new GroupService().get(userId, (await context.params).groupId) }); }
+  try { const { userId } = await groupSession(request); const service = new GroupService(), id = (await context.params).groupId; return privateJson({ group: await service.get(userId, id), progress: await service.progress(userId, id) }); }
   catch (error) { return groupFailure(error); }
 }
 export async function POST(request: Request, context: Context) {

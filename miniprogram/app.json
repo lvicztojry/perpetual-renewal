@@ -1,0 +1,33 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/auth/index",
+    "pages/companion/index",
+    "pages/chat/index",
+    "pages/groups/index",
+    "pages/memories/index",
+    "pages/dream/index",
+    "pages/settings/index",
+    "pages/importer/index",
+    "pages/echoes/index"
+  ],
+  "usingComponents": {
+    "fields": "/components/fields/index"
+  },
+  "networkTimeout": {
+    "request": 120000
+  },
+  "requiredPrivateInfos": [],
+  "permission": {
+    "scope.record": {
+      "desc": "用于将你主动录制的语音转写为聊天文字"
+    }
+  },
+  "window": {
+    "navigationBarTitleText": "生生不息 · 本地试用",
+    "navigationBarBackgroundColor": "#131714",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#131714"
+  },
+  "style": "v2"
+}

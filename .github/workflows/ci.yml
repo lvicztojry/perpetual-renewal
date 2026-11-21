@@ -49,6 +49,10 @@ jobs:
 
       - name: Prompt QA
         run: npm run qa:prompt
+      - name: Memory lifecycle QA
+        run: npm run qa:memory-lifecycle
+      - name: Message sync QA
+        run: npm run qa:sync
 
       - name: Structured import QA
         run: npm run qa:imports

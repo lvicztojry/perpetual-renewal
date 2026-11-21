@@ -1,0 +1,29 @@
+# Explicit build inputs: local configuration, data, screenshots and test artifacts stay out.
+**
+!package.json
+!package-lock.json
+!next.config.ts
+!next-env.d.ts
+!tsconfig.json
+!src/
+!src/**
+!public/
+!public/**
+!prisma/
+!prisma/schema.prisma
+!prisma/migrations/
+!prisma/migrations/**
+!scripts/
+!scripts/prisma-command.mjs
+!scripts/database-url.mjs
+!scripts/load-local-env.mjs
+!scripts/env-readiness.mjs
+!deploy/
+!deploy/start.mjs
+!deploy/scheduler.mjs
+!deploy/Dockerfile
+# Defense against future accidental credential files inside allowed source trees.
+**/.env*
+**/*.pem
+**/*.key
+**/*.log

@@ -85,6 +85,7 @@ model User {
   companions               Companion[]
   conversations            Conversation[]
   memories                 Memory[]
+  memoryRevisions          MemoryRevision[]
   relationshipStates       RelationshipState[]
   proactiveMessages        ProactiveMessage[]
   safetyEvents             SafetyEvent[]
@@ -94,6 +95,7 @@ model User {
   authRecoveryTokens       AuthRecoveryToken[]
   dreamWorkspaces          DreamWorkspace[]
   groupWorkspaces          GroupWorkspace[]
+  messageReadReceipts      MessageReadReceipt[]
 }
 
 model AuthCredential {
@@ -178,6 +180,7 @@ model Conversation {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   companion   Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
   messages    Message[]
+  messageReadReceipts MessageReadReceipt[]
   modelUsageLogs ModelUsageLog[]
 
   @@index([userId])
@@ -195,6 +198,7 @@ model Message {
   createdAt      DateTime      @default(now())
   conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   memories       Memory[]      @relation("MemorySourceMessage")
+  messageReadReceipts MessageReadReceipt[]
   safetyEvents   SafetyEvent[]
   modelUsageLogs ModelUsageLog[]
 
@@ -202,6 +206,8 @@ model Message {
 }
 
 model Memory {
+  supersededById  String?
+  revisions       MemoryRevision[]
   id              String       @id @default(cuid())
   userId          String
   companionId     String
@@ -217,6 +223,23 @@ model Memory {
   sourceMessage   Message?     @relation("MemorySourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
 
   @@index([userId, companionId, status])
+}
+
+model MemoryRevision {
+  id              String    @id @default(cuid())
+  userId          String
+  memoryId        String
+  companionId     String
+  kind            String
+  before          Json
+  after           Json
+  relatedMemoryId String?
+  createdAt       DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memory          Memory    @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, memoryId, createdAt])
+  @@index([userId, companionId])
 }
 
 model RelationshipState {
@@ -354,6 +377,27 @@ model GroupWorkspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageReadReceipts MessageReadReceipt[]
 
   @@index([userId])
+}
+
+// Explicit seen IDs only; never advance a time-based read watermark.
+model MessageReadReceipt {
+  userId           String
+  scope            String
+  threadId         String
+  messageId        String
+  conversationId   String?
+  groupId          String?
+  privateMessageId String?
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  group            GroupWorkspace? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  privateMessage   Message?      @relation(fields: [privateMessageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, scope, threadId, messageId])
+  @@index([conversationId])
+  @@index([groupId])
+  @@index([privateMessageId])
 }

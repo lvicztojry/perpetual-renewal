@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { privateJson } from "@/lib/http/private-response";
 import { getCurrentSession } from "@/lib/auth/session";
-import { jsonErrorMessage, readJsonObject } from "@/lib/http/json";
+import { JsonRequestError, jsonErrorMessage, readJsonObject, readOptionalJsonObject } from "@/lib/http/json";
 import { persistenceUnavailableResponse } from "@/lib/http/persistence-errors";
 import { getRenewalService, MemoryUpdateValidationError } from "@/lib/renewal/service";
+import { MemoryLifecycleError } from "@/lib/memory/lifecycle";
 import type { MemoryStatus, MemoryType } from "@/lib/renewal/types";
 
 type RouteContext = {
@@ -30,7 +31,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const session = await getCurrentSession();
+    if (typeof body.expectedUpdatedAt !== "string" || !Number.isFinite(Date.parse(body.expectedUpdatedAt))) {
+      return privateJson({ error: "请重新读取记忆后再确认修改。" }, { status: 400 });
+    }
     const memory = await getRenewalService(session.userId).updateMemory(memoryId, {
+      expectedUpdatedAt: body.expectedUpdatedAt as string | undefined,
       status: nextStatus,
       type: nextType,
       content: nextContent
@@ -42,6 +47,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return privateJson({ memory });
   } catch (error) {
+    if (error instanceof JsonRequestError) return privateJson({ error: error.message }, { status: 400 });
+    if (error instanceof MemoryLifecycleError) return privateJson({ error: error.message }, { status: error.status });
     const persistenceError = persistenceUnavailableResponse(error, "renewal");
     if (persistenceError) return persistenceError;
 
@@ -56,11 +63,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { memoryId } = await context.params;
     const session = await getCurrentSession();
-    const memory = await getRenewalService(session.userId).deleteMemory(memoryId);
+    const body = await readOptionalJsonObject(request);
+    const memory = await getRenewalService(session.userId).updateMemory(memoryId, { status: "deleted", expectedUpdatedAt: body.expectedUpdatedAt as string | undefined });
 
     if (!memory) {
       return privateJson({ error: "Memory not found" }, { status: 404 });
@@ -68,6 +76,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
     return privateJson({ memory });
   } catch (error) {
+    if (error instanceof JsonRequestError) return privateJson({ error: error.message }, { status: 400 });
+    if (error instanceof MemoryLifecycleError) return privateJson({ error: error.message }, { status: error.status });
     const persistenceError = persistenceUnavailableResponse(error, "renewal");
     if (persistenceError) return persistenceError;
 

@@ -2,9 +2,19 @@
 
 群聊专项运行 `npm run qa:groups` 和 `npm run e2e -- tests/e2e/group-flow.spec.ts`，分别验证模型/调度隔离和用户闭环。真实数据库专项使用 `GROUP_DATABASE_QA=1 npm run qa:groups:postgres`，仅在自建临时 schema 中运行。范围与容量见 [GROUPS.md](GROUPS.md)，实测以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
 
+人物回复专项：`qa:groups` 包含 `group-reply-quality.mjs` 的片段复读、引用和短应答边界，以及生成器单次重写、共同截止时间、两次用量及预算检查。`npm run e2e -- tests/e2e/group-reply-quality.spec.ts` 使用本机假供应商，通过真实模型适配器、群接口和界面验证丢弃候选不展示/不持久化，二次重复不再生成第三次，以及成功投递的幂等性。它不请求真实用户模型，不能代替实际自然度体验。
+
 当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
 
 ## 可重复执行命令
+
+`npm run qa:sync` 验证前台轮询、权威快照、本地消息保留及精确已读；`npm run e2e -- tests/e2e/sync-flow.spec.ts` 验证双浏览器消息、未读和账号切换。真实隔离数据库使用显式注入配置的 `MESSAGE_SYNC_DATABASE_QA=1 npm run qa:sync:postgres`。范围见 [MESSAGE_SYNC.md](MESSAGE_SYNC.md)。
+
+记忆变化专项 `npm run qa:memory-lifecycle` 验证事实替代、双版本、原子历史和遗忘清理；浏览器运行 `npm run e2e -- tests/e2e/memory-lifecycle.spec.ts`。真实数据库以 `MEMORY_DATABASE_QA=1 npm run qa:memory:postgres` 显式启用独立临时 schema，包含两个连接的修改冲突和导出/遗忘交错；不调用真实模型或邮件。遗忘范围及一致性快照契约见 [MEMORY_LIFECYCLE.md](MEMORY_LIFECYCLE.md)。
+
+记忆专项通过 `npm run qa:prompt` 检查完整候选、假设/引用过滤、时间/来源证据、旧记忆召回及预算；`npm run qa:chat-delivery` 直接验证群记忆进入私聊与原问题重生成，同时不写入永久私聊副本。结构化候选含标签最多 500 字符，过长语句不通过截断伪造；所有候选仍待确认。记录时间和编辑时间不是事件发生时间，测试通过不代表真实模型已经完全理解所有时间变化。
+
+时间专项包含跨时区午夜、夏令时、非法时区回退、裁剪后的消息位置与历史来源，以及低预算不挤掉事实；`qa:groups` 和 `qa:proactive-scheduler` 还检查真实生成请求携带时钟/时区及结构化记忆。主动策略覆盖旧候选延迟确认、旧年份持续事实及未来约定，断言提示词和选题边界，不能代替真实模型自然度与日期理解的人工试用。
 
 `npm run qa:chat-delivery` 验证即时消息的客户端关联 ID、旧请求兼容、非法参数拒绝与回复失败后的消息保留；浏览器的 `conversation-isolation.spec.ts` 验证响应返回前显示消息和输入状态、会话隔离及历史合并。
 
@@ -52,6 +62,7 @@ npm run qa:prompt
 默认行为：
 
 - 自动在 `127.0.0.1:3210` 启动 Next dev server。
+- 默认强制使用内存仓库，不继承 `.env.local` 中的真实数据库；真实数据库一致性使用上述显式临时 schema 专项。设置 `SMOKE_BASE_URL` 会复用对应服务及其配置，不能据此声称运行了隔离回归。
 - 将 `LLM_PROVIDER` 设为 `compatible`，并清空 key/baseUrl/model，用来验证真实 provider 缺配置时会 fallback 到 `mock`。
 - 请求首页、核心 API、关系创建、消息发送、chat complete、safety check。
 

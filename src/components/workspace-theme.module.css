@@ -6,10 +6,15 @@
 }
 
 .workspace :global(.main) {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
+
+.workspace :global(.main > .topbar), .workspace :global(.main > .composer) { flex: 0 0 auto; }
+.workspace :global(.main > .chat-stream) { flex: 1 1 0; }
+.workspace :global(.main > .status-box) { flex: 0 0 auto; max-height: 20%; overflow-y: auto; }
 
 .workspace :global(.rail) { min-height: 0; padding: 0; gap: 0; overflow: hidden; background: #131714; border-right: 1px solid #b89a6633; }
 .workspace :global(.rail-section) { overflow-y: auto; min-height: 0; flex: 1; align-content: start; padding: 24px 14px; gap: 18px; }
@@ -142,7 +147,7 @@
 }
 
 @media (max-width: 760px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .workspace { position: fixed; inset: var(--chat-viewport-top, 0px) 0 auto; height: var(--chat-viewport-height, 100dvh); grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   .workspace:not(:global(.is-mobile-conversation)) :global(.main) { display: none; }
   .workspace:global(.is-mobile-conversation) :global(.rail) { display: none; }
   .workspace :global(.rail) { height: 100%; max-height: none; }
@@ -169,7 +174,7 @@
   .workspace .drawer { inset: 0 0 0 auto; width: min(440px, 100vw); height: 100dvh; border-radius: 0; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
   .workspace :global(.composer) { padding: 8px 12px max(16px, env(safe-area-inset-bottom)); }
   .writingCaption > span:last-child { display: none; }
-  .workspace :global(.chat-input) { padding: 12px 10px; font-size: 15px; }
+  .workspace :global(.chat-input) { padding: 12px 10px; font-size: 16px; max-height: 25dvh; }
   .workspace :global(.composer-icon) { width: 30px; }
   .workspace :global(.composer .primary-button) { min-width: 46px; padding-inline: 8px; font-size: 12px; flex-direction: column; gap: 2px; }
 }

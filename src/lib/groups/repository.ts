@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { clearMessageReadReceipts } from "@/lib/sync/read-receipts-core";
 import { prisma } from "@/lib/prisma";
 import { shouldUseMemoryFallback } from "@/lib/persistence/memory-fallback";
 import { InMemoryRenewalRepository } from "@/lib/renewal/in-memory-repository";
@@ -41,7 +42,7 @@ export class MemoryGroupRepository implements GroupRepository {
   async list(userId: string) { return clone([...store().values()].filter(g => g.userId === userId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))); }
   async read(userId: string, id: string) { const state = store().get(id); if (!state || state.userId !== userId) throw missing(); return clone(state); }
   async create(state: StoredGroup) { if (store().has(state.id)) throw conflict(); store().set(state.id, clone(boundState(state))); return clone(state); }
-  async delete(userId: string, id: string) { const state = store().get(id); if (!state || state.userId !== userId) throw missing(); store().delete(id); }
+  async delete(userId: string, id: string) { const state = store().get(id); if (!state || state.userId !== userId) throw missing(); store().delete(id); clearMessageReadReceipts(userId, "group", [id]); }
   async mutate(userId: string, id: string, run: (state: StoredGroup) => StoredGroup) {
     // No await between read and write: shared process store mutation is atomic.
     const before = store().get(id); if (!before || before.userId !== userId) throw missing();
@@ -74,6 +75,7 @@ export async function listGroupsForExport(userId: string): Promise<GroupState[]>
 }
 export async function deleteGroupsForAccount(userId: string) {
   let count = 0; for (const [id, row] of store()) if (row.userId === userId) { store().delete(id); count++; }
+  clearMessageReadReceipts(userId, "group");
   if (!shouldUseMemoryFallback()) { const deleted = await prisma.groupWorkspace.deleteMany({ where: { userId } }); count += deleted.count; }
   return { count };
 }

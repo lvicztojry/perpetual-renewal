@@ -13,6 +13,7 @@ import type {
 import type { UserProfile } from "@/lib/users/profile";
 import type { DreamState } from "@/lib/dream/types";
 import type { GroupState } from "@/lib/groups/types";
+import type { MemoryRevisionRecord } from "@/lib/memory/lifecycle";
 
 export type ExportCollectionLimit = {
   limit: number;
@@ -48,6 +49,8 @@ export type UserExportSnapshot = {
   companions: ExportCompanionSnapshot[];
   dreamWorkspaces: DreamState[];
   groups: GroupState[];
+  memoryRevisions: MemoryRevisionRecord[];
+  messageReadReceipts: Array<{ scope: "private" | "group"; threadId: string; messageId: string }>;
   modelUsageLogs: ModelUsageLog[];
   safetyEvents: SafetyEventLog[];
   counts: {

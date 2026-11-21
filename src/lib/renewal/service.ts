@@ -23,6 +23,7 @@ import {
 import { createRenewalRepository } from "./repository";
 import { getGroupMemoriesForCompanion } from "@/lib/groups/private-context";
 import type { PromptMemory } from "@/lib/prompt-builder";
+import { getUserProfile } from "@/lib/users/profile";
 
 const repository = createRenewalRepository();
 
@@ -74,10 +75,11 @@ export function getRenewalService(userId = DEMO_USER_ID) {
 }
 
 export class RenewalService {
-  private async memoriesForPrompt(companion: { id: string; memories: MemoryRecord[] }): Promise<PromptMemory[]> {
-    const shared = await getGroupMemoriesForCompanion(this.userId, companion.id);
+  private async memoriesForPrompt(companion: { id: string; memories: MemoryRecord[] }, query: string): Promise<PromptMemory[]> {
+    const shared = await getGroupMemoriesForCompanion(this.userId, companion.id, query);
     return [...companion.memories, ...shared.map(memory => ({
       type: "relationship_event", status: "active", confidence: 1,
+      createdAt: memory.createdAt, sourceGroupId: memory.groupId, sourceMessageIds: memory.sourceMessageIds,
       content: `群「${memory.groupName}」中你已知的共同经历（不代表私聊发生过）：${memory.content}`
     }))];
   }
@@ -172,6 +174,7 @@ export class RenewalService {
   }
 
   async updateMemory(memoryId: string, input: {
+    expectedUpdatedAt?: string;
     type?: MemoryType;
     status?: MemoryStatus;
     content?: string;
@@ -235,7 +238,9 @@ export class RenewalService {
       const history = cachedHistory ?? await this.repo.listMessages(this.userId, conversationId);
       const startedAt = Date.now();
       const llmProvider = await createUserLlmProvider(this.userId);
+      const profile = await getUserProfile(this.userId);
       const completion = await generateCompanionReply({
+        user: profile,
         companion: {
           name: companion.name,
           relationshipKind: relationshipKindLabels[companion.relationshipKind],
@@ -248,7 +253,7 @@ export class RenewalService {
           boundaries: companion.boundaries,
           immersionEnabled: companion.immersionEnabled
         },
-        memories: await this.memoriesForPrompt(companion),
+        memories: await this.memoriesForPrompt(companion, trimmed),
         relationshipState: companion.relationshipState,
         recentMessages: messagesForPrompt(history),
         temperature: 0.7
@@ -353,7 +358,9 @@ export class RenewalService {
 
     const startedAt = Date.now();
     const llmProvider = await createUserLlmProvider(this.userId);
+    const profile = await getUserProfile(this.userId);
     const completion = await generateCompanionReply({
+      user: profile,
       companion: {
         name: companion.name,
         relationshipKind: relationshipKindLabels[companion.relationshipKind],
@@ -366,7 +373,7 @@ export class RenewalService {
         boundaries: companion.boundaries,
         immersionEnabled: companion.immersionEnabled
       },
-      memories: await this.memoriesForPrompt(companion),
+      memories: await this.memoriesForPrompt(companion, promptHistory.findLast(message => message.role === "user")?.content ?? ""),
       relationshipState: companion.relationshipState,
       recentMessages: promptHistory,
       temperature: 0.75
@@ -541,11 +548,13 @@ function shouldCreateMemory(content: string) {
 }
 
 function normalizeMemoryUpdate(input: {
+  expectedUpdatedAt?: string;
   type?: MemoryType;
   status?: MemoryStatus;
   content?: string;
 }) {
   return {
+    expectedUpdatedAt: input.expectedUpdatedAt,
     type: input.type,
     status: input.status,
     content: input.content?.trim()

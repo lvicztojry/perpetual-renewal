@@ -204,13 +204,16 @@ function noDiagnostics(app, result) {
 test("configured provider receives real character, active memories, relationship and history plus a system proactive task", async () => {
   const app = harness();
   const before = plain({ companion: app.companion, draft: app.draft, history: app.history });
-  const result = await app.run(app.provider);
+  const options = { now: new Date(timestamp), timeZone: "Asia/Shanghai" };
+  const result = await app.run(app.provider, options);
   assert.equal(result.source, "model");
   assert.deepEqual(app.lookups, [], "explicit provider bypasses vault lookup");
   assert.equal(app.requests.length, 1);
   const request = app.requests[0];
   const system = request.messages[0];
   assert.equal(system.role, "system");
+  assert.ok(system.content.includes(`"currentInstant":"${timestamp}"`));
+  assert.ok(system.content.includes('"timeZone":"Asia/Shanghai"'));
   for (const text of ["小岚", "朋友", "一起看星星的老朋友", "阿续", "岚岚", "温柔", "爱打趣",
     "简短自然，喜欢聊星星", "山间天文台的守夜人", "不要催促回复", "memory-active-marker", "期待流星雨", "一起认出北斗星"]) {
     assert.ok(system.content.includes(text), `real prompt must include ${text}`);
@@ -222,7 +225,7 @@ test("configured provider receives real character, active memories, relationship
   assert.match(request.messages.at(-1).content, /用户没有发来新消息/);
   assert.match(request.messages.at(-1).content, /主动/);
   assert.equal(request.messages.filter((m) => m.role === "user").length, 1, "no fabricated user turn");
-  const plan = app.plan();
+  const plan = app.plan(options);
   assert.equal(request.maxTokens, { short: 192, medium: 384, long: 768 }[plan.length]);
   assert.strictEqual(request.signal, app.controller.signal);
   assert.deepEqual(app.deadlines, [20_000]);

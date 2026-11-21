@@ -4,6 +4,14 @@
 
 ## 快速入口
 
+- 四端独立本地客户端：[LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)，Windows/macOS/Android/iPhone 源码准备、加密数据、保留账号的更新规则与原生构建待办。
+
+- 给异地朋友长期体验：[CLOUD_SHARING.md](CLOUD_SHARING.md)，独立数据库、受邀邮箱、默认中转站及个人 Key 覆盖的容器部署包；目标云端尚待选择与验收。
+
+- 手机同 Wi-Fi 试用：[LAN_TRIAL.md](LAN_TRIAL.md)。
+
+- 跨端消息与未读：[MESSAGE_SYNC.md](MESSAGE_SYNC.md)。
+
 - 本地启动：在仓库根目录运行 `npm ci`，再运行 `npm run dev`；本机真实体验可打开 `http://127.0.0.1:3000`。
 - 账号与邮件：默认自托管邮箱/密码，注册验证邮箱，旧 email-only 账号通过原邮箱恢复；个人邮箱 SMTP 授权码测试无需自有域名，也支持 HTTP 网关。配置见 [DEPLOYMENT.md 的认证与邮件](DEPLOYMENT.md#认证与邮件)。`AUTH_MODE=local-email` 仅限显式非生产测试；10 月新增认证、真实投递与目标迁移状态以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
 - 真实配置：优先看 [DEPLOYMENT.md](DEPLOYMENT.md)，根 README 也列出 Neon/PostgreSQL `DATABASE_URL`、TryAnotherOne compatible LLM、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 和 `VOICE_PROVIDER=shared-llm` 的最小配置。
@@ -11,6 +19,7 @@
 - 本地主动回响：工作台打开时会每分钟检查当前关系对象；生产 all-user 自动调度需要 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
 - 入梦与能力演出：[DREAM.md](DREAM.md) 说明人物校准、独立草稿、确认应用与版本恢复；设置页可进入「回响录」预览两种动画。
 - 群聊：[GROUPS.md](GROUPS.md) 说明邀请人物、多人接话、共同记忆、主动节奏与本机后台调度。
+- 记忆变化：[MEMORY_LIFECYCLE.md](MEMORY_LIFECYCLE.md) 说明原子替代、版本冲突、变更历史、遗忘范围和一致导出。
 - 发布候选验收：先跑根 README 的验收命令，其中包含 `npm run docs:check` 的发布口径自动检查和 `npm run git:boundary` 的文件边界检查；再按 [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) 做 20 分钟人工演示。
 
 ## 阅读顺序

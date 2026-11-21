@@ -1,0 +1,154 @@
+{
+  "scope": "all-existing-web-features",
+  "deliveryRule": "Every feature must pass native simulator and device acceptance before full migration is complete.",
+  "features": [
+    {
+      "id": "auth",
+      "name": "注册、验证邮箱、登录、找回和重置密码、退出",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "auth/register",
+        "auth/verify-email",
+        "auth/login",
+        "auth/forgot-password",
+        "auth/reset-password",
+        "auth/logout"
+      ]
+    },
+    {
+      "id": "profile",
+      "name": "个人资料、偏好、删除账号",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "me",
+        "me/account"
+      ]
+    },
+    {
+      "id": "companions",
+      "name": "人物创建、编辑、删除、所有关系类型、初始人物",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "companions",
+        "companions/[companionId]",
+        "starters"
+      ]
+    },
+    {
+      "id": "imports",
+      "name": "聊天文件解析、抽样选择、人物提炼、试聊确认、结构化导入",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "character-import",
+        "companions/[companionId]/imports",
+        "chat/complete"
+      ]
+    },
+    {
+      "id": "chat",
+      "name": "私聊、历史、失败恢复、重生成、重要标记、删除",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "conversations/[conversationId]/messages"
+      ]
+    },
+    {
+      "id": "sync",
+      "name": "前台刷新、未读、已读、跨端同步、会话草稿隔离",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "sync/inbox",
+        "sync/read"
+      ]
+    },
+    {
+      "id": "groups",
+      "name": "群创建、编辑、成员、点名、接聊、恢复、共同记忆、知情权限、群主动、删除",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "groups",
+        "groups/[groupId]"
+      ]
+    },
+    {
+      "id": "dream",
+      "name": "入梦、草稿、候选、反馈、试聊、应用预览、确认、冲突、版本恢复",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "companions/[companionId]/dream"
+      ]
+    },
+    {
+      "id": "memories",
+      "name": "记忆候选、确认、纠错、替代、归档、遗忘、分页历史",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "companions/[companionId]/memories",
+        "memories/[memoryId]",
+        "memories/[memoryId]/history"
+      ]
+    },
+    {
+      "id": "relationship",
+      "name": "关系状态展示",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "companions/[companionId]/relationship-state"
+      ]
+    },
+    {
+      "id": "proactive",
+      "name": "私聊和群聊主动开关、频率、草稿、确认、调度",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "companions/[companionId]/proactive-drafts",
+        "proactive-messages/[proactiveMessageId]",
+        "proactive/run",
+        "proactive/groups/run"
+      ]
+    },
+    {
+      "id": "models",
+      "name": "多供应商 BYOK、加密保存和删除、模型列表、连接测试、配置状态",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "me/llm-credential",
+        "me/llm-models",
+        "me/llm-test",
+        "me/config-status"
+      ]
+    },
+    {
+      "id": "voice",
+      "name": "录音、转写、语音合成、播放、语言适配",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "voice/transcribe",
+        "voice/synthesize"
+      ]
+    },
+    {
+      "id": "data",
+      "name": "完整数据导出、群聊导出、用量统计",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "me/export",
+        "usage/model-calls"
+      ]
+    },
+    {
+      "id": "safety",
+      "name": "内容安全和错误脱敏",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": [
+        "safety/check"
+      ]
+    },
+    {
+      "id": "presentation",
+      "name": "巨钟、光团、开门入梦、音效、静音、跳过、回响录、故事背景、人物预览",
+      "status": "implemented-awaiting-manual-wechat-validation",
+      "routes": []
+    }
+  ]
+}

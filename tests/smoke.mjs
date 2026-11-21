@@ -313,7 +313,7 @@ async function runApiBoundaryStaticSmoke() {
     "utf8"
   );
   assert(
-    generateReplySource.includes("normalizeAssistantReplyContent(completion.content)"),
+    generateReplySource.includes("normalizeSocialChatReplyContent(completion.content)"),
     "assistant replies should be normalized before persistence or API response"
   );
 
@@ -327,7 +327,7 @@ async function runApiBoundaryStaticSmoke() {
     "chat prompt should ask providers not to emit markdown emphasis or star actions"
   );
 
-  const normalizeAssistantReplyContent = await loadReplyFormatModule();
+  const { normalizeAssistantReplyContent, normalizeSocialChatReplyContent } = await loadReplyFormatModule();
   const markdownReply = [
     "**我在这里**，*轻轻把你的话接住*。",
     "```text",
@@ -352,6 +352,10 @@ async function runApiBoundaryStaticSmoke() {
     normalizeAssistantReplyContent("我＊真的＊很想见你。") === "我真的很想见你。",
     "assistant reply normalizer should remove full-width star emphasis"
   );
+  assert(
+    normalizeSocialChatReplyContent("（点头）我刚下班，*真的*有点累。") === "我刚下班，真的有点累。",
+    "social replies should remove stage actions and keep ordinary daily-life speech"
+  );
   pass("API route response boundaries stay private and sanitized");
 }
 
@@ -370,6 +374,8 @@ function startDevServer(port) {
     env: {
       ...process.env,
       AUTH_MODE: "local-email",
+      // A default regression must never inherit the trial account's database.
+      RENEWAL_REPOSITORY: "memory",
       LLM_PROVIDER: "compatible",
       LLM_API_KEY: "",
       LLM_BASE_URL: "",
@@ -1292,7 +1298,7 @@ async function runSmoke() {
     `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
     {
       method: "PATCH",
-      body: JSON.stringify({ status: "active" })
+      body: JSON.stringify({ status: "active", expectedUpdatedAt: sent.body.pendingMemory.updatedAt })
     }
   );
   assert(activatedMemory.body.memory?.status === "active", "pending memory should become active");
@@ -1305,6 +1311,7 @@ async function runSmoke() {
       method: "PATCH",
       body: JSON.stringify({
         content: editedMemoryContent,
+        expectedUpdatedAt: activatedMemory.body.memory.updatedAt,
         type: "relationship_event"
       })
     }
@@ -1333,7 +1340,7 @@ async function runSmoke() {
     `/api/memories/${encodeURIComponent(sent.body.pendingMemory.id)}`,
     {
       method: "PATCH",
-      body: JSON.stringify({ content: "   " })
+      body: JSON.stringify({ content: "   ", expectedUpdatedAt: editedMemory.body.memory.updatedAt })
     },
     { allowError: true }
   );
@@ -1368,6 +1375,7 @@ async function runSmoke() {
     {
       method: "PATCH",
       body: JSON.stringify({
+        expectedUpdatedAt: editedMemory.body.memory.updatedAt,
         content: [
           "候选记忆：用户想确认导出脱敏。",
           `token=${accidentalExportSecret}`,
@@ -3908,11 +3916,11 @@ async function loadReplyFormatModule() {
   vm.createContext(sandbox);
   new vm.Script(transpiled.outputText, { filename: "reply-format.js" }).runInContext(sandbox);
 
-  if (typeof sandbox.exports.normalizeAssistantReplyContent !== "function") {
+  if (typeof sandbox.exports.normalizeAssistantReplyContent !== "function" || typeof sandbox.exports.normalizeSocialChatReplyContent !== "function") {
     throw new Error("reply format module did not export normalizeAssistantReplyContent");
   }
 
-  return sandbox.exports.normalizeAssistantReplyContent;
+  return sandbox.exports;
 }
 
 async function listFiles(directory) {

@@ -49,6 +49,7 @@ export async function personalizeProactiveDraft(
       now: options.now ?? new Date(draft.scheduledAt ?? Date.now()), timeZone: options.timeZone
     });
     const prompt = buildRenewalPrompt({
+      now: options.now ?? new Date(draft.scheduledAt ?? Date.now()),
       companion: {
         name: companion.name, relationshipKind: relationshipKindLabels[companion.relationshipKind],
         customRelationship: companion.customKind, userAddress: companion.userAddress,

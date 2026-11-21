@@ -6,7 +6,7 @@ import { groupFailure, groupSession } from "./http";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export async function GET(request: Request) {
-  try { const { userId } = await groupSession(request); return privateJson({ groups: await new GroupService().list(userId) }); }
+  try { const { userId } = await groupSession(request); return privateJson({ userId, groups: await new GroupService().list(userId) }); }
   catch (error) { return groupFailure(error); }
 }
 export async function POST(request: Request) {

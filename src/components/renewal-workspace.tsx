@@ -24,7 +24,7 @@ import {
   X,
   Volume2
 } from "lucide-react";
-import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import {
   applyRelationshipKindDefaults,
   createRelationshipObjectDraft,
@@ -48,6 +48,14 @@ import {
 } from "@/lib/import/structured-client-import";
 import styles from "./workspace-theme.module.css";
 import { RenewalEmblem } from "./renewal-emblem";
+import { StarterPackEntry } from "./starter-pack-entry";
+import { MemoryLifecycleControls } from "./memory-lifecycle-controls";
+import { useForegroundPoll } from "./use-foreground-poll";
+import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
+import { useInboxSync, useReadMessages } from "./use-inbox-sync";
+import { SyncAccessNotice, UnreadBadge } from "./sync-access-notice";
+import { reconcileMessageSnapshot } from "@/lib/client-sync/messages";
+import { createClientId } from "@/lib/client-sync/id";
 import { ABILITY_INTRO_STATE_EVENT, playAbilityIntro } from "@/lib/ability-events";
 
 type InspectorMode =
@@ -239,8 +247,15 @@ const structuredImportKindLabels: Record<StructuredImportKind, string> = {
   contact: "通讯录"
 };
 
-export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
-  const [companions, setCompanions] = useState<CompanionProfile[]>([]);
+export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: boolean; userId?: string }) {
+  const [companions, setCompanionsState] = useState<CompanionProfile[]>([]);
+  const companionRevision = useRef(0);
+  function setCompanions(value: SetStateAction<CompanionProfile[]>) { companionRevision.current++; setCompanionsState(value); }
+  const inbox = useInboxSync(userId);
+  const [messageSyncError, setMessageSyncError] = useState("");
+  const [atLatest, setAtLatest] = useState(true);
+  const viewportRef = useChatViewport();
+  const followLatest = useRef(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [draft, setDraft] = useState("");
@@ -287,6 +302,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [editingMemoryContent, setEditingMemoryContent] = useState("");
+  const [editingMemoryUpdatedAt, setEditingMemoryUpdatedAt] = useState("");
   const [editingMemoryType, setEditingMemoryType] = useState<MemoryRecord["type"]>("user_fact");
   const [status, setStatus] = useState("正在连接关系工作台...");
   const [error, setError] = useState<string | null>(null);
@@ -320,7 +336,12 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     [messages]
   );
   const activeConversationId = activeCompanion?.conversationId;
+  useFollowLatestOnResize(streamRef, followLatest, activeConversationId);
   const isSending = !!activeConversationId && !!sendingConversations[activeConversationId];
+  useReadMessages(userId, "private", activeConversationId,
+    messages.filter(message => message.conversationId === activeConversationId && message.role === "assistant" && !message.metadata?.localStatus).map(message => message.id),
+    inbox.state === "ready" && atLatest && !isInspectorOpen && !isAbilityPlaying,
+    () => Boolean(streamRef.current?.getClientRects().length), isMobileConversation ? "conversation" : "contacts");
   const proactiveAccountPaused = proactiveAvailability?.accountEnabled === false;
 
   function openInspector(mode: InspectorMode) {
@@ -346,7 +367,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   }, [isInspectorOpen]);
 
   useEffect(() => {
-    streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
+    if (followLatest.current) streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
   }, [messages, activeConversationId]);
   const proactiveDraftStats = useMemo(
     () =>
@@ -394,12 +415,14 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         if (!response.ok) {
           throw new Error(await readResponseError(response, "关系对象加载失败。"));
         }
-        const payload = (await response.json()) as { companions: CompanionProfile[] };
+        const payload = (await response.json()) as { userId?: string; companions: CompanionProfile[] };
+        if (userId && payload.userId && payload.userId !== userId) return;
+        if (userId && payload.companions.some(person => person.userId !== userId)) return;
         const databaseStatus = await loadDatabaseConfigStatus();
         if (!mounted) return;
         setCompanions(payload.companions);
         setPersistenceNotice(databaseStatus?.status === "missing" ? databaseStatus : null);
-        const requestedCompanion = new URLSearchParams(window.location.search).get("companion");
+        const requestedCompanion = new URLSearchParams(window.location.search || window.location.hash.split("?")[1] || "").get("companion");
         const first = payload.companions.find((companion) => companion.id === requestedCompanion) ?? payload.companions[0];
         if (requestedCompanion && first?.id === requestedCompanion) setIsMobileConversation(true);
         activeConversationRef.current = first?.conversationId ?? null;
@@ -424,26 +447,25 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [userId]);
 
-  useEffect(() => {
-    let mounted = true;
-    if (!activeConversationId) return;
+  useForegroundPoll(activeConversationId ?? null, async signal => {
+    if (!activeConversationId || inbox.state === "account-changed" || inbox.state === "signed-out") return;
     const conversationId = activeConversationId;
     const revision = messageRevisionRef.current;
-
-    async function loadMessages() {
       try {
         const response = await fetch(`/api/conversations/${conversationId}/messages`, {
-          cache: "no-store"
+          cache: "no-store", signal
         });
         if (!response.ok) {
           throw new Error(await readResponseError(response, "消息加载失败。"));
         }
         const payload = (await response.json()) as { messages: MessageRecord[] };
-        if (mounted && revision === messageRevisionRef.current) {
+        if (!signal.aborted && activeConversationRef.current === conversationId && revision === messageRevisionRef.current) {
           const local = localMessagesByConversationRef.current.get(conversationId) ?? [];
-          setMessages((current) => mergeConversationMessages(payload.messages, [...current, ...local]));
+          const overlays = local.filter(message => message.metadata?.localStatus || inFlightConversationsRef.current.has(conversationId));
+          setMessages(reconcileMessageSnapshot(payload.messages, overlays, conversationId));
+          setMessageSyncError("");
           // Persisted response overlays only bridge switching while POST is pending.
           // Local unconfirmed bubbles remain until reconciled by clientMessageId.
           const persistedKeys = new Set(payload.messages.map((message) => message.metadata?.clientMessageId).filter(Boolean));
@@ -456,17 +478,33 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
           localMessagesByConversationRef.current.set(conversationId, [...retainedLocal, ...confirmedPending]);
         }
       } catch (loadError) {
-        if (mounted && revision === messageRevisionRef.current) {
-          setError(toSafeWorkspaceError(loadError, "消息加载失败。"));
+        if (!signal.aborted && activeConversationRef.current === conversationId && revision === messageRevisionRef.current) {
+          setMessageSyncError(toSafeWorkspaceError(loadError, "消息暂时未能同步，恢复连接后会继续。"));
         }
       }
-    }
+  });
 
-    loadMessages();
-    return () => {
-      mounted = false;
-    };
-  }, [activeConversationId]);
+  useForegroundPoll(signedIn ? `contacts:${userId ?? ""}` : null, async signal => {
+    if (isBooting || isSaving || isImporting || inbox.state === "account-changed" || inbox.state === "signed-out") return;
+    const revision = companionRevision.current;
+    try {
+      const response = await fetch("/api/companions", { cache: "no-store", signal });
+      if (!response.ok) return;
+      const payload = await response.json() as { userId?: string; companions: CompanionProfile[] };
+      if (userId && payload.userId && payload.userId !== userId) return;
+      if (signal.aborted || revision !== companionRevision.current || !Array.isArray(payload.companions) || payload.companions.some(person => userId && person.userId !== userId)) return;
+      const selected = payload.companions.find(person => person.conversationId === activeConversationRef.current);
+      if (!selected && inFlightConversationsRef.current.size) return;
+      setCompanions(payload.companions);
+      if (!selected) {
+        const next = payload.companions[0];
+        followLatest.current = true; setAtLatest(true);
+        activeConversationRef.current = next?.conversationId ?? null;
+        messageRevisionRef.current++;
+        setActiveId(next?.id ?? null); setMessages([]); setDraft(""); setForm(next ? toForm(next) : null);
+      }
+    } catch { /* Message and inbox status own connection feedback; never reset drafts on a failed list read. */ }
+  }, 30000);
 
   useEffect(() => {
     const companionId = activeCompanion?.id;
@@ -604,6 +642,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   ]);
 
   function selectCompanion(companion: CompanionProfile) {
+    followLatest.current = true; setAtLatest(true); setMessageSyncError("");
     setIsMobileConversation(true);
     setIsInspectorOpen(false);
     if (activeConversationRef.current === companion.conversationId) return;
@@ -789,7 +828,8 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
     if (!content || !activeCompanion || isSending || isAbilityPlaying) return;
     const conversationId = activeCompanion.conversationId;
     if (inFlightConversationsRef.current.has(conversationId)) return;
-    const clientMessageId = crypto.randomUUID();
+    followLatest.current = true; setAtLatest(true);
+    const clientMessageId = createClientId();
     const localId = `local-${clientMessageId}`;
     const optimistic: MessageRecord = {
       id: localId, conversationId, role: "user", content, createdAt: new Date().toISOString(),
@@ -836,6 +876,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         )
       );
       const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
+      if (activeConversationRef.current === conversationId) messageRevisionRef.current++;
       const remainingLocal = (localMessagesByConversationRef.current.get(conversationId) ?? []).filter((message) =>
         message.id !== localId && message.metadata?.clientMessageId !== clientMessageId);
       localMessagesByConversationRef.current.set(conversationId,
@@ -1051,7 +1092,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
       const response = await fetch(`/api/memories/${memoryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, expectedUpdatedAt: activeCompanion?.memories.find(memory => memory.id === memoryId)?.updatedAt })
       });
       const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
 
@@ -1082,7 +1123,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
       const response = await fetch(`/api/memories/${memoryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, type: editingMemoryType })
+        body: JSON.stringify({ content, type: editingMemoryType, expectedUpdatedAt: editingMemoryUpdatedAt })
       });
       const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
 
@@ -1103,6 +1144,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   }
 
   function startEditMemory(memory: MemoryRecord) {
+    setEditingMemoryUpdatedAt(memory.updatedAt);
     setEditingMemoryId(memory.id);
     setEditingMemoryContent(memory.content);
     setEditingMemoryType(memory.type);
@@ -1110,11 +1152,12 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   }
 
   async function deleteMemory(memoryId: string) {
+    if (!window.confirm("删除这条长期记忆及其变更历史？此操作不能恢复。原始聊天消息仍会保留，最近聊天上下文可能仍包含这些内容。")) return;
     setBusyMessageId(memoryId);
     setError(null);
 
     try {
-      const response = await fetch(`/api/memories/${memoryId}`, { method: "DELETE" });
+      const response = await fetch(`/api/memories/${memoryId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedUpdatedAt: activeCompanion?.memories.find(memory => memory.id === memoryId)?.updatedAt }) });
       const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
 
       if (!response.ok || !payload.memory) {
@@ -1641,8 +1684,10 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
   const activeCount = activeMemories.filter((memory) => memory.status === "active").length;
   const pendingCount = activeMemories.filter((memory) => memory.status === "pending").length;
 
+  if (inbox.state === "account-changed" || inbox.state === "signed-out") return <SyncAccessNotice reason={inbox.state} />;
+
   return (
-    <main className={`app-shell ${styles.workspace} ${isInspectorOpen ? "is-inspector-open" : ""} ${isMobileConversation ? "is-mobile-conversation" : ""}`}>
+    <main ref={viewportRef} className={`app-shell ${styles.workspace} ${isInspectorOpen ? "is-inspector-open" : ""} ${isMobileConversation ? "is-mobile-conversation" : ""}`}>
       <aside className="rail" aria-label="关系对象">
         <div className={styles.railMasthead}>
           <div className={styles.railScene} aria-hidden="true"><span className={styles.railBell} /></div>
@@ -1675,7 +1720,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
               >
                 <div className="avatar">{companion.name.slice(0, 1)}</div>
                 <div>
-                  <div className="relationship-name">{companion.name}</div>
+                  <div className="relationship-name">{companion.name}<UnreadBadge count={inbox.count("private", companion.conversationId)} /></div>
                   <div className="relationship-kind">
                     {companion.id === activeCompanion?.id
                       ? messages.at(-1)?.content ?? "还没有消息，先打声招呼吧"
@@ -1689,6 +1734,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
         </section>
 
         <div className="quick-actions">
+          <StarterPackEntry />
           <button aria-label="创建关系对象" className="text-button primary-action" onClick={startCreateCompanion} type="button">
             <Plus size={17} />
             想见谁
@@ -1700,6 +1746,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
           <Link className="text-button" href="/groups" title="进入群聊">
             <MessageCircle size={17} />
             围坐 · 群聊
+            <UnreadBadge count={inbox.total("group")} />
           </Link>
           <a className="text-button" href="/settings" title="用户设置">
             <Settings size={17} />
@@ -1811,7 +1858,11 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
           </div>
         </header>
 
-        <div className="chat-stream" ref={streamRef} aria-label="聊天记录" aria-busy={isBooting || isSending}>
+        {(messageSyncError || inbox.state === "offline") && <p className="status-box" role="status">{messageSyncError || "未读状态暂时未能同步，恢复连接后会继续。"}</p>}
+        <div className="chat-stream" ref={streamRef} aria-label="聊天记录" aria-busy={isBooting || isSending} onScroll={() => {
+          const node = streamRef.current;
+          if (node) { const latest = node.scrollHeight - node.scrollTop - node.clientHeight < 100; followLatest.current = latest; setAtLatest(latest); }
+        }}>
           {isBooting ? <div className="day-divider">加载中</div> : null}
           {messages.map((message, index) => (
             <Fragment key={message.id}>
@@ -2106,7 +2157,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                               归档
                             </button>
                           ) : null}
-                          {memory.status === "archived" ? (
+                          {memory.status === "archived" && !memory.supersededById ? (
                             <button
                               className="text-button"
                               disabled={busyMessageId === memory.id}
@@ -2127,6 +2178,7 @@ export function RenewalWorkspace({ signedIn = false }: { signedIn?: boolean }) {
                             <Trash2 size={15} />
                           </button>
                         </div>
+                        <MemoryLifecycleControls memory={memory} memories={activeMemories} onChanged={mergeMemories} />
                       </article>
                     ))
                   ) : (

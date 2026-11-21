@@ -6,9 +6,9 @@ import vm from "node:vm";
 import { randomUUID } from "node:crypto";
 import * as ts from "typescript";
 
-// Explicit allowlist: no native require, process, fetch, real DB or credential access.
+// Explicit allowlist: no native require, host process/env, fetch, real DB or credential access.
 const root = fileURLToPath(new URL("../src/", import.meta.url));
-const context = vm.createContext({ structuredClone, AbortSignal, TextDecoder, URL });
+const context = vm.createContext({ structuredClone, AbortSignal, TextDecoder, URL, process: { env: {} } });
 const cache = new Map();
 const usage = [], calls = [];
 let configuredProvider, sessionUser = "demo-user", useMemory = true;

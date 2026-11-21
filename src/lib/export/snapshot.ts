@@ -13,6 +13,8 @@ import { getUserProfile } from "@/lib/users/profile";
 import { listDreamWorkspacesForExport } from "@/lib/dream/repository";
 import type { DreamState } from "@/lib/dream/types";
 import { listGroupsForExport } from "@/lib/groups/repository";
+import { readMemoryExportSnapshot } from "@/lib/memory/lifecycle-service";
+import { listMessageReadReceiptsForExport } from "@/lib/sync/read-receipts-service";
 import type {
   ExportCompanionSnapshot,
   ExportCredentialSummary,
@@ -86,24 +88,24 @@ const sensitiveStringPatterns: Array<{ pattern: RegExp; replacement: string }> =
 
 export async function buildUserExportSnapshot(userId: string): Promise<UserExportSnapshot> {
   const repository = createRenewalRepository();
-  const [profile, credentialStatus, companions, modelUsagePage, safetyEventPage, dreamWorkspaces, groups] = await Promise.all([
+  const [profile, credentialStatus, companions, modelUsagePage, safetyEventPage, dreamWorkspaces, groups, messageReadReceipts] = await Promise.all([
     getUserProfile(userId),
     getLlmCredentialStatus(userId),
     repository.listCompanions(userId),
     listModelUsageLogsExportPage(userId, EXPORT_LIMIT),
     listSafetyEventsExportPage(userId, EXPORT_LIMIT),
     listDreamWorkspacesForExport(userId),
-    listGroupsForExport(userId)
+    listGroupsForExport(userId),
+    listMessageReadReceiptsForExport(userId)
   ]);
   const modelUsageLogs = modelUsagePage.items;
   const safetyEvents = safetyEventPage.items;
 
   const companionSnapshots: ExportCompanionSnapshot[] = [];
   for (const companion of companions) {
-    const [conversation, messages, memories, proactiveMessages] = await Promise.all([
+    const [conversation, messages, proactiveMessages] = await Promise.all([
       repository.getConversation(userId, companion.conversationId),
       repository.listMessages(userId, companion.conversationId),
-      repository.listMemories(userId, companion.id),
       repository.listProactiveMessages(userId, companion.id)
     ]);
 
@@ -111,11 +113,21 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       ...companion,
       conversation: scrubConversation(conversation),
       messages: messages.map(scrubMessage),
-      memories: memories.map(scrubMemory),
+      memories: [],
       relationshipState: scrubRelationshipState(companion.relationshipState),
       proactiveMessages: proactiveMessages.map(scrubProactiveMessage)
     }) as ExportCompanionSnapshot);
   }
+
+  const memorySnapshot = await readMemoryExportSnapshot(userId);
+  const companionIds = new Set(companionSnapshots.map(companion => companion.id));
+  for (const companion of companionSnapshots) {
+    companion.memories = memorySnapshot.memories.filter(memory => memory.companionId === companion.id).map(scrubMemory);
+  }
+  const memoryRevisions = memorySnapshot.revisions.filter(row => companionIds.has(row.companionId));
+  const exportedMessageIds = new Map(companionSnapshots.map(companion => [companion.conversation?.id ?? "", new Set(companion.messages.map(message => message.id))]));
+  const exportedGroupIds = new Map(groups.map(group => [group.id, new Set(group.messages.map(message => message.id))]));
+  const exportedReceipts = messageReadReceipts.filter(row => (row.scope === "private" ? exportedMessageIds : exportedGroupIds).get(row.threadId)?.has(row.messageId));
 
   return {
     schemaVersion: "m14-data-export-snapshot:v1",
@@ -131,6 +143,8 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
     companions: companionSnapshots,
     dreamWorkspaces: scrubSensitiveValue(dreamWorkspaces.map((row) => row.state)) as DreamState[],
     groups: scrubSensitiveValue(groups) as typeof groups,
+    memoryRevisions: scrubSensitiveValue(memoryRevisions) as UserExportSnapshot["memoryRevisions"],
+    messageReadReceipts: exportedReceipts,
     modelUsageLogs: scrubSensitiveValue(modelUsageLogs) as typeof modelUsageLogs,
     safetyEvents: scrubSensitiveValue(safetyEvents) as typeof safetyEvents,
     counts: {

@@ -128,6 +128,21 @@ test("rotation, recent participation, personality and topical relevance affect s
   assert.equal(selectGroupSpeakers(group, companions)[0], "b");
 });
 
+test("automatic peers do not answer themselves and natural closings need no further speaker", () => {
+  const { group, companions } = fixture();
+  group.settings.autoChat = true;
+  for (const closing of ["收到！", "哈哈", "先这样。", "晚安", "OK!"]) {
+    group.messages = [message("a", closing)];
+    assert.deepEqual(plain(selectGroupSpeakers(group, companions)), []);
+  }
+  group.messages = [message("a", "@小白 你比较喜欢哪一张照片？")];
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  group.messages = [message("a", "我更喜欢黑白摄影。")];
+  assert.ok(selectGroupSpeakers(group, companions).every(id => id !== "a"));
+  group.messages = [message(null, "收到")];
+  assert.equal(selectGroupSpeakers(group, companions).length, 1, "a user's acknowledgment may still get a brief response");
+});
+
 test("context isolates settings, memory permissions and join time; roles retain attribution", async () => {
   const { group, companions } = fixture();
   companions[1].background = "OTHER_SECRET_SETTING";
@@ -153,7 +168,7 @@ test("context isolates settings, memory permissions and join time; roles retain 
   for (const secret of ["OTHER_SECRET_SETTING", "OTHER_PRIVATE_MEMORY", "OWN_ACTIVE", "OWN_PENDING", "OWN_ARCHIVED", "FOREIGN_MEMORY", "UNCONFIRMED", "UNKNOWN_MEMORY", "BEFORE_JOIN", "HIDDEN_RELATIONSHIP_STATE"]) assert.ok(!prompt.includes(secret), secret);
   const own = h.calls[0].messages.filter(m => m.role === "assistant");
   assert.equal(own.length, 1);
-  assert.equal(JSON.parse(own[0].content).content, "OWN_MESSAGE");
+  assert.equal(own[0].content, "OWN_MESSAGE");
   const other = h.calls[0].messages.find(m => m.content.includes("OTHER_MESSAGE"));
   assert.equal(other.role, "user");
   assert.deepEqual(JSON.parse(other.content), { name: "小白", identity: "群友", speakerId: "b", time: stamp(6), content: "OTHER_MESSAGE" });
@@ -192,6 +207,84 @@ test("mock is an explicit local demo; provider creation failure never becomes mo
   assert.match(result.content, /本地演示/);
   assert.equal(h.logs.length, 0);
   await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, { createProvider: forbidden, recordUsage: forbidden }), error => error.status === 502);
+});
+
+test("copied peer tail is rewritten once before delivery, with both attempts billed and one deadline", async () => {
+  const { group, companions } = fixture();
+  group.messages.push(message("b", "今天这本画册挺好看的。回家的路上记得看看晚霞。"));
+  const h = harness();
+  const signals = [];
+  const replies = ["嗯，回家的路上记得看看晚霞，真的。", "我更喜欢天快黑时的颜色，像老胶片。"];
+  h.deps.provider.complete = async options => {
+    signals.push(options.signal); h.calls.push(plain(options));
+    return { content: replies[h.calls.length - 1], provider: "compatible", model: "offline-model", usage: { inputTokens: 100, outputTokens: 20 } };
+  };
+  const result = await generateGroupReply("u", group, companions, "a", false, h.deps);
+  assert.equal(result.content, replies[1]);
+  assert.equal(h.calls.length, 2);
+  assert.equal(signals[0], signals[1], "rewrite shares the initial 45-second deadline");
+  assert.deepEqual(h.logs.map(entry => entry.status), ["error", "success"]);
+  assert.equal(h.logs[0].errorKind, "repetition");
+  assert.equal(h.logs.reduce((sum, entry) => sum + entry.usage.outputTokens, 0), 40);
+  assert.match(h.calls[1].messages.at(-1).content, /尚未发送/);
+  assert.ok(!JSON.stringify(h.logs).includes(replies[0]), "usage records contain no draft/chat content");
+});
+
+test("a second repeated candidate fails without a third call, and provider failures are never rewrite retries", async () => {
+  const { group, companions } = fixture();
+  group.messages.push(message("b", "回家的路上记得看看晚霞。"));
+  const repeated = harness("compatible", "回家的路上记得看看晚霞。");
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, repeated.deps), error => error.status === 502);
+  assert.equal(repeated.calls.length, 2); assert.equal(repeated.logs.length, 2);
+  assert.ok(repeated.logs.every(entry => entry.status === "error" && entry.errorKind === "repetition"));
+  const failed = harness();
+  failed.deps.provider.complete = async options => {
+    failed.calls.push(plain(options));
+    if (failed.calls.length === 1) return { content: "回家的路上记得看看晚霞。", provider: "compatible", model: "offline", usage: { outputTokens: 12 } };
+    throw new LlmProviderError("synthetic rejection", { provider: "compatible", kind: "rate_limit", status: 429 });
+  };
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, failed.deps));
+  assert.equal(failed.calls.length, 2);
+  assert.equal(failed.logs[0].usage.outputTokens, 12);
+  assert.equal(failed.logs[1].errorKind, "rate_limit");
+  assert.equal(failed.logs[1].usage, undefined);
+});
+
+test("explicit quoting stays possible while requests to stop repeating do not disable the guard", async () => {
+  const { group, companions } = fixture();
+  group.messages = [message("b", "回家的路上记得看看晚霞。"), message(null, "请引用小白刚才的原话。")];
+  const requested = harness("compatible", "回家的路上记得看看晚霞。");
+  assert.equal((await generateGroupReply("u", group, companions, "a", false, requested.deps)).content, "回家的路上记得看看晚霞。");
+  assert.equal(requested.calls.length, 1);
+  group.messages.push(message(null, "别再复述小白了，说点你的想法。"));
+  const forbidden = harness("compatible", "回家的路上记得看看晚霞。");
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, forbidden.deps));
+  assert.equal(forbidden.calls.length, 2);
+  group.messages.push(message(null, "小白的原话听上去很浪漫，你自己怎么看？"));
+  const incidental = harness("compatible", "回家的路上记得看看晚霞。");
+  await assert.rejects(() => generateGroupReply("u", group, companions, "a", false, incidental.deps));
+  assert.equal(incidental.calls.length, 2, "mentioning a quotation is not asking to repeat it");
+});
+
+test("identity, user turn and own plain history survive the peer handoff and repair budget", async () => {
+  const { group, companions } = fixture();
+  group.background = '"\\\n'.repeat(1500);
+  companions[0].speakingStyle = "简短自然。".repeat(500);
+  group.messages = [message(null, "大家觉得摄影里最重要的是什么？", 6), message("a", "我比较在意光线。", 7), message("b", "我偏爱画面的颜色。回家的路上记得看看晚霞。", 8)];
+  const context = buildGroupReplyContext("u", group, companions, "a");
+  assert.equal(context.data.conversation.userTurn.content, group.messages[0].content);
+  assert.equal(context.data.conversation.replyTo.speakerId, "b");
+  assert.equal(context.messages.find(row => row.role === "assistant").content, "我比较在意光线。");
+  assert.equal(context.data.conversation.ownMessageTimes[0].time, stamp(7));
+  assert.equal(context.messages[context.data.conversation.ownMessageTimes[0].messageIndex].content, "我比较在意光线。");
+  const h = harness();
+  h.deps.provider.complete = async options => {
+    h.calls.push(plain(options));
+    return { content: h.calls.length === 1 ? "回家的路上记得看看晚霞。" + '"\\'.repeat(300) : "构图也重要，不过我还是会先找光。", provider: "compatible", model: "offline", usage: { outputTokens: 10 } };
+  };
+  assert.match((await generateGroupReply("u", group, companions, "a", false, h.deps)).content, /构图/);
+  assert.equal(h.calls.length, 2);
+  for (const call of h.calls) assert.ok(JSON.stringify(call.messages).length <= 20000);
 });
 
 test("provider failure records classified error once without exposing secrets or inventing usage", async () => {
@@ -296,11 +389,12 @@ test("selection and generation sort timestamps before latest-message selection, 
   group.messages = [message(null, "@小白 最近怎么样？", 13), message("a", "上次聊到这里", 12), message(null, "@小橙 旧消息", 6)];
   const before = plain(group.messages);
   assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
-  const context = buildGroupReplyContext("u", group, companions, "a");
+  const clock = { now: "2026-11-17T12:00:00.000Z", timeZone: "Asia/Shanghai" };
+  const context = buildGroupReplyContext("u", group, companions, "a", false, clock);
   assert.deepEqual(plain(context.history.map(row => row.createdAt)), [stamp(6), stamp(12), stamp(13)]);
   assert.deepEqual(plain(context.data.mentions.map(person => person.id)), ["b"]);
   const h = harness();
-  await generateGroupReply("u", group, companions, "a", false, h.deps);
+  await generateGroupReply("u", group, companions, "a", false, { ...h.deps, ...clock });
   assert.deepEqual(h.calls[0].messages, plain(context.messages));
   assert.deepEqual(plain(group.messages), before);
   // The newest risky request must be checked even when it is stored first.
@@ -334,8 +428,8 @@ test("private context requires owner, confirmation and knowledge, preserving kno
   const result = await getGroupMemoriesForCompanion("u", "a");
   assert.deepEqual(exportCalls, ["u"]);
   assert.deepEqual(plain(result), [
-    { groupId: "departed", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】DEPARTED_KNOWN_BY_RETAINED" },
-    { groupId: "g", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】一起讨论过摄影" }
+    { groupId: "departed", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】DEPARTED_KNOWN_BY_RETAINED", createdAt: stamp(13), sourceMessageIds: [] },
+    { groupId: "g", groupName: "小群", content: "【来源：群聊共享记忆，非私人既定事实】一起讨论过摄影", createdAt: stamp(12), sourceMessageIds: [] }
   ]);
   assert.deepEqual(plain(exportedGroups), before);
   assert.deepEqual(plain(await getGroupMemoriesForCompanion("u", "unknown-member")), []);
@@ -380,4 +474,140 @@ test("private context returns no synthetic memory on export failure", async () =
   try {
     await assert.rejects(() => getGroupMemoriesForCompanion("u", "a"), /offline repository unavailable/);
   } finally { exportFailure = undefined; exportedGroups = []; }
+});
+
+test("custom roles support direct names, follow-up continuity and latest-member mentions", () => {
+  const { group, companions } = fixture();
+  companions[0].name = "摄影甲";
+  companions[0].background = "爱好胶片摄影与镜头";
+  companions[0].personality = ["安静"];
+  companions[1].personality = ["外向"];
+  group.messages = [message(null, "摄影甲，你觉得呢？")];
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["a"]);
+  group.messages = [message("a", "可以从这个开始", 11), message(null, "那你怎么选？", 12)];
+  assert.equal(selectGroupSpeakers(group, companions)[0], "a");
+  group.messages = [
+    message(null, "@小橙 旧问题", 10),
+    message("c", "@小白，你觉得这个怎么样？", 12)
+  ];
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), ["b"]);
+  assert.deepEqual(plain(buildGroupReplyContext("u", group, companions, "b", true).data.mentions.map(p => p.id)), ["b"]);
+  // A character's private memory must never change public speaker selection.
+  const before = plain(selectGroupSpeakers(group, companions));
+  companions[0].memories = [{ content: "小白怎么选", status: "active", userId: "u", companionId: "a" }];
+  assert.deepEqual(plain(selectGroupSpeakers(group, companions)), before);
+});
+
+test("automatic turns follow peers, while individual examples remain attached only to self", () => {
+  const { group, companions } = fixture();
+  group.settings.autoChat = true;
+  companions[0].speakingStyle = "自己的表达".repeat(90) + "SELF_EXAMPLE_AT_END";
+  companions[1].speakingStyle = "OTHER_PRIVATE_EXAMPLE";
+  group.messages = [message(null, "旧问题", 10), message("b", "我最近在看摄影书", 12)];
+  const context = buildGroupReplyContext("u", group, companions, "a", true);
+  assert.equal(context.data.conversation.mode, "continue");
+  assert.equal(context.data.conversation.replyTo.speakerId, "b");
+  assert.match(context.data.task, /接续最近一位群友/);
+  assert.match(context.data.self.speakingStyle, /SELF_EXAMPLE_AT_END/);
+  assert.ok(!JSON.stringify(context.messages).includes("OTHER_PRIVATE_EXAMPLE"));
+  assert.match(context.messages[0].content, /社交媒体/);
+  assert.match(context.messages[0].content, /示例只供语气参考/);
+  group.members[0].joinedAt = stamp(13);
+  assert.equal(buildGroupReplyContext("u", group, companions, "a", true).data.conversation.replyTo, null);
+});
+
+test("group retrieval keeps old relevant known memories and never widens knowledge or private authorization", () => {
+  const { group, companions } = fixture();
+  group.messages = [message(null, "摄影镜头怎么挑？")];
+  group.memories = [
+    { content: "摄影镜头预算八百", confirmed: true, knownBy: ["a"], createdAt: stamp(5) },
+    ...Array.from({ length: 10 }, (_, i) => ({ content: "最近大家讨论晚饭" + i, confirmed: true, knownBy: ["a"], createdAt: stamp(12) })),
+    { content: "摄影_SECRET_OTHER", confirmed: true, knownBy: ["b"], createdAt: stamp(13) },
+    { content: "摄影_UNCONFIRMED", confirmed: false, knownBy: ["a"], createdAt: stamp(13) }
+  ];
+  companions[0].memories = [{ content: "摄影_PRIVATE_DISABLED", userId: "u", companionId: "a", status: "active" }];
+  const context = buildGroupReplyContext("u", group, companions, "a");
+  assert.equal(context.data.groupMemories[0].content, "摄影镜头预算八百");
+  assert.equal(context.data.groupMemories[0].recordedAt, new Date(stamp(5)).toISOString());
+  for (const hidden of ["SECRET_OTHER", "UNCONFIRMED", "PRIVATE_DISABLED"]) assert.ok(!JSON.stringify(context.messages).includes(hidden));
+});
+
+test("group prompt keeps source/time evidence and uses server clock rather than old latest message", () => {
+  const { group, companions } = fixture();
+  group.memories = [{ content: "明天一起聊摄影", confirmed: true, knownBy: ["a"], createdAt: stamp(5), sourceMessageIds: ["original-source", "original-source", "invalid source"] }];
+  const context = buildGroupReplyContext("u", group, companions, "a", false, { now: "2026-11-17T23:30:00Z", timeZone: "Asia/Shanghai" });
+  assert.equal(context.data.time.localDate, "2026-11-18");
+  assert.equal(context.data.groupMemories[0].recordedAt, new Date(stamp(5)).toISOString());
+  assert.deepEqual(plain(context.data.groupMemories[0].sourceMessageIds), ["original-source"]);
+  assert.match(context.messages[0].content, /导入记录尤其不能按导入当天解释/);
+  assert.match(context.messages[0].content, /不能因日期经过就断言计划已完成/);
+});
+
+test("social output removes explicit actions, preserves normal emphasis and allows short acknowledgments", async () => {
+  const { group, companions } = fixture();
+  for (const [input, expected] of [
+    ["*轻轻拍了拍你的肩*今天怎么样？", "今天怎么样？"],
+    ["（微笑）这个我也喜欢。", "这个我也喜欢。"],
+    ["**这个**真的很难（尤其最后一步）。", "这个真的很难（尤其最后一步）。"],
+    ["我刚下课，今天老师说得很快。", "我刚下课，今天老师说得很快。"]
+  ]) {
+    const h = harness("compatible", input);
+    assert.equal((await generateGroupReply("u", group, companions, "a", false, h.deps)).content, expected);
+  }
+  group.messages = [message("b", "你好"), message(null, "能多说点吗？")];
+  const h = harness("compatible", "你好，这个问题我其实也想了挺久。先说我最在意的那个地方，我们可能没有考虑到时间。");
+  assert.match((await generateGroupReply("u", group, companions, "a", false, h.deps)).content, /时间/);
+});
+
+test("large custom profiles remain structured and bounded without losing speaker attribution", () => {
+  const { group, companions } = fixture();
+  const huge = '"\\\n'.repeat(3000);
+  group.background = huge;
+  companions[0].background = huge;
+  companions[0].speakingStyle = huge;
+  companions[0].boundaries = huge;
+  group.messages = Array.from({ length: 25 }, (_, i) => message(i % 2 ? "a" : "b", huge, 12));
+  const context = buildGroupReplyContext("u", group, companions, "a");
+  assert.ok(JSON.stringify(context.messages).length <= 20000);
+  assert.equal(JSON.parse(context.messages.at(-1).content).self.id, "a");
+  for (const row of context.messages.slice(1, -1)) {
+    if (row.role === "user") assert.ok(Object.hasOwn(JSON.parse(row.content), "speakerId"));
+    else assert.ok(context.history.some(message => message.speakerId === "a" && row.content === message.content.slice(0, 600)));
+  }
+  for (const reference of context.data.conversation.ownMessageTimes) {
+    assert.equal(context.messages[reference.messageIndex].role, "assistant");
+    assert.equal(reference.time, stamp(12));
+  }
+});
+
+test("one proactive round has one topic initiator even when autonomous chat is disabled", () => {
+  for (const triggerDay of [12, 13]) {
+    const { group, companions } = fixture();
+    group.settings.autoChat = false; group.lastProactiveAt = stamp(12);
+    group.messages = [{ ...message("b", "摄影展你们有想看的作品吗？", triggerDay), proactive: true }];
+    const context = buildGroupReplyContext("u", group, companions, "a", true);
+    assert.equal(context.data.conversation.mode, "continue");
+    assert.equal(context.data.conversation.replyTo.speakerId, "b");
+    assert.match(context.data.task, /接续最近一位群友/);
+    assert.doesNotMatch(context.data.task, /主动发起/);
+    assert.equal(buildGroupReplyContext("u", group, companions, "a", false).data.conversation.mode, "reply");
+  }
+});
+
+test("old, non-proactive or undated messages cannot impersonate the current proactive round", () => {
+  for (const [started, created, proactive] of [
+    [stamp(13), stamp(12), true], [stamp(12), stamp(13), false],
+    [null, stamp(13), true], ["invalid", stamp(13), true], [stamp(12), "invalid", true]
+  ]) {
+    const { group, companions } = fixture();
+    group.settings.autoChat = false; group.lastProactiveAt = started;
+    group.messages = [{ ...message("b", "过往的内容"), createdAt: created, proactive }];
+    assert.equal(buildGroupReplyContext("u", group, companions, "a", true).data.conversation.mode, "initiate");
+  }
+  const { group, companions } = fixture();
+  group.settings.autoChat = true; group.lastProactiveAt = stamp(13);
+  group.messages = [message("b", "上一轮的话题", 12)];
+  assert.equal(buildGroupReplyContext("u", group, companions, "a", true).data.conversation.mode, "continue");
+  group.messages = [message(null, "新的用户问题", 13)];
+  assert.equal(buildGroupReplyContext("u", group, companions, "a", true).data.conversation.mode, "initiate");
 });

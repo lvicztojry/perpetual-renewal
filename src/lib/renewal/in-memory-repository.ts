@@ -1,3 +1,4 @@
+import { clearMessageReadReceipts } from "@/lib/sync/read-receipts-core";
 import {
   DEMO_USER_ID,
   type CompanionProfile,
@@ -13,6 +14,7 @@ import {
   type UpdateCompanionInput
 } from "./types";
 import { updateRelationshipRecordAfterMessage } from "./relationship-state-adapter";
+import { applyMemoryChangeInStore, clearMemoryHistory } from "@/lib/memory/lifecycle";
 
 type InMemoryStore = {
   companions: CompanionRecord[];
@@ -170,6 +172,7 @@ function getStore() {
   globalThis.renewalStore.proactiveMessages ??= [];
   for (const companion of globalThis.renewalStore.companions) {
     if (
+      !companion.id.startsWith("starter-") &&
       companion.proactiveFrequencyPreset === "24h" &&
       companion.proactiveFrequencyMinutes === 1440
     ) {
@@ -204,6 +207,18 @@ function toProfile(store: InMemoryStore, companion: CompanionRecord): CompanionP
 }
 
 export class InMemoryRenewalRepository implements RenewalRepository {
+  installStarterRecords(records: import("@/lib/starters/records").StarterRecords) {
+    const store = getStore();
+    for (let index = 0; index < records.companions.length; index++) {
+      const companion = records.companions[index];
+      if (store.companions.some(c => c.id === companion.id)) continue;
+      store.companions.push(structuredClone(companion));
+      store.conversations.push(structuredClone(records.conversations[index]));
+      store.messages.push(structuredClone(records.messages[index]));
+      store.relationshipStates.push(structuredClone(records.relationshipStates[index]));
+    }
+  }
+
   readonly persistence = "memory" as const;
 
   async getProactiveSchedulerCheckpoint(scope: string) {
@@ -365,12 +380,14 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     );
     if (!companion) return false;
     globalThis.renewalDreamStore?.delete(companionId);
+    clearMemoryHistory(userId, companionId);
 
     const conversationIds = new Set(
       store.conversations
         .filter((conversation) => conversation.userId === userId && conversation.companionId === companionId)
         .map((conversation) => conversation.id)
     );
+    clearMessageReadReceipts(userId, "private", [...conversationIds]);
     const messageIds = new Set(
       store.messages
         .filter((message) => conversationIds.has(message.conversationId))
@@ -540,6 +557,7 @@ export class InMemoryRenewalRepository implements RenewalRepository {
     userId: string,
     memoryId: string,
     input: {
+      expectedUpdatedAt?: string;
       type?: MemoryRecord["type"];
       status?: MemoryRecord["status"];
       content?: string;
@@ -551,12 +569,7 @@ export class InMemoryRenewalRepository implements RenewalRepository {
 
     if (!memory) return null;
 
-    if (input.type !== undefined) memory.type = input.type;
-    if (input.status !== undefined) memory.status = input.status;
-    if (input.content !== undefined) memory.content = input.content.trim();
-    memory.updatedAt = now();
-
-    return memory;
+    return applyMemoryChangeInStore(getStore().memories, userId, memoryId, { action: "edit", ...input }, () => makeId("memory-revision")).find(item => item.id === memoryId)!;
   }
 
   async deleteMemory(userId: string, memoryId: string) {

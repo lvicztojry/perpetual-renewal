@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { applyPrismaMemoryChange } from "@/lib/memory/lifecycle-prisma";
 import { updateRelationshipRecordAfterMessage } from "./relationship-state-adapter";
 
 import {
@@ -346,6 +347,7 @@ export class PrismaRenewalRepository implements RenewalRepository {
     userId: string,
     memoryId: string,
     input: {
+      expectedUpdatedAt?: string;
       type?: MemoryType;
       status?: MemoryStatus;
       content?: string;
@@ -359,16 +361,7 @@ export class PrismaRenewalRepository implements RenewalRepository {
 
     if (!existing) return null;
 
-    const memory = await prisma.memory.update({
-      where: { id: memoryId },
-      data: {
-        ...(input.type ? { type: toPrismaMemoryType(input.type) } : {}),
-        ...(input.status ? { status: toPrismaMemoryStatus(input.status) } : {}),
-        ...(input.content !== undefined ? { content: input.content.trim() } : {})
-      }
-    });
-
-    return toMemoryRecord(memory);
+    return (await applyPrismaMemoryChange(prisma, userId, memoryId, { action: "edit", ...input })).find(memory => memory.id === memoryId)!;
   }
 
   async deleteMemory(userId: string, memoryId: string) {
@@ -782,6 +775,7 @@ function toMessageRecord(message: Prisma.MessageGetPayload<Record<string, never>
 
 function toMemoryRecord(memory: Prisma.MemoryGetPayload<Record<string, never>>): MemoryRecord {
   return {
+    supersededById: memory.supersededById,
     id: memory.id,
     userId: memory.userId,
     companionId: memory.companionId,

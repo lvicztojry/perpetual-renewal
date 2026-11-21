@@ -48,3 +48,13 @@ function escapeRegExp(value: string) {
 function escapeForCharacterClass(value: string) {
   return value.replace(/[-\\\]^]/g, "\\$&");
 }
+
+/** Remove explicit stage directions, preserving ordinary emphasis and reported daily life. */
+export function normalizeSocialChatReplyContent(content: string) {
+  const action = /^(?:轻轻|慢慢|缓缓|默默|微微|笑着|温柔地|认真地|有些|朝你|向你)?(?:微笑|点头|摇头|叹气|沉默|拍拍|拍了拍|摸摸|摸了摸|抱住|抱抱|拥抱|伸手|抬头|低头|看着你|看向|走到|递给|坐下|眨眼|笑了|笑出|smiles?\b|nods?\b|sighs?\b|hugs?\b|pats?\b|looks?\s+at\s+you\b)/i;
+  const text = content.replace(/\*([^*\n]{1,160})\*|（([^）\n]{1,160})）|\(([^)\n]{1,160})\)/g, (whole, stars, wide, narrow) => {
+    const inner = (stars ?? wide ?? narrow).trim();
+    return action.test(inner) ? "" : whole;
+  });
+  return normalizeAssistantReplyContent(text);
+}

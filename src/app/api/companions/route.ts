@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const session = await getCurrentSession();
     const companions = await getRenewalService(session.userId).listCompanions();
-    return privateJson({ companions });
+    return privateJson({ userId: session.userId, companions });
   } catch (error) {
     const persistenceError = persistenceUnavailableResponse(error, "workspace");
     if (persistenceError) return persistenceError;

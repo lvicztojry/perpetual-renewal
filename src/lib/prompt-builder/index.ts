@@ -1,4 +1,4 @@
-export { buildRenewalPrompt } from "./builder";
+export { buildRenewalPrompt, buildPromptTimeContext, MEMORY_TIME_RULES } from "./builder";
 export type {
   BuildPromptInput,
   BuiltPrompt,

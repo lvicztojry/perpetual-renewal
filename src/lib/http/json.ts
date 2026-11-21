@@ -11,6 +11,24 @@ export async function readJsonObject(request: Request): Promise<Record<string, u
   return requireJsonObject(body);
 }
 
+export async function readLimitedJsonObject(request: Request, maxBytes = 16384): Promise<Record<string, unknown>> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new JsonRequestError();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let size = 0, text = "";
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > maxBytes) { await reader.cancel(); throw new JsonRequestError(); }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    return requireJsonObject(parseJson(text + decoder.decode()));
+  } catch { throw new JsonRequestError(); }
+  finally { reader.releaseLock(); }
+}
+
 export async function readOptionalJsonObject(
   request: Request
 ): Promise<Record<string, unknown>> {

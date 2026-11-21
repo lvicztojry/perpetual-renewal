@@ -6,7 +6,8 @@ import { GroupWorkspace } from "@/components/group-workspace";
 export const metadata: Metadata = { title: "群聊 · 生生不息" };
 
 export default async function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
-  if (!await getOptionalSession()) redirect("/login");
+  const session = await getOptionalSession();
+  if (!session) redirect("/login");
   const { groupId } = await params;
-  return <GroupWorkspace key={groupId} groupId={groupId} />;
+  return <GroupWorkspace key={`${session.userId}:${groupId}`} userId={session.userId} groupId={groupId} />;
 }

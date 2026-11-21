@@ -1,0 +1,1 @@
+<view class="page"><view class="title">{{title}}</view><fields schema="{{schema}}" values="{{form}}" disabled="{{busy}}" bind:edit="edit" /><button bindtap="submit" loading="{{busy}}" disabled="{{busy}}">{{title}}</button><view class="error">{{error}}</view><view class="note">{{notice}}</view></view>

@@ -1,0 +1,116 @@
+name: renewal-share
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: renewal
+      POSTGRES_DB: renewal
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U renewal -d renewal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logging
+
+  migrate:
+    image: renewal-share:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - path: ./cloud.env
+        format: raw
+    environment:
+      NODE_ENV: production
+    command: [node, scripts/prisma-command.mjs, migrate, deploy]
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+
+  app:
+    image: renewal-share:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ./cloud.env
+        format: raw
+    environment:
+      NODE_ENV: production
+      AUTH_MODE: password
+      RENEWAL_REPOSITORY: prisma
+    ports:
+      - "127.0.0.1:3300:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+  scheduler:
+    image: renewal-share:local
+    init: true
+    restart: unless-stopped
+    # Keep cron credentials on a loopback connection. No public cron service is needed.
+    network_mode: service:app
+    env_file:
+      - path: ./scheduler.env
+        format: raw
+    command: [node, deploy/scheduler.mjs]
+    depends_on:
+      app:
+        condition: service_healthy
+        restart: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file:
+      - path: ./site.env
+        format: raw
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *logging
+
+secrets:
+  db_password:
+    file: ./.secrets/db_password
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

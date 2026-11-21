@@ -1,12 +1,12 @@
 import { AuthenticationRequiredError, getOptionalSession } from "@/lib/auth/session";
 import { privateJson } from "@/lib/http/private-response";
+import { isTrustedMutationOrigin } from "@/lib/http/request-origin";
 import { GroupError } from "@/lib/groups/errors";
 
 export async function groupSession(request: Request, mutation = false) {
   const session = await getOptionalSession();
   if (!session) throw new AuthenticationRequiredError();
-  const origin = request.headers.get("origin");
-  if (mutation && (!origin || origin !== new URL(request.url).origin || request.headers.get("sec-fetch-site") === "cross-site")) throw new GroupError(403, "仅允许同源请求。");
+  if (mutation && !isTrustedMutationOrigin(request)) throw new GroupError(403, "仅允许同源请求。");
   return session;
 }
 export function groupFailure(error: unknown) {

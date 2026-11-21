@@ -81,7 +81,7 @@ test("lengths follow approximate 50/35/15 weighting with meaningful persona bias
 });
 
 test("persisted metadata prevents third consecutive equal length or intent", () => {
-  const data = withMemories([memory("tea"), memory("outing", { type: "relationship_event" })], { history: [message("m")] });
+  const data = withMemories([memory("tea"), memory("outing", { type: "relationship_event", content: "我们曾经一起散步。" })], { history: [message("m")] });
   for (let i = 0; i < 60; i++) {
     const result = plan({ ...data, now: new Date(now.getTime() + i * 60000) });
     const last = data.previous.slice(-2).map((p) => p.safety.generation);
@@ -134,7 +134,7 @@ test("followup works without memories and cannot turn old unconfirmed user claim
 
 test("other intents keep memory rotation independent of user lexical content", () => {
   const data = withMemories([memory("orchid", { content: "orchid" }), memory("football", { content: "football" }),
-    memory("old-event", { type: "relationship_event", content: "2020年一起看星星。" }), memory("tea")], {
+    memory("old-event", { type: "relationship_event", content: "2020年我们曾经一起看星星。" }), memory("tea")], {
     history: [message("same-message-id", { content: "orchid" })]
   });
   const covered = new Set();
@@ -242,15 +242,15 @@ test("only owned active memories enter bounded excerpts, without copying relatio
 });
 
 test("all six intents are reachable when evidence exists", () => {
-  const data = withMemories([memory("tea"), memory("outing", { type: "relationship_event" })], { history: [message("m")] });
+  const data = withMemories([memory("tea"), memory("outing", { type: "relationship_event", content: "我们曾经一起散步。" })], { history: [message("m")] });
   for (const intent of ["followup", "shared_memory", "interest", "banter", "affection", "concrete_care"]) {
     assert.equal(seek(data, (p) => p.intent === intent).intent, intent);
   }
 });
 
 test("unused old shared memories win over recent used events without lexical matching", () => {
-  const memories = [memory("old-lake", { type: "relationship_event", content: "2020年3月2日我们在西湖看落日。", createdAt: "2020-03-02" }),
-    ...Array.from({ length: 8 }, (_, i) => memory(`new-${i}`, { type: "relationship_event", content: "量子力学" }))];
+  const memories = [memory("old-lake", { type: "relationship_event", content: "2020年3月2日我们曾经在西湖看落日。", createdAt: "2020-03-02" }),
+    ...Array.from({ length: 8 }, (_, i) => memory(`new-${i}`, { type: "relationship_event", content: "我们曾经一起讨论量子力学。" }))];
   const data = withMemories(memories, { history: [message("m")], previous: [previous("used", {
     intent: "interest", length: "medium", memoryIds: memories.slice(1).map((m) => m.id)
   })] });
@@ -272,6 +272,155 @@ test("old dated or relative memories never become current followups", () => {
     });
     const result = seek(data, (p) => p.intent === "followup");
     assert.deepEqual(result.memoryIds, ["stable"], content);
+  }
+});
+
+test("delayed confirmation and edits never refresh relative-time memories", () => {
+  for (const type of ["user_fact", "relationship_event"]) {
+    for (const content of ["明天要考试", "昨天我们一起看了电影", "exam tomorrow"]) {
+      const old = memory("relative", { type, content, createdAt: "2020-03-01T12:00:00Z", updatedAt: "2020-03-01T12:00:00Z" });
+      const data = withMemories([old, memory("stable")]);
+      for (let i = 0; i < 20; i++) {
+        const slot = new Date(now.getTime() + i * 60000);
+        const before = plan({ ...data, now: slot });
+        const confirmed = plan({ ...data, now: slot, companion: { ...data.companion,
+          memories: [{ ...old, updatedAt: stamp }, memory("stable")] } });
+        assert.deepEqual(confirmed, before, content);
+        assert.deepEqual(confirmed.memoryIds, ["stable"], content);
+      }
+    }
+  }
+});
+
+test("old years and dates do not discard ongoing facts or recurring preferences", () => {
+  for (const content of ["我从2020年开始住上海，现在仍住这里。", "我从2020年3月2日起一直养猫。",
+    "I have lived in Shanghai since November 1, 2020.", "I like this tea from 2020.",
+    "我喜欢2020年的电影。", "我从2020年起每周五去图书馆。", "我从2020年起每个星期五读书。"]) {
+    const data = withMemories([memory("ongoing", { content, createdAt: "2020-01-01", updatedAt: "2020-01-01" })]);
+    const result = seek(data, p => p.intent === "interest");
+    assert.deepEqual(result.memoryIds, ["ongoing"], content);
+    assert.match(result.instruction, /不能据此宣布事实失效/);
+    assert.match(result.instruction, /不证明现在仍然有效/);
+  }
+});
+
+test("negative facts and interaction preferences remain eligible", () => {
+  for (const [type, content] of [
+    ["user_fact", "我没有兄弟姐妹"],
+    ["emotional_preference", "I do not like cats"],
+    ["emotional_preference", "我希望你叫我阿明"]
+  ]) {
+    for (const history of [[], [message("m")]]) {
+      const data = withMemories([memory("ongoing", { type, content })], { history });
+      for (let i = 0; i < 250; i++) {
+        const result = plan({ ...data, now: new Date(now.getTime() + i * 60000) });
+        assert.deepEqual(result.memoryIds, ["ongoing"], content);
+        assert.notEqual(result.intent, "shared_memory", content);
+      }
+      assert.equal(seek(data, p => p.intent === "interest").intent, "interest");
+    }
+  }
+});
+
+test("recurring preferences are distinct from one-off weekday references", () => {
+  for (const content of [
+    "我每周喜欢读书。",
+    "我喜欢每周一读书。",
+    "我喜欢每个星期一读书。",
+    "I like reading every Monday."
+  ]) {
+    const data = withMemories([memory("routine", { type: "emotional_preference", content })]);
+    const result = seek(data, p => p.intent === "interest");
+    assert.deepEqual(result.memoryIds, ["routine"], content);
+  }
+  for (const content of [
+    "我喜欢每个星期一读书，明天去旅行。",
+    "I like reading every Monday, but tomorrow I travel."
+  ]) {
+    const data = withMemories([memory("mixed", { type: "emotional_preference", content })]);
+    for (let i = 0; i < 50; i++) {
+      assert.deepEqual(plan({ ...data, now: new Date(now.getTime() + i * 60000) }).memoryIds, [], content);
+    }
+  }
+});
+
+test("explicit plans and future or ambiguous dates stay excluded across non-event types", () => {
+  for (const type of ["user_fact", "emotional_preference", "companion_profile"]) {
+    for (const content of [
+      "我计划参加考试。",
+      "我打算搬家。",
+      "I plan to take an exam.",
+      "We agreed to meet.",
+      "我希望明天去旅行。",
+      "2027年1月1日参加考试。",
+      "周一参加考试。",
+      "11月20日参加考试。",
+      "I attend an exam on Monday."
+    ]) {
+      const data = withMemories([memory("plan", { type, content })], { history: [message("m")] });
+      for (let i = 0; i < 50; i++) {
+        const result = plan({ ...data, now: new Date(now.getTime() + i * 60000) });
+        assert.deepEqual(result.memoryIds, [], `${type}: ${content}`);
+        assert.notEqual(result.intent, "shared_memory", content);
+      }
+    }
+  }
+});
+
+test("future agreements and uncertain outcomes cannot become completed shared experiences", () => {
+  for (const content of ["明天我们一起去看电影。", "我们约定2026年11月6日一起看电影。",
+    "我们曾经说好一起去西湖。", "我们曾经计划去旅行，后来是否成行不知道。",
+    "2020年参加考试", "我们曾经约定在2020年一起旅行。", "我们没有一起看过电影。",
+    "我们曾经一起旅行了吗？", "我们曾经一起看电影，但还未完成整个行程。",
+    "2026-11-06我们一起看了电影。", "November 6, 2026 we visited the lake.",
+    "2027年我们曾经一起散步。", "We planned a trip in 2020.", "We never visited the lake."]) {
+    const data = withMemories([memory("uncertain", { type: "relationship_event", content })]);
+    for (let i = 0; i < 50; i++) {
+      const result = plan({ ...data, now: new Date(now.getTime() + i * 60000) });
+      assert.notEqual(result.intent, "shared_memory", content);
+      assert.deepEqual(result.memoryIds, [], content);
+      assert.match(result.instruction, /不推断完成、取消或共同参与/);
+    }
+  }
+  const recalled = seek(withMemories([memory("past", { type: "relationship_event", content: "我们曾经一起在西湖看落日。" })]), p => p.intent === "shared_memory");
+  assert.deepEqual(recalled.memoryIds, ["past"]);
+  assert.match(recalled.instruction, /归因口吻/);
+  assert.match(recalled.instruction, /不补全共同参与、经过或结局/);
+});
+
+test("lexical guo and le in habits or wishes are not completed shared experiences", () => {
+  for (const content of ["我们喜欢一起过圣诞。", "我们喜欢一起过年。", "我们一起过年。",
+    "我们一起为了理想努力。", "我们习惯一起看电影。", "我们喜欢一起看过年节目。",
+    "我们经常一起吃了饭再散步。", "我们想一起看了电影再吃饭。", "我们愿意一起过圣诞。",
+    "我们盼着一起吃了饭再去散步。", "那天我们想一起过年。"]) {
+    const data = withMemories([memory("habit", { type: "relationship_event", content })]);
+    for (let i = 0; i < 50; i++) {
+      const result = plan({ ...data, now: new Date(now.getTime() + i * 60000) });
+      assert.notEqual(result.intent, "shared_memory", content);
+      assert.deepEqual(result.memoryIds, [], content);
+    }
+  }
+  for (const content of ["我们曾经一起过圣诞。", "那次我们一起过年。", "我们一起看过电影。",
+    "我们一起吃了晚饭。", "我们一起讨论过摄影。", "我们一起完成了拼图。"]) {
+    const result = seek(withMemories([memory("past", { type: "relationship_event", content })]), p => p.intent === "shared_memory");
+    assert.deepEqual(result.memoryIds, ["past"], content);
+  }
+});
+
+test("ambiguous relative dates stay unknown even when imported or recorded today", () => {
+  for (const content of ["周五我们一起看了电影。", "星期五我们曾经一起散步。", "礼拜天我们一起吃了饭。",
+    "下个月我们一起旅行。", "11月20日我们一起看了电影。", "11/20 we visited the lake.",
+    "We visited the lake last week.", "We visited the lake this weekend.", "We visited the lake on Friday."]) {
+    for (const sourceMessageId of [null, "source-id-alone-is-not-a-time-anchor"]) {
+      const data = withMemories([memory("ambiguous", { type: "relationship_event", content, sourceMessageId }), memory("stable")], {
+        history: [message("m")]
+      });
+      for (const intent of ["followup", "interest", "banter", "affection", "concrete_care"]) {
+        const result = seek(data, p => p.intent === intent);
+        assert.deepEqual(result.memoryIds, ["stable"], content);
+        assert.match(result.instruction, /不能用记忆创建、确认或编辑时间推算事件日期/);
+      }
+    }
   }
 });
 

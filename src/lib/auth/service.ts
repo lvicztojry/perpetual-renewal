@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AuthError } from "./errors";
+import { assertEmailAllowed, isEmailAllowed } from "./allowed-emails";
 import { assertAuthMailConfigured, sendAuthMail } from "./mail";
 import { hashPassword, validatePassword, verifyPassword } from "./password";
 
@@ -40,6 +41,7 @@ export async function enforceAuthRateLimit(action: string, identity: string) {
 
 export async function authenticatePassword(emailInput: unknown, password: unknown) {
   const email = normalizeEmail(emailInput);
+  assertEmailAllowed(email);
   await enforceAuthRateLimit("login", email);
   const user = await prisma.user.findUnique({
     where: { email }, select: { id: true, email: true, authCredential: true }
@@ -53,6 +55,7 @@ export async function authenticatePassword(emailInput: unknown, password: unknow
 
 export async function registerWithPassword(input: { email?: unknown; password?: unknown; nickname?: unknown }) {
   const email = normalizeEmail(input.email);
+  assertEmailAllowed(email);
   validatePassword(input.password);
   const nickname = typeof input.nickname === "string" ? input.nickname.trim() : email.split("@")[0];
   if (nickname.length > 80) throw new AuthError("昵称不能超过 80 个字符。");
@@ -68,6 +71,7 @@ export async function registerWithPassword(input: { email?: unknown; password?: 
 
 export async function forgotPassword(emailInput: unknown) {
   const email = normalizeEmail(emailInput);
+  if (!isEmailAllowed(email)) return recoveryAccepted;
   assertAuthMailConfigured();
   await enforceAuthRateLimit("forgot", email);
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
@@ -133,6 +137,7 @@ export async function verifyRegistration(value: unknown) {
   await enforceAuthRateLimit("verify", tokenHash);
   await transaction(async (tx) => {
     const token = await consumeToken(tx, tokenHash, "verify");
+    assertEmailAllowed(token.email);
     if (!token.passwordHash || token.userId) throw invalidToken();
     const existing = await tx.user.findUnique({ where: { email: token.email }, select: { id: true } });
     if (existing) throw invalidToken();
@@ -155,6 +160,7 @@ export async function resetPassword(value: unknown, password: unknown) {
   const passwordHash = await hashPassword(password);
   await transaction(async (tx) => {
     const token = await consumeToken(tx, tokenHash, "reset");
+    assertEmailAllowed(token.email);
     if (!token.userId) throw invalidToken();
     const user = await tx.user.findUnique({ where: { id: token.userId }, select: { id: true, email: true } });
     if (!user || user.email !== token.email) throw invalidToken();

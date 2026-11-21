@@ -2,6 +2,8 @@
 
 本文件记录“生生不息 / perpetual-renewal”第一版推荐上线流程。仓库文档只写配置流程、变量名和占位值；真实 `DATABASE_URL`、LLM key、模型名和 secret 只放本机、部署平台或用户 vault。
 
+2026-11-21 用户改为准备给异地朋友长期分享，先交付独立云端部署包、再选择云服务。容器路线及受邀邮箱配置见 [CLOUD_SHARING.md](CLOUD_SHARING.md)。下文 Vercel/Neon 路线保留备选；尚未购买、迁移个人数据或发布公网服务。
+
 ## Recommended Stack
 
 推荐路线：
@@ -250,7 +252,7 @@ npm run qa:real-provider:fake
 
 ## Vercel Deployment
 
-2026-11-02 用户决定继续本机试用，暂缓公网部署；部署平台、套餐与调度方案留待上线时确认。
+2026-11-02 用户曾决定继续本机试用，暂缓公网部署；2026-11-21 已改为准备长期分享部署包，目标平台尚待选择。容器方案自带分钟调度，无需购买 Vercel Cron 套餐。
 
 Vercel Hobby cron 最短间隔为每天一次，`* * * * *` 会导致部署失败；每分钟原生 cron 需要 Pro（或 Enterprise），也可选择调用受保护入口的外部调度器。套餐/外部调度方案待用户决定，未假定购买升级。见 [Vercel 官方 Cron Usage & Pricing](https://vercel.com/docs/cron-jobs/usage-and-pricing)（2026-10-31 核对）。
 
