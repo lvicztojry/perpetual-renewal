@@ -1739,29 +1739,29 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             <Plus size={17} />
             想见谁
           </button>
-          <a className="text-button" href="/create-from-chat" title="从聊天记录创建人物">
+          <Link className="text-button" href="/create-from-chat" title="从聊天记录创建人物">
             <Upload size={17} />
             从聊天记录创建
-          </a>
+          </Link>
           <Link className="text-button" href="/groups" title="进入群聊">
             <MessageCircle size={17} />
             围坐 · 群聊
             <UnreadBadge count={inbox.total("group")} />
           </Link>
-          <a className="text-button" href="/settings" title="用户设置">
+          <Link className="text-button" href="/settings" title="用户设置">
             <Settings size={17} />
             设置
-          </a>
+          </Link>
           {signedIn ? (
-            <a className="text-button" href="/account" title="我的账号">
+            <Link className="text-button" href="/account" title="我的账号">
               <UserRound size={17} />
               我的账号
-            </a>
+            </Link>
           ) : (
-            <a className="text-button" href="/login" title="登录账号">
+            <Link className="text-button" href="/login" title="登录账号">
               <LogIn size={17} />
               登录
-            </a>
+            </Link>
           )}
         </div>
       </aside>
@@ -1789,9 +1789,10 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             </div>
           )}
           <div className="topbar-actions">
-            {activeCompanion ? <a aria-label="入梦" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></a> : null}
+            {activeCompanion ? <Link aria-label="入梦" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></Link> : null}
             <button aria-label="关系资料" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
               <UserRound size={20} />
+              <span className={styles.actionLabel}>人物</span>
             </button>
             <button
               aria-label="编辑关系设定"
@@ -1843,7 +1844,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               type="button"
             >
               <Bell size={18} />
-              <span className={styles.actionLabel}>回响</span>
+              <span className={styles.actionLabel}>主动回响</span>
             </button>
             <button
               aria-label="模型调用看板"
@@ -2837,7 +2838,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         <div className={styles.drawerStatus}>
           {error && isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
           <div className="status-line" role="status">{status}</div>
-          {persistenceNotice ? <details><summary><Database size={14} aria-hidden="true" /> 存储状态</summary><p>{persistenceNotice.description} {persistenceNotice.nextStep}</p><a href="/settings">配置状态</a></details> : null}
+          {persistenceNotice ? <details><summary><Database size={14} aria-hidden="true" /> 存储状态</summary><p>{persistenceNotice.description} {persistenceNotice.nextStep}</p><Link className="text-button" href="/settings">配置状态</Link></details> : null}
         </div>
       </dialog>
     </main>

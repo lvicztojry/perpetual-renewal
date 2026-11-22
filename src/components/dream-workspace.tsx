@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { ArrowLeft, Moon, RotateCcw } from "lucide-react";
 import { RenewalEmblem } from "./renewal-emblem";
 import { playAbilityIntro } from "@/lib/ability-events";
@@ -229,7 +230,7 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
         </div>
         <div className={styles.status} role="status" aria-live="polite">{busy === "load" ? "正在寻找梦境…" : busy === "generate" ? "正在听取梦中的回声…" : busy === "feedback" ? "正在整理这次纠正…" : busy ? "正在保存，请稍候…" : notice}</div>
         {error ? <div className={styles.error} role="alert">{error}</div> : null}
-        {conflict ? <button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={reloadDream}><RotateCcw size={15} />重新读取梦境</button> : !companion && !busy ? <div className={styles.actions}><a className={styles.secondary} href="/login">前往登录</a><button className={styles.secondary} onClick={reloadDream}>重新读取</button></div> : null}
+        {conflict ? <button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={reloadDream}><RotateCcw size={15} />重新读取梦境</button> : !companion && !busy ? <div className={styles.actions}><Link className={styles.secondary} href="/login">前往登录</Link><button className={styles.secondary} onClick={reloadDream}>重新读取</button></div> : null}
         {needsRebase && !conflict && dream && companion ? <div className={styles.error}><p>人物设定在其他页面有过更新。请先核对新的基准；当前梦境草稿会保留。</p><button className={styles.secondary} type="button" disabled={Boolean(busy) || dirty} onClick={() => setReview({ kind: "rebase", state: dream, expectedCompanionUpdatedAt: companion.updatedAt })}>核对更新后的设定</button></div> : null}
         {recoveredCorrection ? <label className={styles.field}>保留的纠正原文<textarea aria-label="保留的纠正原文" readOnly rows={3} value={recoveredCorrection} /><span className={styles.hint}>该轮已更新，请复制原文或在新的片段中继续纠正。</span></label> : null}
         {dirty ? <p className={styles.hint}>片段或底稿尚未保存。下次听取回响、记录反馈或结束入梦时会先自动保存草稿；正式人物仍需预览并确认应用。</p> : null}

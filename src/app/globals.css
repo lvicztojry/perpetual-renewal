@@ -966,6 +966,7 @@ textarea:disabled {
     max-height: 42svh;
     gap: 12px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 14px;
     border-right: 0;
     border-bottom: 1px solid var(--line);

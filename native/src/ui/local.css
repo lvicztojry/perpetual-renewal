@@ -1,5 +1,5 @@
 body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-.local-login { min-height: 100dvh; display: grid; place-items: center; padding: 28px 18px; background: radial-gradient(ellipse at top,#3b352766,transparent 65%),#131714; }
+.local-login { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 28px 18px; overflow-y: auto; background: radial-gradient(ellipse at top,#3b352766,transparent 65%),#131714; }
 .local-card { max-width: 440px; width: 100%; padding: 30px; border: 1px solid #b89a664a; background: #191d19ed; }
 .local-card h1 { font-family: var(--font-literary); font-weight: 500; font-size: 32px; color: #ddbf88; }
 .local-card p { line-height: 1.8; color: #ada995; }
@@ -11,8 +11,8 @@ body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inse
 .local-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .local-actions button { flex: 1; }
 .local-toolbar { position: relative; height: 38px; z-index: 10; display: flex; gap: 8px; align-items: center; padding: 6px 12px; font-size: 11px; border-bottom: 1px solid #b89a6633; background: #131714; }
-.local-content { position: fixed; top: calc(38px + env(safe-area-inset-top)); left: 0; right: 0; height: var(--native-content-height, calc(100dvh - 38px)); overflow: auto; transform: translateZ(0); isolation: isolate; }
-.local-content > main { --chat-viewport-top: 0px !important; --chat-viewport-height: var(--native-content-height, calc(100dvh - 38px)) !important; height: var(--native-content-height, calc(100dvh - 38px)) !important; min-height: 0 !important; }
+.local-content { position: fixed; top: calc(38px + env(safe-area-inset-top)); left: 0; right: 0; height: calc(var(--native-content-height, calc(100dvh - 38px)) - env(safe-area-inset-top)); overflow: auto; transform: translateZ(0); isolation: isolate; }
+.local-content > main { --chat-viewport-top: 0px !important; --chat-viewport-height: calc(var(--native-content-height, calc(100dvh - 38px)) - env(safe-area-inset-top)) !important; height: calc(var(--native-content-height, calc(100dvh - 38px)) - env(safe-area-inset-top)) !important; min-height: 0 !important; }
 .local-toolbar span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .local-toolbar button { padding: 5px 9px; font-size: 11px; }
 .local-notice { position: fixed; inset: auto 12px 12px; z-index: 100000; padding: 14px; border: 1px solid #b89a66; background: #191d19; display: flex; gap: 12px; align-items: center; overflow-wrap: anywhere; }

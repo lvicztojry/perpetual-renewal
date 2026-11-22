@@ -31,7 +31,19 @@ export function installLocalApi() {
         clearLocalSession();
         return Response.json({ ok: true });
       }
-      if (!localSession()) return Response.json({ error: "请先解锁本地账户。" }, { status: 401 });
+      if (!localSession()) {
+        if (request.method === "GET") {
+          try {
+            const url = new URL(raw, "https://local.renewal.invalid");
+            const path = url.pathname;
+            if (["/account", "/settings", "/echoes", "/story", "/create-from-chat", "/dream", "/groups"].some(root => path === root || path.startsWith(`${root}/`))) {
+              const { setPendingPath } = await import("./account");
+              setPendingPath(path + url.search + url.hash);
+            }
+          } catch { /* Ignore malformed navigation paths. */ }
+        }
+        return Response.json({ error: "请先解锁本地账户。" }, { status: 401 });
+      }
       if (raw === "/api/me/account" && request.method === "DELETE") {
         const body = await request.json().catch(() => ({}));
         if (body.confirmation !== "删除我的账号") return Response.json({ error: "请输入完整的删除确认文字。" }, { status: 400 });

@@ -630,12 +630,12 @@ export function UserSettings() {
 
       <div className={styles.settingsLayout}>
       <nav className={styles.sectionNav} aria-label="设置分区">
-        <a href="#account-profile">基础资料</a>
-        <a href="#account-preferences">沟通偏好</a>
-        <a href="#account-appearance">外观</a>
-        <a href="#account-provider">模型供应商</a>
-        <a href="#account-privacy">数据与隐私</a>
-        <a href="#account-status">配置状态</a>
+        <Link href="#account-profile">基础资料</Link>
+        <Link href="#account-preferences">沟通偏好</Link>
+        <Link href="#account-appearance">外观</Link>
+        <Link href="#account-provider">模型供应商</Link>
+        <Link href="#account-privacy">数据与隐私</Link>
+        <Link href="#account-status">配置状态</Link>
       </nav>
       <form className={`settings-grid ${styles.settingsForm}`} onSubmit={saveProfile}>
         <section className="settings-section" id="account-profile" aria-labelledby="profile-heading">
@@ -738,7 +738,7 @@ export function UserSettings() {
               <RotateCcw size={17} aria-hidden="true" />
               重播开场
             </button>
-            <a className="text-button" href="/echoes">回响录 · 能力演示</a>
+            <Link className="text-button" href="/echoes">回响录 · 能力演示</Link>
           </div>
         </section>
 

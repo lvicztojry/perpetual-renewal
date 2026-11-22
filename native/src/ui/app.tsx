@@ -10,11 +10,10 @@ import { ChatCharacterCreatePage } from "@/components/chat-character-create-page
 import StoryPage from "../../../src/app/story/page";
 import { BellIntro } from "@/components/bell-intro";
 import { getUserProfile, type UserProfile } from "@/lib/users/profile";
-import { clearLocalSession, exclusive, localSession, loginLocalAccount, recoverLocalAccount, registerLocalAccount } from "../runtime/account";
+import { clearLocalSession, consumePendingPath, exclusive, localSession, loginLocalAccount, recoverLocalAccount, registerLocalAccount } from "../runtime/account";
 import { createBackup, listBackups, restoreBackup } from "../runtime/database";
-import { navigate } from "./navigation";
 
-function LocalLogin({ onUnlock }: { onUnlock: () => void }) {
+function LocalLogin({ onUnlock }: { onUnlock: (path: string) => void }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,14 +31,17 @@ function LocalLogin({ onUnlock }: { onUnlock: () => void }) {
         } else if (mode === "register") {
           const code = await registerLocalAccount(email, password);
           setIssued(code);
-        } else { await loginLocalAccount(email, password); onUnlock(); }
+        } else {
+          await loginLocalAccount(email, password);
+          onUnlock(consumePendingPath());
+        }
       });
     } catch (error) { setNotice(error instanceof Error ? error.message : "本地账户未能解锁。"); }
     finally { setBusy(false); setPassword(""); }
   }
   return <main className="local-login"><div className="local-card">
     <p className="local-kicker">生生不息 · 本地测试</p><h1>{issued ? "保管你的恢复码" : mode === "register" ? "创建本地账户" : mode === "recover" ? "恢复原账户" : "回到你的旧城"}</h1>
-    {issued ? <><p>忘记密码时，凭恢复码解锁原数据。恢复码仅在此显示，请单独妥善保存。</p><textarea readOnly aria-label="恢复码" value={issued}/><button onClick={() => { setIssued(""); onUnlock(); }}>我已保存，进入应用</button></> : <>
+    {issued ? <><p>忘记密码时，凭恢复码解锁原数据。恢复码仅在此显示，请单独妥善保存。</p><textarea readOnly aria-label="恢复码" value={issued}/><button onClick={() => { setIssued(""); onUnlock(consumePendingPath()); }}>我已保存，进入应用</button></> : <>
       <p>人物、聊天和个人 Key 保存在此设备。邮箱用于区分本地账户，不发送验证邮件。</p>
       <form onSubmit={submit}><label>邮箱标识<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="username"/></label>
       {mode === "recover" && <label>恢复码<input value={recovery} onChange={event => setRecovery(event.target.value)} required autoComplete="off"/></label>}
@@ -60,7 +62,7 @@ export function App() {
   const [confirmation, setConfirmation] = useState("");
   const session = localSession();
   const userId = session?.userId;
-  const path = (window.location.hash.slice(1) || "/").split("?")[0];
+  const path = window.location.hash.slice(1).split(/[?#]/, 1)[0] || "/";
   const refresh = () => setEpoch(value => value + 1);
   useEffect(() => {
     window.addEventListener("hashchange", refresh); window.addEventListener("native-navigation", refresh);
@@ -77,7 +79,7 @@ export function App() {
     return () => { window.visualViewport?.removeEventListener("resize", resize); window.removeEventListener("resize", resize); };
   }, []);
   useEffect(() => {
-    if (userId) void getUserProfile(userId).then(setProfile);
+    if (userId) void getUserProfile(userId).then(setProfile).catch(() => setProfile(null));
   }, [userId, epoch]);
   useEffect(() => {
     let running = false;
@@ -96,7 +98,7 @@ export function App() {
     return () => { clearInterval(interval); document.removeEventListener("visibilitychange", resume); };
   }, []);
   if (locking) return <main className="local-login"><p>正在保存并锁定本地账户…</p></main>;
-  if (!session) return <LocalLogin onUnlock={() => { navigate("/"); refresh(); }}/>;
+  if (!session) return <LocalLogin onUnlock={path => { window.location.hash = path; refresh(); }}/>;
   let content;
   if (path === "/settings") content = <UserSettings/>;
   else if (path === "/account" && profile?.id === session.userId) content = <PersonalAccount initialUser={profile} passwordAccount={false} onSignedOut={refresh}/>;

@@ -71,7 +71,7 @@ export function PersonalAccount({ initialUser, passwordAccount, onSignedOut }: {
           <p className={styles.email}>{user.email}</p>
           <p className={styles.session}><Check size={14} aria-hidden="true" />已登录</p>
           <nav className={styles.navigation} aria-label="账号分区">
-            <a href="#personal-profile">个人资料</a><a href="#personal-security">账号安全</a><a href="#personal-privacy">数据与隐私</a>
+            <Link href="#personal-profile">个人资料</Link><Link href="#personal-security">账号安全</Link><Link href="#personal-privacy">数据与隐私</Link>
             <Link href="/settings">应用设置<ArrowUpRight size={14} aria-hidden="true" /></Link>
           </nav>
         </aside>

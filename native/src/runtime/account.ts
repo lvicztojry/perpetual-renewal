@@ -4,10 +4,14 @@ import { commitDocument, readDocument, type LocalAccount, type LocalDocument } f
 import { emptyState, hydrate, snapshot } from "./codec";
 import { keyString, parseKey, passwordKey, randomKey, seal, unseal } from "./encryption";
 import { AuthenticationRequiredError } from "../../../src/lib/auth/errors";
+import { saveLlmCredential } from "../../../src/lib/credentials";
+
+declare const __NATIVE_DEFAULT_LLM__: { provider: string; apiKey: string; baseUrl: string; model: string };
 
 let document: LocalDocument;
 let active: { account: LocalAccount; key: Uint8Array } | null = null;
 let tail: Promise<unknown> = Promise.resolve();
+let pendingPath: string | null = null;
 export function exclusive<T>(operation: () => Promise<T>): Promise<T> {
   const next = tail.then(operation, operation);
   tail = next.catch(() => {});
@@ -22,6 +26,14 @@ export function requireLocalSession() {
   if (!session) throw new AuthenticationRequiredError();
   return session;
 }
+export function setPendingPath(path: string) {
+  pendingPath = path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/login") ? path : "/";
+}
+export function consumePendingPath() {
+  const path = pendingPath ?? "/";
+  pendingPath = null;
+  return path;
+}
 function email(value: string) {
   const normalized = value.trim().toLowerCase();
   if (normalized.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("请输入有效的本地账户邮箱标识。");
@@ -33,6 +45,15 @@ function activateAccount(account: LocalAccount, key: Uint8Array, state: unknown)
   process.env.USER_KEY_VAULT_SECRET = Buffer.from(key).toString("hex");
   process.env.DEV_MOCK_USER_EMAIL = account.email;
   hydrate(state);
+}
+async function installDefaultCredential(userId: string) {
+  if (typeof __NATIVE_DEFAULT_LLM__ === "undefined") return;
+  const config = __NATIVE_DEFAULT_LLM__;
+  if (config.provider !== "compatible" || !config.apiKey || !config.baseUrl || !config.model) return;
+  const store = globalThis as typeof globalThis & { renewalCredentialStore?: Map<string, unknown> };
+  if (store.renewalCredentialStore?.has(userId)) return;
+  await saveLlmCredential(userId, { provider: "compatible", apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model });
+  await persistActiveState();
 }
 export function clearLocalSession() {
   active?.key.fill(0);
@@ -57,6 +78,7 @@ export async function registerLocalAccount(address: string, password: string) {
   await commitDocument(next);
   document = next;
   activateAccount(account, key, emptyState());
+  await installDefaultCredential(id);
   return keyString(recovery);
 }
 let failures = 0;
@@ -71,10 +93,14 @@ export async function loginLocalAccount(address: string, password: string) {
     const key = parseKey(await unseal<string>(account.wrappedKey, derived, account.id));
     const state = await unseal(account.state, key, `${account.id}:state:1`);
     activateAccount(account, key, state);
+    await installDefaultCredential(account.id);
     failures = 0;
   } catch {
-    retryAfter = Date.now() + Math.min(30000, ++failures * 500);
-    throw new Error("账户或密码不正确，或本地数据未能解锁。");
+    if (!active || active.account.id !== account?.id) {
+      retryAfter = Date.now() + Math.min(30000, ++failures * 500);
+      throw new Error("账户或密码不正确，或本地数据未能解锁。");
+    }
+    throw new Error("默认模型配置未能保存，请重新打开设置页重试。");
   }
 }
 export async function recoverLocalAccount(address: string, recovery: string, password: string) {

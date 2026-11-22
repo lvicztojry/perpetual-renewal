@@ -30,8 +30,11 @@ try {
         $nativeLog = Join-Path $nativeLogs "android-$nativeTarget-$nativeProfile.log"
         $nativeArguments = @($nativeCli,'android','build','--apk','--target',$nativeTarget,'--config',$nativeSkipFrontend)
         if ($DebugBuild) { $nativeArguments += '--debug' }
+        $nativePreviousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         & node @nativeArguments *> $nativeLog
         $nativeResult = $LASTEXITCODE
+        $ErrorActionPreference = $nativePreviousErrorActionPreference
         if ($nativeResult -ne 0) {
             $nativeFailure = Get-Content -LiteralPath $nativeLog -Raw
             if ($nativeFailure -notmatch 'Creation symbolic link is not allowed|privilege is not held') {
