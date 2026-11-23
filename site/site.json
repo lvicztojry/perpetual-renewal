@@ -22,7 +22,9 @@
     },
     "web": {
       "label": "网页版",
-      "requirement": "浏览器直接打开，无需安装",
+      "requirement": "电脑运行应用，手机连同一 Wi-Fi 后访问电脑的局域网地址，两端登录同一个账号",
+      "note": "暂时未部署到公网，仅支持局域网内试用。",
+      "offlineLabel": "仅局域网",
       "file": "",
       "url": "",
       "size": null,

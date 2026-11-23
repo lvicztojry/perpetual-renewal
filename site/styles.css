@@ -414,6 +414,13 @@ a { color: var(--gold-bright); text-decoration-thickness: 1px; text-underline-of
   word-break: break-all;
 }
 
+.download__note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--gold);
+}
+
 .download__action { justify-self: start; }
 @media (min-width: 820px) { .download__action { justify-self: end; } }
 

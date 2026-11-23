@@ -74,10 +74,13 @@ function renderDownload(platform) {
   } else if (target.href) {
     action = `<a class="btn download__action" href="${esc(target.href)}" rel="noopener">前往发布页</a>`;
   } else {
-    action = `<span class="btn download__action" aria-disabled="true">暂未公开</span>`;
+    action = `<span class="btn download__action" aria-disabled="true">${esc(platform.offlineLabel ?? "暂未公开")}</span>`;
   }
   const checksum = platform.sha256
     ? `<p class="download__file">SHA-256 ${esc(platform.sha256)}</p>`
+    : "";
+  const note = platform.note
+    ? `<p class="download__note">${esc(fill(platform.note))}</p>`
     : "";
   return `
         <article class="download">
@@ -86,6 +89,7 @@ function renderDownload(platform) {
             <p class="download__meta">${meta.map(item => `<span>${item}</span>`).join("")}</p>
             ${file ? `<p class="download__file">${esc(file)}</p>` : ""}
             ${checksum}
+            ${note}
           </div>
           ${action}
         </article>`;
