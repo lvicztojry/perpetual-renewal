@@ -41,12 +41,15 @@ npm run site:preview
 
 1. 在 `src/lib/release-notes.json` 顶部新增一条记录，同步 `native/package.json` 的版本号；
 2. 运行 `npm run release:notes`，更新 `docs/DEVELOPMENT_LOG.md`；
-3. 把新的安装包上传到 GitHub Releases（标签建议 `v<版本号>`）或对象存储；
-4. 在 `site/site.json` 里填对应平台的 `url`（直链）、`size`（字节数）和 `sha256`。**填了 `url` 才会渲染成直接下载按钮**；
-5. 把 `site.json` 的 `version` 改成新版本号，重新部署。
+3. 构建安装包，放到 `dist/installers/`（该目录不进 Git），同步更新 `SHA256SUMS.txt`；
+4. 运行 `npm run release:publish`，上传到 GitHub Releases 的 `v<版本号>` 标签；
+5. 把脚本输出的两个 `browser_download_url`、文件字节数和 sha256 填进 `site/site.json`，更新 `version`；
+6. 重新部署站点（`npm run site:build` 会校验版本一致性）。
+
+`npm run release:publish` 从 git credential helper 取 GitHub token，不落盘、不打印；上传前会用 `SHA256SUMS.txt` 校验本地文件。带 `--dry-run` 只打印将要创建的 Release，不发请求。
 
 没有填 `url` 的平台会显示「前往发布页」，指向 GitHub Releases 列表，不会生成死链。网页版不填 `url` 就显示「暂未公开」。
 
 ## 当前状态
 
-`site.json` 里三个平台的 `url` 都还是空的：安装包和网页版地址尚未填入。填上之后重新部署即可变成可下载状态。
+Windows 与 Android 已发布到 [`v0.1.3`](https://github.com/lvicztojry/perpetual-renewal/releases/tag/v0.1.3)，站点上可直接下载。网页版地址尚未填入，显示「暂未公开」。

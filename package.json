@@ -74,7 +74,8 @@
     "release:notes": "node scripts/release-notes.mjs --write",
     "release:check": "node scripts/release-notes.mjs",
     "site:build": "node scripts/build-site.mjs",
-    "site:preview": "node scripts/preview-site.mjs"
+    "site:preview": "node scripts/preview-site.mjs",
+    "release:publish": "node scripts/publish-release.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
