@@ -42,3 +42,6 @@ logs/
 
 # 介绍站构建产物
 site/dist/
+
+# 查图用的临时缩略图
+.tmp-site-thumbs/
