@@ -1,6 +1,12 @@
-# 四端独立运行的本地测试客户端
+# Web、Windows、Android 与本地测试客户端
 
-当前优先交付 Windows 和 Android 的本地安装包，Mac 和 iPhone 构建暂缓。共享客户端在 `native/`，设备独立保存数据并直接连接模型服务，测试者无需安装 Node.js、PostgreSQL 或 Docker。安装包和当前验收结果见 `dist/installers/` 中的说明；共享源码包仍单独提供。
+当前持续开发 Web、Windows、Android，共用界面与业务功能；macOS、iOS、微信暂停扩展。共享原生客户端在 `native/`，设备独立保存数据并直接连接模型服务，测试者无需安装 Node.js、PostgreSQL 或 Docker。安装包和当前验收结果见 `dist/installers/` 中的说明。
+
+当前版本 **0.1.3（2026-11-23）**，已生成 `dist/installers/renewal-0.1.3-arm64.apk` 和 `dist/installers/renewal-0.1.3-windows-x64-setup.exe`。新增余念安「初醒」接引、留灯会叙事和能力演出登记；新账号自动开始，旧账号从侧栏「找余念安」主动参加。教程可暂停、续接、跳过和重放，只有实际操作才推进相应进度。原生进度纳入原账户加密快照，旧快照缺少进度时不自动重放教程；本轮不改变 SQLite 结构版本或账户数据格式。具体实测与边界见 [当前状态](MVP_STATUS.md)。0.1.2 包保留供更新比对，请使用带 0.1.3 的文件。
+
+以下为 **0.1.2 历史记录**：登录前的版本公告与右上角消息入口，每台设备每个版本只自动展示一次，登录前后均可手动查看历史记录。开发记录见 [开发与版本更新日志](DEVELOPMENT_LOG.md)，发布前更新统一记录并运行 `npm run release:notes`；原生构建及 QA 自动检查日志与版本是否匹配。以下 0.1.1 描述均为此前验证记录。
+
+2026-11-22 已从当前修复源码重新构建 Android ARM64 的 `dist/installers/renewal-0.1.1-arm64.apk` 和 Windows x64 的 `dist/installers/renewal-0.1.1-windows-x64-setup.exe`。旧安装包、Android 通用包和旧源码发布归档已删除。手机私聊工具栏改为两行文字按钮，优先显示“入梦、人物设置、主动回响”；主动回响面板可直达人物开关与频率配置。Android 新包已验证签名并在 API 36 模拟器中验证入口、开关/频率控件可访问、分区索引、入梦与 SQLite 重启持久化；Windows 原生客户端也完成索引、入梦和持久化检查。另通过 320/360/390 像素手机视口回归。实体 Android 手机和 Windows 安装向导仍需另行验收，Windows 包未进行 Authenticode 代码签名。校验值和具体范围见交付目录的 `SHA256SUMS.txt`、`VALIDATION.json`、`WINDOWS-VALIDATION.json`；同为 `0.1.1` 的包请依据构建时间和校验值判断新旧。
 
 2026-11-21 确认的范围：四端均独立运行；保留原网页设计及业务功能；测试者各自使用单独的限额 Key；接受手机后台调度受系统限制；目前没有 Mac 和 Apple 开发者会员，先准备代码，再解决 Apple 构建、签名与分发。
 
@@ -83,6 +89,8 @@ Windows/macOS 原生构建在具备 [官方工具链](https://v2.tauri.app/start
 ```bash
 npm --prefix native run desktop:build
 ```
+
+当前 Windows 交付使用 `npm --prefix native run desktop:build -- --bundles nsis`，避免默认 MSI 英文代码页与中文产品名冲突。`bundle.useLocalToolsDir` 将安装工具缓存保存在 D 盘项目的 `target/.tauri/`。
 
 Android 先安装 Android Studio、SDK/NDK，配置 Rust Android targets、Java 与 SDK 路径，再运行：
 

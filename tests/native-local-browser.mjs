@@ -37,10 +37,29 @@ try {
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  await context.addInitScript(() => sessionStorage.setItem("renewal:journey-suppress:v1", "1"));
   page.setDefaultTimeout(90000);
+  await page.addLocatorHandler(page.getByRole("button", { name: "跳过开场动画", exact: true }), async button => { await button.click(); });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 120000 });
+  const announcement = page.getByRole("dialog", { name: "更新公告", exact: true });
+  await announcement.waitFor();
+  await page.getByRole("button", { name: "我知道了", exact: true }).click();
+  await page.reload();
+  await page.getByLabel("邮箱标识").waitFor();
+  assert(!await announcement.isVisible(), "restarting the same version must not auto-open the announcement");
+  await page.getByRole("button", { name: "消息与更新公告", exact: true }).click();
+  await announcement.waitFor();
+  await page.keyboard.press("Escape");
+  assert(!await announcement.isVisible(), "Escape closes the announcement");
+  await page.evaluate(() => localStorage.setItem("renewal.release-notice.seen", "0.1.1"));
+  await page.reload();
+  await announcement.waitFor();
+  await page.getByRole("button", { name: "关闭更新公告", exact: true }).click();
+  await page.reload();
+  await page.getByLabel("邮箱标识").waitFor();
+  assert(!await announcement.isVisible(), "an upgrade announcement must only auto-open once");
   await page.getByRole("button", { name: "创建账户", exact: true }).click();
   await page.getByLabel("邮箱标识").fill("native-a@example.test");
   await page.getByLabel("密码", { exact: true }).fill("fixture-local-password-a");
@@ -50,6 +69,12 @@ try {
   assert(recovery.length > 40);
   await page.getByRole("button", { name: "我已保存，进入应用" }).click();
   await page.getByRole("button", { name: "锁定", exact: true }).waitFor();
+  assert(!await announcement.isVisible(), "signing in must not repeat the announcement");
+  const skipIntro = page.getByRole("button", { name: "跳过开场动画", exact: true });
+  if (await skipIntro.isVisible()) await skipIntro.click();
+  await page.getByRole("button", { name: "消息与更新公告", exact: true }).click();
+  await announcement.waitFor();
+  await page.getByRole("button", { name: "关闭更新公告", exact: true }).click();
   const api = (path, method = "GET", body) => page.evaluate(async ({ path, method, body }) => {
     const response = await fetch(path, { method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() };
@@ -81,6 +106,24 @@ try {
   assert.equal((await api("/api/me/llm-credential")).body.credential.configured, true);
   assert.equal((await api(`/api/groups/${groupId}`)).status, 200);
   assert.equal((await api(`/api/companions/${companion.id}/dream`)).status, 200);
+  await page.evaluate(() => { location.hash = "/"; });
+  await page.locator(".relationship-button").filter({ hasText: "本地人物" }).click();
+  for (const width of [320, 360, 390]) {
+    await page.setViewportSize({ width, height: 740 });
+    for (const name of ["入梦", "编辑关系设定", "主动回响"]) {
+      const control = page.getByRole(name === "入梦" ? "link" : "button", { name, exact: true });
+      const bounds = await control.boundingBox();
+      assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 38 && bounds.y + bounds.height < 740, `${name} must fit on a ${width}px phone screen`);
+      assert(await control.locator("span").isVisible(), `${name} needs a visible text label`);
+    }
+  }
+  await page.screenshot({ path: fileURLToPath(new URL("../.tmp-native-qa/native-private-tools.png", import.meta.url)) });
+  await page.getByRole("button", { name: "主动回响", exact: true }).click();
+  await page.getByRole("button", { name: "设置此人物的主动回响开关与频率" }).click();
+  await page.getByRole("group", { name: "主动回响开关", exact: true }).scrollIntoViewIfNeeded();
+  assert(await page.getByRole("group", { name: "主动回响开关", exact: true }).isVisible());
+  assert(await page.getByRole("group", { name: "主动回响节奏", exact: true }).isVisible());
+  await page.getByRole("button", { name: "关闭关系资料", exact: true }).click();
   assert.equal((await api("/api/me/export")).status, 200);
   const storage = await page.evaluate(async () => {
     const { readDocument } = await import("/src/runtime/database.ts");

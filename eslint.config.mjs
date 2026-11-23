@@ -13,6 +13,10 @@ const config = [
       "native/src-tauri/target/**",
       "native/src-tauri/gen/**",
       ".tmp-native-qa/**",
+      ".build-tools/**",
+      ".release-keys/**",
+      ".tmp-*/**",
+      "logs/**",
       "dist/**",
       "coverage/**",
       "prisma/dev.db"

@@ -1,5 +1,7 @@
 # 生生不息 QA 与 Smoke 验收 v0.1
 
+初醒专项：`npm run qa:journey` 检查真实资源证据、CAS、原生快照、导出删除及接口隔离；`npm run qa:abilities` 检查字幕与演出队列。浏览器为 `tests/e2e/journey-flow.spec.ts`，原生浏览器为 `npm run qa:journey:native`。PostgreSQL 用 `JOURNEY_DATABASE_QA=1 npm run qa:journey:postgres` 显式启用随机临时 schema，完成后清理；不以浏览器适配器代替 SQLite/IPC 或实体设备验收。当前开发范围为 Web、Windows、Android，其他平台暂停扩展。
+
 群聊专项运行 `npm run qa:groups` 和 `npm run e2e -- tests/e2e/group-flow.spec.ts`，分别验证模型/调度隔离和用户闭环。真实数据库专项使用 `GROUP_DATABASE_QA=1 npm run qa:groups:postgres`，仅在自建临时 schema 中运行。范围与容量见 [GROUPS.md](GROUPS.md)，实测以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
 
 人物回复专项：`qa:groups` 包含 `group-reply-quality.mjs` 的片段复读、引用和短应答边界，以及生成器单次重写、共同截止时间、两次用量及预算检查。`npm run e2e -- tests/e2e/group-reply-quality.spec.ts` 使用本机假供应商，通过真实模型适配器、群接口和界面验证丢弃候选不展示/不持久化，二次重复不再生成第三次，以及成功投递的幂等性。它不请求真实用户模型，不能代替实际自然度体验。

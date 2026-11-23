@@ -1,12 +1,12 @@
 {
   "name": "perpetual-renewal",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "native:build": "npm --prefix native run build",
     "native:package": "node scripts/prepare-native.mjs",
-    "qa:native": "node tests/native-local-storage.mjs && node tests/native-release-policy.mjs && node tests/native-local-browser.mjs",
+    "qa:native": "npm run release:check && node tests/native-local-storage.mjs && node tests/native-release-policy.mjs && node tests/native-local-browser.mjs",
     "cloud:package": "node scripts/prepare-cloud.mjs",
     "cloud:verify": "npm run qa:cloud && npm run cloud:package && node scripts/verify-cloud-package.mjs",
     "qa:cloud": "node tests/cloud-sharing.mjs && node tests/auth-backend.mjs",
@@ -15,6 +15,10 @@
     "mini:test": "node tests/miniprogram-integration.mjs",
     "groups:worker": "node scripts/group-worker.mjs",
     "qa:groups": "node tests/group-reply-quality.mjs && node tests/group-generation.mjs && node tests/group-service.mjs && node tests/starters.mjs",
+    "qa:journey": "node tests/journey-service.mjs",
+    "qa:journey:postgres": "node tests/journey-postgres.mjs",
+    "qa:journey:native": "node tests/native-journey-browser.mjs",
+    "qa:abilities": "node tests/ability-intro.mjs",
     "qa:groups:postgres": "node tests/group-postgres.mjs",
     "build": "next build",
     "e2e": "node tests/e2e/run-e2e.mjs",
@@ -66,7 +70,11 @@
     "verify:local": "node scripts/verify-local.mjs",
     "verify:pr": "npm run verify:local -- --skip-e2e",
     "verify:release": "node scripts/verify-local.mjs --audit",
-    "verify:deploy": "npm run env:readiness -- --strict && npm run qa:proactive-cron && npm run prisma:validate && npm run db:smoke"
+    "verify:deploy": "npm run env:readiness -- --strict && npm run qa:proactive-cron && npm run prisma:validate && npm run db:smoke",
+    "release:notes": "node scripts/release-notes.mjs --write",
+    "release:check": "node scripts/release-notes.mjs",
+    "site:build": "node scripts/build-site.mjs",
+    "site:preview": "node scripts/preview-site.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

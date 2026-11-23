@@ -134,6 +134,7 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
       if (!data.state || data.state.companionId !== companionId) throw new DreamUiError("未能确认保存结果，请重新读取后核对，避免重复操作。");
       if (!mounted.current || controller.signal.aborted) return null;
       accept(data.state); if (data.companion) setCompanion(data.companion);
+      if (action.action === "start") window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "dream-started", companionId } }));
       setNotice(success); setConflict(false);
       return data;
     } catch (failure) {

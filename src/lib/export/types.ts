@@ -48,6 +48,7 @@ export type UserExportSnapshot = {
   };
   companions: ExportCompanionSnapshot[];
   dreamWorkspaces: DreamState[];
+  journey: import("@/lib/journey/types").JourneyState;
   groups: GroupState[];
   memoryRevisions: MemoryRevisionRecord[];
   messageReadReceipts: Array<{ scope: "private" | "group"; threadId: string; messageId: string }>;

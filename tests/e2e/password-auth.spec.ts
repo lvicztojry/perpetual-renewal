@@ -212,7 +212,8 @@ for (const purpose of ["reset", "verify"] as const) {
       expect(request.headers()["referer"] ?? "").not.toContain(token);
     }
     expect(await page.evaluate(() => ({ ...localStorage, ...sessionStorage }))).toEqual({
-      "renewal:intro-seen:v1": "1"
+      "renewal:intro-seen:v1": "1",
+      "renewal:journey-suppress:v1": "1"
     });
     await page.getByRole("link", { name: "使用密码登录", exact: true }).click();
     await expect(page.getByLabel("密码", { exact: true })).toBeVisible();

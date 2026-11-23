@@ -15,6 +15,7 @@ import type { DreamState } from "@/lib/dream/types";
 import { listGroupsForExport } from "@/lib/groups/repository";
 import { readMemoryExportSnapshot } from "@/lib/memory/lifecycle-service";
 import { listMessageReadReceiptsForExport } from "@/lib/sync/read-receipts-service";
+import { JourneyService } from "@/lib/journey/service";
 import type {
   ExportCompanionSnapshot,
   ExportCredentialSummary,
@@ -128,6 +129,7 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
   const exportedMessageIds = new Map(companionSnapshots.map(companion => [companion.conversation?.id ?? "", new Set(companion.messages.map(message => message.id))]));
   const exportedGroupIds = new Map(groups.map(group => [group.id, new Set(group.messages.map(message => message.id))]));
   const exportedReceipts = messageReadReceipts.filter(row => (row.scope === "private" ? exportedMessageIds : exportedGroupIds).get(row.threadId)?.has(row.messageId));
+  const { journey } = await new JourneyService().get(userId);
 
   return {
     schemaVersion: "m14-data-export-snapshot:v1",
@@ -141,6 +143,7 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       llm: toCredentialSummary(credentialStatus)
     },
     companions: companionSnapshots,
+    journey: { version: journey.version, step: journey.step, status: journey.status, companionId: journey.companionId, revision: journey.revision },
     dreamWorkspaces: scrubSensitiveValue(dreamWorkspaces.map((row) => row.state)) as DreamState[],
     groups: scrubSensitiveValue(groups) as typeof groups,
     memoryRevisions: scrubSensitiveValue(memoryRevisions) as UserExportSnapshot["memoryRevisions"],

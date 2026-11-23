@@ -7,6 +7,7 @@ import { DEMO_USER_ID } from "@/lib/renewal/types";
 import { upsertFallbackProfile } from "@/lib/users/profile";
 import { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
 import { assertEmailAllowed, isEmailAllowed } from "./allowed-emails";
+import { initialJourney } from "@/lib/journey/types";
 
 export { AuthenticationRequiredError, isLocalEmailAuthEnabled } from "./errors";
 
@@ -116,6 +117,7 @@ export async function createEmailSession(input: {
       create: {
         email,
         nickname,
+        journey: { create: { revision: 0, state: initialJourney("active") } },
         timezone: process.env.DEV_MOCK_USER_TIMEZONE ?? "Asia/Shanghai",
         language: process.env.DEV_MOCK_USER_LANGUAGE ?? "zh-CN"
       },
@@ -177,6 +179,12 @@ function ensureFallbackSessionRecord(userId: string, email: string, nickname: st
   }
 
   const record = { userId, email, nickname };
+  // Demo reads and already-known legacy profiles must not become new accounts.
+  const profiles = (globalThis as typeof globalThis & { __perpetualRenewalFallbackProfiles?: Map<string, unknown> }).__perpetualRenewalFallbackProfiles;
+  if (userId !== DEMO_USER_ID && !profiles?.has(userId)) {
+    globalThis.renewalJourneyStore ??= new Map();
+    if (!globalThis.renewalJourneyStore.has(userId)) globalThis.renewalJourneyStore.set(userId, initialJourney("active"));
+  }
   store.set(userId, record);
   upsertFallbackProfile(userId, { email, nickname });
   return record;

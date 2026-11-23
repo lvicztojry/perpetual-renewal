@@ -12,6 +12,8 @@ import { BellIntro } from "@/components/bell-intro";
 import { getUserProfile, type UserProfile } from "@/lib/users/profile";
 import { clearLocalSession, consumePendingPath, exclusive, localSession, loginLocalAccount, recoverLocalAccount, registerLocalAccount } from "../runtime/account";
 import { createBackup, listBackups, restoreBackup } from "../runtime/database";
+import { ReleaseNotice } from "./release-notice";
+import { JourneyGuide } from "@/components/journey-guide";
 
 function LocalLogin({ onUnlock }: { onUnlock: (path: string) => void }) {
   const [mode, setMode] = useState("login");
@@ -98,7 +100,7 @@ export function App() {
     return () => { clearInterval(interval); document.removeEventListener("visibilitychange", resume); };
   }, []);
   if (locking) return <main className="local-login"><p>正在保存并锁定本地账户…</p></main>;
-  if (!session) return <LocalLogin onUnlock={path => { window.location.hash = path; refresh(); }}/>;
+  if (!session) return <><ReleaseNotice login/><LocalLogin onUnlock={path => { window.location.hash = path; refresh(); }}/></>;
   let content;
   if (path === "/settings") content = <UserSettings/>;
   else if (path === "/account" && profile?.id === session.userId) content = <PersonalAccount initialUser={profile} passwordAccount={false} onSignedOut={refresh}/>;
@@ -111,7 +113,7 @@ export function App() {
   return <><div className="local-toolbar"><span data-native-version={clientPackage.version}>本地测试 {clientPackage.version} · {session.email}</span>
     <button onClick={async () => { try { const name = await exclusive(createBackup); setNotice(`备份已保存：${name}`); } catch { setNotice("备份未完成，请保留原数据重试。"); } }}>备份数据</button>
     <button onClick={async () => { try { const names = await exclusive(listBackups); setBackups(names); setBackupName(names[0] ?? ""); setConfirmation(""); } catch { setNotice("未能读取备份，请保留原数据。"); } }}>恢复</button>
-    <button onClick={() => { setLocking(true); void exclusive(async () => { clearLocalSession(); setProfile(null); refresh(); setLocking(false); }); }}>锁定</button></div>
+    <button onClick={() => { setLocking(true); void exclusive(async () => { clearLocalSession(); setProfile(null); refresh(); setLocking(false); }); }}>锁定</button><ReleaseNotice/></div>
     {notice && <div className="local-notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")}>关闭</button></div>}
     {backups && <div className="local-restore" role="dialog" aria-modal="true" aria-label="恢复本地备份"><div className="local-card"><h2>恢复本地备份</h2><p>这会将此设备的所有本地账户恢复到所选备份。恢复前会保存当前数据库，完成后需要重新登录。</p>
       <label>选择备份<select value={backupName} onChange={event => setBackupName(event.target.value)}>{backups.map(name => <option key={name}>{name}</option>)}</select></label>
@@ -119,6 +121,6 @@ export function App() {
       <label>输入“恢复备份”确认<input value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label>
       <button disabled={!backupName || confirmation !== "恢复备份"} onClick={async () => { try { await exclusive(() => restoreBackup(backupName, confirmation)); window.location.reload(); } catch { setNotice("备份未能恢复，当前数据与恢复前备份仍需保留。"); } }}>恢复并重新登录</button>
       <button onClick={() => setBackups(null)}>取消</button></div></div>}
-    <div className="local-content" key={session.userId}>{content}</div><BellIntro/>
+    <div className="local-content" key={session.userId}>{content}</div><BellIntro/><JourneyGuide key={"journey:" + session.userId} userId={session.userId}/>
   </>;
 }

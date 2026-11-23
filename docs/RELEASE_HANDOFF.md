@@ -217,6 +217,8 @@ npm run qa:imports
 npm run qa:character-import
 npm run qa:dream
 npm run qa:groups
+npm run qa:journey
+npm run qa:abilities
 npm run qa:vault
 npm run qa:logging
 npm run qa:response

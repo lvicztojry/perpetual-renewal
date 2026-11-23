@@ -49,6 +49,7 @@ import {
 import styles from "./workspace-theme.module.css";
 import { RenewalEmblem } from "./renewal-emblem";
 import { StarterPackEntry } from "./starter-pack-entry";
+import { JourneyEntry } from "./journey-entry";
 import { MemoryLifecycleControls } from "./memory-lifecycle-controls";
 import { useForegroundPoll } from "./use-foreground-poll";
 import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
@@ -721,6 +722,22 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setStatus("正在创建一段新的关系回响");
   }
 
+  useEffect(() => {
+    const open = () => startCreateCompanion();
+    window.addEventListener("renewal:journey-create", open);
+    const url = new URL(window.location.href);
+    const hashQuery = url.hash.includes("?") ? new URLSearchParams(url.hash.split("?")[1]) : null;
+    if (url.searchParams.get("journey") === "create" || hashQuery?.get("journey") === "create") {
+      open();
+      url.searchParams.delete("journey");
+      if (hashQuery) { hashQuery.delete("journey"); url.hash = url.hash.split("?")[0] + (hashQuery.size ? `?${hashQuery}` : ""); }
+      history.replaceState(history.state, "", url);
+    }
+    return () => window.removeEventListener("renewal:journey-create", open);
+    // Creation only initializes an empty form; it never writes a character.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function startEditCompanion() {
     if (!activeCompanion) return;
     setForm(toForm(activeCompanion));
@@ -765,6 +782,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setIsMobileConversation(true);
       setIsInspectorOpen(false);
       playAbilityIntro({ kind: "renewal", companionName: payload.companion.name, autoPlay: true });
+      window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "companion-created", companionId: payload.companion.id, userId } }));
     } catch (createError) {
       const message = toSafeWorkspaceError(createError, "新建关系失败。");
       setFormError(message);
@@ -876,6 +894,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         )
       );
       const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
+      if (payload.userMessage?.id) window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "message-sent", companionId: activeCompanion.id, userId } }));
       if (activeConversationRef.current === conversationId) messageRevisionRef.current++;
       const remainingLocal = (localMessagesByConversationRef.current.get(conversationId) ?? []).filter((message) =>
         message.id !== localId && message.metadata?.clientMessageId !== clientMessageId);
@@ -1734,6 +1753,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         </section>
 
         <div className="quick-actions">
+          <JourneyEntry />
           <StarterPackEntry />
           <button aria-label="创建关系对象" className="text-button primary-action" onClick={startCreateCompanion} type="button">
             <Plus size={17} />
@@ -1788,11 +1808,11 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               <p className="muted">选择一位想见的人，或开始新的相遇</p>
             </div>
           )}
-          <div className="topbar-actions">
+          <div className={`topbar-actions ${styles.conversationActions}`} aria-label="当前人物的聊天工具">
             {activeCompanion ? <Link aria-label="入梦" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></Link> : null}
             <button aria-label="关系资料" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
               <UserRound size={20} />
-              <span className={styles.actionLabel}>人物</span>
+              <span className={styles.actionLabel}>人物资料</span>
             </button>
             <button
               aria-label="编辑关系设定"
@@ -1803,6 +1823,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               type="button"
             >
               <Edit3 size={18} />
+              <span className={styles.actionLabel}>人物设置</span>
             </button>
             <button
               aria-label="重新生成最近一条回复"
@@ -1813,6 +1834,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               type="button"
             >
               <RotateCcw size={18} />
+              <span className={styles.actionLabel}>重新生成</span>
             </button>
             <button
               aria-label="记忆"
@@ -1834,6 +1856,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               type="button"
             >
               <Upload size={18} />
+              <span className={styles.actionLabel}>导入素材</span>
             </button>
             <button
               aria-label="主动回响"
@@ -1855,6 +1878,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               type="button"
             >
               <BarChart3 size={18} />
+              <span className={styles.actionLabel}>调用看板</span>
             </button>
           </div>
         </header>
@@ -2402,7 +2426,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                   <p>账号总开关：{proactiveAvailability.accountEnabled ? "已开启" : "已关闭"} · 此人物：{proactiveAvailability.companionEnabled ? "已开启" : "已关闭"}</p>
                   <p role="status">{!proactiveAvailability.accountEnabled ? "已暂停：账号总开关已关闭，所有人物都不会主动发消息。" : !proactiveAvailability.companionEnabled ? "已暂停：此人物的主动回响已关闭。" : "已开启：到期后直接送达聊天。"}</p>
                   {!proactiveAvailability.accountEnabled ? <button className="text-button" type="button" disabled={isEnablingProactive} onClick={() => void enableAccountProactive()}>{isEnablingProactive ? "正在开启…" : "开启账号主动回响"}</button> : null}
-                  {!proactiveAvailability.companionEnabled ? <button className="text-button" type="button" onClick={() => openInspector("profile")}>前往人物资料开启</button> : null}
+                  <button className="text-button" type="button" onClick={startEditCompanion}>设置此人物的主动回响开关与频率</button>
                   <button className="text-button" type="button" disabled={!proactiveAvailability.effectiveEnabled || isLoadingDrafts || isEnablingProactive} onClick={() => void generateProactiveDrafts(false)}>按当前设置检查一次</button>
                 </> : <p>正在读取开关状态…</p>}
                 <p>本机试用时，请保持聊天页打开并选中此人物；关闭页面或切换人物后，这个人物不会继续自动检查。</p>

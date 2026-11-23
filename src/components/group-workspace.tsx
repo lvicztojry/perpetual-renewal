@@ -8,6 +8,7 @@ import type { GroupAction, GroupMember, GroupMessage, GroupResult, GroupState, G
 import type { CompanionProfile } from "@/lib/renewal/types";
 import { RenewalEmblem } from "./renewal-emblem";
 import { StarterPackEntry } from "./starter-pack-entry";
+import { JourneyEntry } from "./journey-entry";
 import { useForegroundPoll } from "./use-foreground-poll";
 import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
 import { useInboxSync, useReadMessages } from "./use-inbox-sync";
@@ -376,6 +377,7 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
       <Link className={styles.back} href="/"><ArrowLeft size={16} /> 返回私聊<UnreadBadge count={inbox.total("private")} /></Link>
       <div className={styles.brand}><RenewalEmblem width={38} height={44} /><div><h1>围坐</h1><p>旧城灯下，故人同席</p></div></div>
       <div className={styles.row}><span className={styles.eyebrow}>相聚的地方 · {groups.length}</span><button className={styles.icon} aria-label="创建群聊" onClick={() => { setCreating(true); setError(""); }}><Plus size={19} /></button></div>
+      <JourneyEntry className={styles.secondary} />
       <StarterPackEntry />
       <nav className={styles.groupList}>{groups.map((item) => <Link key={item.id} href={`/groups/${encodeURIComponent(item.id)}`} className={styles.groupLink} aria-current={item.id === groupId ? "page" : undefined}><span className={styles.avatar}><Users size={20} /></span><span><strong>{item.name}<UnreadBadge count={inbox.count("group", item.id)} /></strong><small>{item.lastMessage?.content ?? `${item.members.length} 位成员 · 等你开口`}</small></span></Link>)}</nav>
       {!loading && !groups.length && !loadError && <p className={styles.hint}>还没有群聊。邀几位想见的人，在这里围坐。</p>}

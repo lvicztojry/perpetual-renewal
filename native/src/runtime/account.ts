@@ -65,6 +65,7 @@ export async function registerLocalAccount(address: string, password: string) {
   const normalized = email(address);
   if (document.accounts.some(account => account.email === normalized)) throw new Error("该本地账户已存在，请登录。");
   const id = randomUUID();
+  const state = emptyState(id);
   const salt = keyString(randomKey());
   const key = randomKey();
   const recovery = randomKey();
@@ -72,12 +73,12 @@ export async function registerLocalAccount(address: string, password: string) {
     id, email: normalized, salt,
     wrappedKey: await seal(keyString(key), await passwordKey(password, salt), id),
     recoveryWrappedKey: await seal(keyString(key), recovery, id),
-    state: await seal(emptyState(), key, `${id}:state:1`)
+    state: await seal(state, key, `${id}:state:1`)
   };
   const next = { ...document, accounts: [...document.accounts, account] };
   await commitDocument(next);
   document = next;
-  activateAccount(account, key, emptyState());
+  activateAccount(account, key, state);
   await installDefaultCredential(id);
   return keyString(recovery);
 }

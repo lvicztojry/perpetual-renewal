@@ -51,6 +51,8 @@ try {
         if (-not $nativeExisting -or -not $nativeExisting.LinkType) { Copy-Item -LiteralPath $nativeCompiled -Destination $nativeJniLibrary -Force }
         Write-Output "Android native library ready: $nativeTarget ($nativeProfile)."
     }
+    & node (Join-Path $PSScriptRoot 'prepare-mobile.mjs')
+    if ($LASTEXITCODE -ne 0) { throw 'Android resource staging failed.' }
     $nativeGradleProperties = Join-Path $nativeGenerated 'gradle.properties'
     $nativeProperties = Get-Content -LiteralPath $nativeGradleProperties -Raw
     $nativeProperties = $nativeProperties -replace 'org.gradle.jvmargs=.*','org.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8'

@@ -2,11 +2,14 @@ import { test as base } from "@playwright/test";
 
 type IntroOptions = {
   showIntro: boolean;
+  showJourney: boolean;
 };
 
 export const test = base.extend<IntroOptions>({
   showIntro: [false, { option: true }],
-  context: async ({ context, showIntro }, provideContext) => {
+  showJourney: [false, { option: true }],
+  context: async ({ context, showIntro, showJourney }, provideContext) => {
+    if (!showJourney) await context.addInitScript(() => sessionStorage.setItem("renewal:journey-suppress:v1", "1"));
     if (!showIntro) {
       await context.addInitScript(() => {
         sessionStorage.setItem("renewal:intro-seen:v1", "1");

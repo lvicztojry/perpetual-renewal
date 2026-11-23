@@ -1,8 +1,12 @@
 # 生生不息 / perpetual-renewal
 
+每次版本更新的功能与修复记录见 [开发与版本更新日志](docs/DEVELOPMENT_LOG.md)。发布前更新 `src/lib/release-notes.json` 并运行 `npm run release:notes`；客户端公告与开发日志共用该记录，原生构建会检查其与版本号是否一致。
+
 当前能力、验收日期和施工顺序统一见 [项目当前状态](docs/MVP_STATUS.md)；本页保留操作流程和历史说明。
 
-微信开发者工具本地预览入口：导入 `miniprogram/`，步骤见 [小程序联调说明](docs/WECHAT_MINIPROGRAM.md)。
+当前持续开发 Web、Windows、Android，共用初醒接引、留灯会与能力演出。已有账号可在侧栏点击「找余念安」开启或重返初醒；新账号首次进入自动接引。原生账号仍保存在各自设备。安装与数据边界见 [本地客户端](docs/LOCAL_CLIENTS.md)。微信、macOS、iOS 暂停扩展，既有代码保留。
+
+历史微信预览入口：导入 `miniprogram/`，步骤见 [小程序联调说明](docs/WECHAT_MINIPROGRAM.md)。
 
 群聊从侧栏进入：邀请已有的人物，多人逐条接话、确认共同记忆，并可配置主动话题。一键启动同时启动本机群聊调度；配置与首版边界见 [群聊说明](docs/GROUPS.md)。
 

@@ -204,6 +204,7 @@ async function deleteFallbackAccount(userId: string): Promise<DeleteAccountSumma
     );
   }
   stores.__perpetualRenewalFallbackProfiles?.delete(userId);
+  globalThis.renewalJourneyStore?.delete(userId);
   stores.__perpetualRenewalFallbackSessions?.delete(userId);
 
   return {

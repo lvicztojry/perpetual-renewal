@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "renewal-site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-site.mjs"],
+      "port": 4173
+    }
+  ]
+}

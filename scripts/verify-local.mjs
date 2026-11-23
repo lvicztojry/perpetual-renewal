@@ -22,6 +22,8 @@ const steps = [
   ["Chat character import QA", ["run", "qa:character-import"]],
   ["Dream persona QA", ["run", "qa:dream"]],
   ["Group conversation QA", ["run", "qa:groups"]],
+  ["Awakening journey QA", ["run", "qa:journey"]],
+  ["Ability presentation QA", ["run", "qa:abilities"]],
   ["Config/vault QA", ["run", "qa:vault"]],
   ["Password auth QA", ["run", "qa:auth"]],
   ["Logging sanitize QA", ["run", "qa:logging"]],

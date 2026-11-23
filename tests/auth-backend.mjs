@@ -15,11 +15,13 @@ const cookieValues = new Map();
 const cookieWrites = [];
 const sent = [];
 const cache = new Map();
+const sandboxes = new Map();
+let failJourneyWrite = false;
 let mailFails = false;
 let dbFails = false;
 let failCredentialWrite = false;
 let transactionConflict = false;
-let state = { users: [], credentials: [], tokens: [], rates: [] };
+let state = { users: [], credentials: [], tokens: [], rates: [], journeys: [] };
 const cookieStore = {
   get(name) { return cookieValues.has(name) ? { value: cookieValues.get(name) } : undefined; },
   set(name, value, options) {
@@ -60,6 +62,11 @@ function delegate(table) {
         if (record.authCredential) {
           state.credentials.push({ userId: record.id, ...record.authCredential.create });
           delete record.authCredential;
+        }
+        if (record.journey) {
+          if (failJourneyWrite) throw new Error("journey write unavailable");
+          state.journeys.push({ userId: record.id, ...record.journey.create });
+          delete record.journey;
         }
       }
       state[table].push(record);
@@ -126,7 +133,10 @@ function load(path) {
       if (specifier === "@/lib/prisma") return { prisma };
       if (specifier === "@/lib/renewal/types") return { DEMO_USER_ID: "demo-user" };
       if (specifier === "@/lib/users/profile") return {
-        upsertFallbackProfile() {},
+        upsertFallbackProfile(userId, value) {
+          sandbox.__perpetualRenewalFallbackProfiles ??= new Map();
+          sandbox.__perpetualRenewalFallbackProfiles.set(userId, value);
+        },
         getUserProfile: async (userId) => {
           const user = state.users.find((entry) => entry.id === userId);
           return user ? { id: user.id, email: user.email, nickname: user.nickname } : { id: userId };
@@ -143,6 +153,7 @@ function load(path) {
     fileName: filename
   });
   vm.createContext(sandbox);
+  sandboxes.set(filename, sandbox);
   new vm.Script(transpiled.outputText, { filename }).runInContext(sandbox);
   return exports;
 }
@@ -234,8 +245,16 @@ try {
   assert.equal((await post("login", { email: "new@example.test", password: good })).status, 401);
   assert.equal((await post("reset-password", { token: verification, password: newer })).status, 400, "wrong token purpose");
   transactionConflict = true;
+  failJourneyWrite = true;
+  assert.equal((await post("verify-email", { token: verification })).status, 503);
+  assert.equal(state.users.length, 0, "journey initialization failure rolls back user creation");
+  assert.equal(state.credentials.length, 0, "journey initialization failure rolls back credentials");
+  assert.equal(state.tokens.length, 1, "journey failure preserves verification token for retry");
+  failJourneyWrite = false;
   assert.equal((await post("verify-email", { token: verification })).status, 200, "serialization retry");
   assert.equal(state.users.length, 1);
+  assert.equal(state.journeys.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.journeys[0].state)), { version: 1, step: "awakening", status: "active", companionId: null, revision: 0 });
   assert.equal((await post("verify-email", { token: verification })).status, 400, "verification single use");
   assert.equal((await post("login", { email: "new@example.test", password: "wrong" })).status, 401);
   const login = await post("login", { email: "new@example.test", password: good });
@@ -264,6 +283,7 @@ try {
   assert.deepEqual(duplicate.body, registration.body);
   assert.equal(sent.length, beforeDuplicate);
   assert.equal(state.users[0].nickname, "First");
+  assert.equal(state.journeys.length, 1, "duplicate registration cannot replay onboarding");
   assert.equal(await password.verifyPassword(good, state.credentials[0].passwordHash), true);
 
   const unknownForgot = await post("forgot-password", { email: "missing@example.test" });
@@ -294,6 +314,7 @@ try {
   assert.equal((await post("login", { email: "legacy@example.test", password: good })).status, 401);
   assert.equal((await post("register", { email: "legacy@example.test", password: good })).status, 200);
   assert(!state.credentials.some((record) => record.userId === "legacy"));
+  assert(!state.journeys.some(record => record.userId === "legacy"), "legacy registration must not initialize journey");
   process.env.NODE_ENV = "test";
   assert.equal((await session.getOptionalSession()).userId, "legacy", "v1 allowed only in explicit local mode");
   await post("forgot-password", { email: "legacy@example.test" });
@@ -339,9 +360,25 @@ try {
   cookieValues.clear();
   await assert.rejects(session.getCurrentSession(), { name: "AuthenticationRequiredError" });
   process.env.AUTH_MODE = "local-email";
+  process.env.RENEWAL_REPOSITORY = "prisma";
+  const localDb = await session.createEmailSession({ email: "local-db@example.test" });
+  assert.equal(state.journeys.find(j => j.userId === localDb.userId).state.status, "active");
+  await session.createEmailSession({ email: "local-db@example.test" });
+  assert.equal(state.journeys.filter(j => j.userId === localDb.userId).length, 1);
+  state.users.push({ id: "local-legacy", email: "local-legacy@example.test", nickname: "Legacy" });
+  await session.createEmailSession({ email: "local-legacy@example.test" });
+  assert(!state.journeys.some(j => j.userId === "local-legacy"));
   process.env.RENEWAL_REPOSITORY = "memory";
+  cookieValues.clear();
   assert.equal((await session.getCurrentSession()).provider, "mock-dev");
-  assert.equal((await session.createEmailSession({ email: "local@example.test" })).provider, "local-email");
+  const sessionGlobals = sandboxes.get(resolve(root, "src/lib/auth/session.ts"));
+  assert.equal(sessionGlobals.renewalJourneyStore?.has("demo-user") ?? false, false);
+  const localMemory = await session.createEmailSession({ email: "local@example.test" });
+  assert.equal(localMemory.provider, "local-email");
+  assert.equal(sessionGlobals.renewalJourneyStore.get(localMemory.userId).status, "active");
+  sessionGlobals.renewalJourneyStore.delete(localMemory.userId);
+  await session.createEmailSession({ email: "local@example.test" });
+  assert.equal(sessionGlobals.renewalJourneyStore.has(localMemory.userId), false, "known local legacy account stays legacy");
   assert.equal((await session.getOptionalSession()).email, "local@example.test");
 
   process.env.AUTH_ALLOWED_EMAILS = " LOCAL@EXAMPLE.TEST ";

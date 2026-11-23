@@ -1,0 +1,40 @@
+{
+  "url": "",
+  "repo": "https://github.com/lvicztojry/perpetual-renewal",
+  "version": "0.1.3",
+  "downloadNotice": "测试安装包公开提供，所有人都可以下载。当前仍是测试版本，功能与数据格式可能继续调整；升级前建议先用客户端内的备份功能导出一次数据。",
+  "downloads": {
+    "windows": {
+      "label": "Windows",
+      "requirement": "Windows 10 及以上 · x64",
+      "file": "生生不息_{{version}}_x64-setup.exe",
+      "url": "",
+      "size": null,
+      "sha256": ""
+    },
+    "android": {
+      "label": "Android",
+      "requirement": "Android 8 及以上 · ARM64",
+      "file": "生生不息_{{version}}_arm64.apk",
+      "url": "",
+      "size": null,
+      "sha256": ""
+    },
+    "web": {
+      "label": "网页版",
+      "requirement": "浏览器直接打开，无需安装",
+      "file": "",
+      "url": "",
+      "size": null,
+      "sha256": ""
+    }
+  },
+  "people": [
+    { "name": "林晚", "age": 25, "tagline": "会关心人，也会吐槽的姐姐型朋友" },
+    { "name": "唐小满", "age": 19, "tagline": "总能发现点想分享的东西" },
+    { "name": "许闻", "age": 24, "tagline": "聊到兴趣会话多的研究生" },
+    { "name": "叶岑", "age": 22, "tagline": "有主见，愿意认真和你商量" },
+    { "name": "赵川", "age": 21, "tagline": "接得住梗，认真起来也靠得住" },
+    { "name": "陈序", "age": 20, "tagline": "慢热，熟悉后有点冷幽默" }
+  ]
+}

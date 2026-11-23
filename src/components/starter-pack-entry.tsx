@@ -40,15 +40,15 @@ export function StarterPackEntry() {
       <div className={styles.heading}><h3 id={titleId}>留灯会</h3>
         <button type="button" aria-label="关闭人物介绍" onClick={() => dialog.current?.close()}><X size={20} /></button>
       </div>
-      <p>六位性格不同、彼此熟悉的朋友。可以先和他们聊聊，再慢慢创建你想见的人。</p>
+      <p>初次觉醒“生生不息”时，你想见一个朋友的心意，无意识地投映成了留灯会。六位朋友带着各自的过去与交情，在这里为你留一盏灯。</p>
       <ul>{STARTER_CHARACTERS.map(person => <li key={person.key}>
         <strong>{person.name} · {person.age}岁</strong><span>{person.tagline}</span>
       </li>)}</ul>
-      <p>添加六位联系人和一个群聊，随时可以修改人物。已有的内容会保留。</p>
+      <p>可以先和他们聊聊，再慢慢描清你想见的人。添加六位联系人和一个群聊，随时可以修改人物。已有的内容会保留。</p>
       <button className={styles.install} disabled={busy} type="button" onClick={() => void install()}>
         {busy ? "正在添加…" : "添加人物，进入留灯会"}
       </button>
-      <p><Link href="/story">故事背景</Link></p>
+      <p><Link href="/story">故事背景 · 了解项目二创设定</Link></p>
       {error && <p role="alert">{error}</p>}
     </dialog>
   </div>;

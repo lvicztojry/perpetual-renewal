@@ -62,6 +62,10 @@ jobs:
         run: npm run qa:dream
       - name: Group conversation QA
         run: npm run qa:groups
+      - name: Awakening journey QA
+        run: npm run qa:journey
+      - name: Ability presentation QA
+        run: npm run qa:abilities
       - name: Proactive availability QA
         run: npm run qa:proactive-availability
 

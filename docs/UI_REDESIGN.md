@@ -2,6 +2,14 @@
 
 用户于 2026-11-02 确认首轮视觉稿并授权实现。视觉原稿及生成提示词位于 `design/previews/2026-11-02/`。
 
+## 初醒接引（2026-11-23）
+
+新增余念安的独立剧情立绘 `public/visuals/yu-nianan-guide.png`，用于初醒和找余念安，保留巨钟演出原有黑色剪影。画面采用长发白裙、旧城暖铜光、绘本式人物与青铜绿对话面板；小屏完整缩放立绘，不裁切头像。故事按用户指定的二创设定编写，不作为原著结局考据。教程选择为固定对白，不调用模型，也不进入人物记忆。
+
+图像使用内置 imagegen 工具生成，PNG 1024×1536，含透明通道；不含外部字体、文字或真实用户内容。生成提示词记录如下：
+
+> Create a polished visual novel dialogue character standing portrait asset, transparent background, no text, no border, no scenery. A young adult Chinese woman inspired by the user's fanfiction Yu Nian'an: very long straight black hair, simple flowing white sleeveless ankle-length dress, modest elegant neckline, warm quiet expression, intelligent calm eyes, subtle bittersweet smile. Three-quarter body down below knees, anatomically beautiful relaxed hands, one hand lightly resting over the other at waist, looking gently toward viewer. Painterly high-end Chinese narrative game illustration, muted ivory and charcoal palette, warm bronze rim light and soft cool shadow as if waiting in an abandoned old city, understated atmospheric realism with fine ink-like edges, NOT chibi, NOT doll, NOT sexy outfit, NOT plastic 3D, no flowers or accessories. Isolated clean alpha silhouette including wispy hair, character centered with some breathing room, full crown of head visible. Design for a serious literary Chinese emotional companion app in an antique bronze nocturnal city theme.
+
 ## 巨钟封面风格延伸（2026-11-11）
 
 用户明确保留原封面方向。日常界面采用同一组旧城、青铜、深石材与暖尘光元素；开场构图、屏幕文字、动画和钟声沿用已确认版本。

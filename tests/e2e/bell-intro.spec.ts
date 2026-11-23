@@ -41,14 +41,28 @@ test.describe("ability opening", () => {
   });
 
   test("contract imports on the server without browser globals", () => {
-    const source = ts.transpileModule(
-      readFileSync(resolve(process.cwd(), "src/lib/ability-events.ts"), "utf8"),
-      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
-    ).outputText;
-    const exports = {} as { playAbilityIntro: (request: { kind: string }) => void; dispatchAbilityIntro: unknown };
-    new Function("exports", source)(exports);
+    const cache = new Map<string, Record<string, unknown>>();
+    function load(name: "ability-events" | "ability-catalog"): Record<string, unknown> {
+      const cached = cache.get(name);
+      if (cached) return cached;
+      const source = ts.transpileModule(
+        readFileSync(resolve(process.cwd(), `src/lib/${name}.ts`), "utf8"),
+        { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+      ).outputText;
+      const exports = {};
+      cache.set(name, exports);
+      new Function("exports", "require", source)(exports, (specifier: string) => {
+        if (specifier === "./ability-catalog" || specifier === "@/lib/ability-catalog") return load("ability-catalog");
+        throw new Error(`Unexpected contract import: ${specifier}`);
+      });
+      return exports;
+    }
+    const exports = load("ability-events") as typeof import("../../src/lib/ability-events");
+    const registry = load("ability-catalog") as typeof import("../../src/lib/ability-catalog");
     expect(() => exports.playAbilityIntro({ kind: "dream" })).not.toThrow();
+    expect(() => exports.publishAbilityIntroState(false)).not.toThrow();
     expect(exports.dispatchAbilityIntro).toBe(exports.playAbilityIntro);
+    expect(registry.ABILITY_CATALOG.dream.caption).toBe("我听到了【入梦】的回响");
   });
 
   test("async renewal auto-finishes silently and restores the chat field focus", async ({ page }) => {
@@ -78,8 +92,12 @@ test.describe("ability opening", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("gesture dream replaces previous audio and rapid requests leave only the latest timer", async ({ page }) => {
+  test("gesture burst plays renewal then dream in FIFO order and stays active until final focus restoration", async ({ page }) => {
     await page.goto("/login");
+    const clockStart = new Date();
+    await page.clock.install({ time: clockStart });
+    await page.clock.pauseAt(new Date(clockStart.getTime() + 1_000));
+    await page.getByLabel("邮箱").fill("queued-intro@perpetual-renewal.local");
     await page.getByLabel("邮箱").focus();
     await page.evaluate(() => {
       const OriginalAudioContext = window.AudioContext;
@@ -89,9 +107,16 @@ test.describe("ability opening", () => {
         constructor() { super(); document.documentElement.dataset.audioCreated = String(++created); }
         override close() { document.documentElement.dataset.audioClosed = String(++closed); return super.close(); }
       };
+      const states: boolean[] = [];
+      window.addEventListener("renewal:ability-state", (event) => {
+        states.push((event as CustomEvent<{ active: boolean }>).detail.active);
+        document.documentElement.dataset.abilityStates = JSON.stringify(states);
+      });
+      const returnFocus = document.activeElement as HTMLElement;
       const button = document.createElement("button");
       button.textContent = "test dream gesture";
       button.onclick = () => {
+        returnFocus.focus();
         for (const kind of ["renewal", "dream"]) window.dispatchEvent(new CustomEvent("renewal:ability-intro", {
           detail: { kind, short: true, autoPlay: true }
         }));
@@ -99,43 +124,109 @@ test.describe("ability opening", () => {
       document.body.append(button);
     });
     await page.getByRole("button", { name: "test dream gesture" }).click();
-    const intro = page.getByRole("dialog", { name: "入梦开场", exact: true });
+    const intro = page.locator("dialog[data-ability]");
     await expect(intro).toBeVisible();
-    await expect(intro).toHaveAttribute("data-ability", "dream");
+    await expect(intro).toHaveAttribute("data-ability", "renewal");
+    await expect(intro).toHaveAttribute("data-phase", "playing");
+    await expect(intro).toHaveAttribute("data-active", "true");
+    await expect(intro).toHaveAttribute("data-queue-length", "1");
     await expect(intro).toHaveAttribute("data-short", "true");
+    await expect(intro.locator("p").filter({ hasText: "我看到了" }).first()).toHaveText("我看到了【生生不息】的激荡");
+    const firstRun = Number(await intro.getAttribute("data-run"));
+    expect(await page.evaluate(() => document.documentElement.dataset.audioCreated)).toBe("1");
+    expect(await page.evaluate(() => document.documentElement.dataset.audioClosed)).toBeUndefined();
+    await page.clock.fastForward(1_900);
+    await expect(intro).toHaveAttribute("data-ability", "renewal");
+    await page.clock.fastForward(100);
+    await expect(intro).toHaveAttribute("data-ability", "dream");
+    await expect(intro).toHaveAttribute("data-run", String(firstRun + 1));
+    await expect(intro).toHaveAttribute("data-queue-length", "0");
+    await expect(intro).toHaveAttribute("data-active", "true");
     await expect(intro.locator("p").filter({ hasText: "我听到了" }).first()).toHaveText("我听到了【入梦】的回响");
     await expect(page.locator("dialog[open]")).toHaveCount(1);
-    expect(await page.evaluate(() => document.documentElement.dataset.audioCreated)).toBe("2");
     expect(await page.evaluate(() => document.documentElement.dataset.audioClosed)).toBe("1");
-    await page.keyboard.press("Escape");
+    expect(await page.evaluate(() => JSON.parse(document.documentElement.dataset.abilityStates!))).not.toContain(false);
+    await expect(page.getByLabel("邮箱")).not.toBeFocused();
+    await page.clock.fastForward(1_900);
+    await expect(intro).toBeVisible();
+    await expect(intro).toHaveAttribute("data-active", "true");
+    await page.clock.fastForward(100);
     await expect(intro).toBeHidden();
-    expect(await page.evaluate(() => document.documentElement.dataset.audioClosed)).toBe("2");
+    await expect(intro).toHaveAttribute("data-active", "false");
+    const states = await page.evaluate(() => JSON.parse(document.documentElement.dataset.abilityStates!) as boolean[]);
+    expect(states.filter((active) => !active)).toEqual([false]);
+    expect(states.at(-1)).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.dataset.audioClosed)).toBe(
+      await page.evaluate(() => document.documentElement.dataset.audioCreated)
+    );
+    await expect(page.getByLabel("邮箱")).toBeFocused();
+    await expect(page.getByLabel("邮箱")).toHaveValue("queued-intro@perpetual-renewal.local");
     await page.getByLabel("邮箱").focus();
     await page.evaluate(() => {
       window.dispatchEvent(new CustomEvent("renewal:ability-intro", { detail: { kind: "dream", short: true, autoPlay: true } }));
     });
     await expect(intro).toBeVisible();
-    await expect(intro).toBeHidden({ timeout: 4_000 });
+    await expect(intro).toHaveAttribute("data-ability", "dream");
+    await page.keyboard.press("Escape");
+    await expect(intro).toBeHidden();
     await expect(page.getByLabel("邮箱")).toBeFocused();
   });
 
   for (const failure of ["missing", "slow"]) {
     test(`${failure} images keep a usable fallback without blocking dream playback`, async ({ page }) => {
+      let releaseImages!: () => void;
+      const imageGate = new Promise<void>((resolve) => { releaseImages = resolve; });
       await page.route("**/visuals/bell-*.png", async (route) => {
         if (failure === "missing") await route.abort();
-        else { await new Promise((resolve) => setTimeout(resolve, 2_000)); await route.continue().catch(() => {}); }
+        else { await imageGate; await route.continue().catch(() => {}); }
       });
-      await page.goto("/login");
+      // The load event can wait for these intentionally held images. Hydrate without waiting for it.
+      await page.goto("/login", { waitUntil: "domcontentloaded" });
+      // SSR already contains the closed dialog. Wait for the actual passive-effect listener,
+      // rather than treating existing markup as proof that React can receive the event.
+      const cdp = await page.context().newCDPSession(page);
+      try {
+        const { result } = await cdp.send("Runtime.evaluate", { expression: "window", objectGroup: "ability-hydration" });
+        expect(result.objectId).toBeTruthy();
+        await expect.poll(async () => {
+          const { listeners } = await cdp.send("DOMDebugger.getEventListeners", { objectId: result.objectId! });
+          return listeners.some(listener => listener.type === "renewal:ability-intro");
+        }).toBe(true);
+      } finally {
+        await cdp.send("Runtime.releaseObjectGroup", { objectGroup: "ability-hydration" });
+        await cdp.detach();
+      }
       await page.getByLabel("邮箱").focus();
       await page.evaluate(() => window.dispatchEvent(new CustomEvent("renewal:ability-intro", {
-        detail: { kind: "dream", autoPlay: true }
+        detail: { kind: "dream" }
       })));
       const intro = page.getByRole("dialog", { name: "入梦开场", exact: true });
       await expect(intro).toBeVisible();
-      // After the asset deadline the procedural scene stays stable even on late success.
-      await page.waitForTimeout(2_300);
+      await expect(intro).toHaveAttribute("data-phase", "ready");
+      // Use the browser's timer queue, after mount, to pass the 1.5s asset deadline.
+      // Keep the scene ready so assertion retries cannot race its 6s automatic dismissal.
+      await page.evaluate(() => new Promise<void>((resolve) => window.setTimeout(resolve, 2_000)));
+      if (failure === "slow") {
+        const paths = ["/visuals/bell-scene.png", "/visuals/bell-isolated.png"];
+        const received = Promise.all(paths.map(path => page.waitForResponse(response =>
+          new URL(response.url()).pathname === path && response.ok()
+        ).then(response => response.finished())));
+        releaseImages();
+        await received;
+        await page.evaluate(async (paths) => {
+          await Promise.all(paths.map(src => {
+            const image = new Image();
+            image.src = src;
+            return image.decode();
+          }));
+          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        }, paths);
+      }
+      // Even confirmed late success must leave the procedural scene in place.
       await expect(intro.locator('[class*="artwork"]')).not.toHaveClass(/loaded/);
       await expect(intro.locator("p").filter({ hasText: "我听到了" }).first()).toBeVisible();
+      await intro.getByRole("button", { name: "进入", exact: true }).click();
+      await expect(intro).toHaveAttribute("data-phase", "playing");
       await intro.getByRole("button", { name: "跳过开场动画" }).click();
       await expect(intro).toBeHidden();
       await expect(page.getByLabel("邮箱")).toBeFocused();

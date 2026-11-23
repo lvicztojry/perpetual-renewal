@@ -100,7 +100,10 @@ async function withPhone(browser: Browser, page: Page, run: (phone: Page) => Pro
   });
   try {
     origins.set(context.request, baseURL);
-    await context.addInitScript(() => sessionStorage.setItem("renewal:intro-seen:v1", "1"));
+    await context.addInitScript(() => {
+      sessionStorage.setItem("renewal:intro-seen:v1", "1");
+      sessionStorage.setItem("renewal:journey-suppress:v1", "1");
+    });
     await run(await context.newPage());
   } finally { await context.close(); }
 }

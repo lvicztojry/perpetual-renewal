@@ -4,16 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./bell-intro.module.css";
 import { RenewalSilhouette } from "./renewal-silhouette";
 import { BELL_VOLUME, createGiantBellSound } from "@/lib/audio/giant-bell";
-import { ABILITY_INTRO_EVENT, publishAbilityIntroState, type AbilityIntroRequest } from "@/lib/ability-events";
+import { ABILITY_INTRO_EVENT, createAbilityIntroQueue, publishAbilityIntroState, type AbilityIntroRequest } from "@/lib/ability-events";
+import { ABILITY_CATALOG, isAbilityKind } from "@/lib/ability-catalog";
 
 const SESSION_KEY = "renewal:intro-seen:v1";
 const REPLAY_EVENT = "renewal:replay-intro";
 
-/** One replaceable scene for brand entry, meeting and dream entry. */
+/** Serialize brand entry, meeting and dream entry without losing requests. */
 export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
   const [phase, setPhase] = useState<"hidden" | "ready" | "playing">("hidden");
   const [request, setRequest] = useState<AbilityIntroRequest>({ kind: "renewal" });
   const [run, setRun] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const [muted, setMuted] = useState(false);
   const [silent, setSilent] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -26,6 +28,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
   const mutedRef = useRef(false);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueRef = useRef(createAbilityIntroQueue<{ request: AbilityIntroRequest; brand: boolean }>());
 
   const stopAudio = useCallback(() => {
     const context = audioRef.current;
@@ -39,17 +42,6 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = null;
   }, []);
-
-  const dismiss = useCallback(() => {
-    clearTimer();
-    stopAudio();
-    dialogRef.current?.close();
-    setPhase("hidden");
-    publishAbilityIntroState(false);
-    const target = returnFocusRef.current;
-    returnFocusRef.current = null;
-    if (target?.isConnected) target.focus({ preventScroll: true });
-  }, [clearTimer, stopAudio]);
 
   const startAudio = useCallback((next: AbilityIntroRequest) => {
     // Construct/resume synchronously, and only with an active user gesture.
@@ -73,7 +65,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     } catch { stopAudio(); setSilent(true); }
   }, [stopAudio]);
 
-  const open = useCallback((next: AbilityIntroRequest = { kind: "renewal" }, brand = false) => {
+  const startScene = useCallback((next: AbilityIntroRequest, brand: boolean) => {
     publishAbilityIntroState(true);
     clearTimer();
     stopAudio();
@@ -90,8 +82,32 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     setPhase(next.autoPlay ? "playing" : "ready");
   }, [clearTimer, startAudio, stopAudio]);
 
+  const open = useCallback((next: AbilityIntroRequest = { kind: "renewal" }, brand = false) => {
+    const scene = queueRef.current.enqueue({ request: next, brand });
+    setPendingCount(queueRef.current.pendingCount);
+    if (scene) startScene(scene.request, scene.brand);
+  }, [startScene]);
+
+  const dismiss = useCallback(() => {
+    clearTimer();
+    stopAudio();
+    const next = queueRef.current.next();
+    setPendingCount(queueRef.current.pendingCount);
+    if (next) {
+      startScene(next.request, next.brand);
+      return;
+    }
+    dialogRef.current?.close();
+    setPhase("hidden");
+    publishAbilityIntroState(false);
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    if (target?.isConnected) target.focus({ preventScroll: true });
+  }, [clearTimer, startScene, stopAudio]);
+
   useEffect(() => {
     const dialog = dialogRef.current;
+    const queue = queueRef.current;
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updatePreference = () => setReducedMotion(preference.matches);
     updatePreference();
@@ -107,7 +123,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
     const ability = (event: Event) => {
       const detail: unknown = (event as CustomEvent).detail;
       if (!detail || typeof detail !== "object" || !("kind" in detail)) return;
-      if (detail.kind !== "renewal" && detail.kind !== "dream") return;
+      if (!isAbilityKind(detail.kind)) return;
       const value = detail as AbilityIntroRequest;
       window.clearTimeout(grace);
       open({
@@ -126,6 +142,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
       window.removeEventListener(REPLAY_EVENT, replay);
       window.removeEventListener(ABILITY_INTRO_EVENT, ability);
       stopAudio();
+      queue.clear();
       dialog?.close();
       publishAbilityIntroState(false);
       if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
@@ -178,7 +195,8 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
   }
 
   const dream = request.kind === "dream";
-  const caption = dream ? "我听到了【入梦】的回响" : "我看到了【生生不息】的激荡";
+  const ability = ABILITY_CATALOG[request.kind];
+  const caption = ability.caption;
   return (
     <>
       <dialog
@@ -186,9 +204,12 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
         className={styles.intro}
         data-phase={phase}
         data-ability={request.kind}
+        data-active={phase !== "hidden"}
+        data-run={run}
+        data-queue-length={pendingCount}
         data-short={request.short === true}
         data-reduced-motion={reducedMotion}
-        aria-label={dream ? "入梦开场" : "生生不息开场"}
+        aria-label={`${ability.name}开场`}
         aria-describedby="renewal-intro-description"
         onCancel={(event) => { event.preventDefault(); dismiss(); }}
       >
@@ -200,7 +221,7 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
                 <div className={styles.bellPosition}><div className={styles.bell} /></div>
               </div>
               <div className={styles.screen}>
-                <p>{dream ? "我听到了" : "我看到了"}<br /><strong>{dream ? "【入梦】" : "【生生不息】"}</strong>{dream ? "的回响" : "的激荡"}</p>
+                <p>{ability.opening}<br /><strong>【{ability.name}】</strong>{ability.ending}</p>
               </div>
               {dream ? <>
                 <div className={`${styles.cityEcho} ${assetsReady ? styles.loaded : ""}`} />
@@ -216,9 +237,9 @@ export function BellIntro({ showReplay = false }: { showReplay?: boolean }) {
         </div>
         <p className={styles.srOnly}>{caption}</p>
         <div className={styles.signature}>
-          <h1 id="renewal-intro-title">{dream ? "入梦" : "生生不息"}</h1>
+          <h1 id="renewal-intro-title">{ability.name}</h1>
           <span className={styles.rule} aria-hidden="true">◆</span>
-          <p id="renewal-intro-description">{dream ? "循着回响，再见一面" : "只要想念，就会想见"}</p>
+          <p id="renewal-intro-description">{ability.description}</p>
           {request.companionName && <span className={styles.companion}>{request.companionName}</span>}
           {phase === "ready" && <button ref={enterRef} className={styles.enter} onClick={enter}>进入</button>}
         </div>

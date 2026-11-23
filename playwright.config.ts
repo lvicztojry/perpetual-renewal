@@ -4,6 +4,7 @@ const exploratoryMode = process.env.E2E_REAL_PROVIDER === "1" || Boolean(process
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  outputDir: "./logs/current/playwright-results",
   workers: 1,
   timeout: exploratoryMode ? 120_000 : 60_000,
   expect: {

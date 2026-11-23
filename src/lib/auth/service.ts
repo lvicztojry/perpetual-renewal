@@ -5,6 +5,7 @@ import { AuthError } from "./errors";
 import { assertEmailAllowed, isEmailAllowed } from "./allowed-emails";
 import { assertAuthMailConfigured, sendAuthMail } from "./mail";
 import { hashPassword, validatePassword, verifyPassword } from "./password";
+import { initialJourney } from "@/lib/journey/types";
 
 export const recoveryAccepted = {
   ok: true,
@@ -144,6 +145,7 @@ export async function verifyRegistration(value: unknown) {
     await tx.user.create({
       data: {
         email: token.email, nickname: token.nickname || "用户",
+        journey: { create: { revision: 0, state: initialJourney("active") } },
         authCredential: { create: {
           passwordHash: token.passwordHash, sessionVersion: randomUUID(), emailVerifiedAt: new Date()
         } }

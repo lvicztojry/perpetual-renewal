@@ -31,8 +31,14 @@ native/src-tauri/gen/
 
 .build-tools/
 .tmp-native-build/
+logs/
+/.claude/settings.local.json
+/.claude/settings.local.json
 /ic_launcher.png
 /ic_launcher.xml
 /ic_launcher_background.xml
 /ic_launcher_foreground.png
 /ic_launcher_round.png
+
+# 介绍站构建产物
+site/dist/

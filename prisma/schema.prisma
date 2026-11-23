@@ -96,6 +96,14 @@ model User {
   dreamWorkspaces          DreamWorkspace[]
   groupWorkspaces          GroupWorkspace[]
   messageReadReceipts      MessageReadReceipt[]
+  journey                  UserJourney?
+}
+
+model UserJourney {
+  userId    String   @id
+  revision  Int      @default(0)
+  state     Json
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuthCredential {

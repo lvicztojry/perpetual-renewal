@@ -1,5 +1,6 @@
 /** Shared by server and client imports; browser access happens only when called. */
-export type AbilityKind = "renewal" | "dream";
+import type { AbilityKind } from "./ability-catalog";
+export type { AbilityKind } from "./ability-catalog";
 
 export interface AbilityIntroRequest {
   kind: AbilityKind;
@@ -24,3 +25,24 @@ export function playAbilityIntro(request: AbilityIntroRequest): void {
 }
 
 export const dispatchAbilityIntro = playAbilityIntro;
+
+/** Reserve the active slot synchronously, including before React renders a dialog. */
+export function createAbilityIntroQueue<T>() {
+  let active = false;
+  const pending: T[] = [];
+  return {
+    /** Waiting scenes only; excludes the active scene. */
+    get pendingCount(): number { return pending.length; },
+    enqueue(value: T): T | undefined {
+      if (active) { pending.push(value); return undefined; }
+      active = true;
+      return value;
+    },
+    next(): T | undefined {
+      const value = pending.shift();
+      active = value !== undefined;
+      return value;
+    },
+    clear(): void { pending.length = 0; active = false; }
+  };
+}

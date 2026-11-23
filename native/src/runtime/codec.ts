@@ -20,17 +20,18 @@ export function decode(input: unknown): unknown {
     default: throw new Error("Unsupported local data tag.");
   }
 }
-export const stateKeys = ["renewalStore", "renewalGroupStore", "renewalDreamStore", "renewalMemoryRevisionStore", "renewalMessageReadReceipts", "renewalCredentialStore", "renewalSafetyEventStore", "renewalUsageStore", "__perpetualRenewalFallbackProfiles"] as const;
+export const stateKeys = ["renewalStore", "renewalGroupStore", "renewalDreamStore", "renewalJourneyStore", "renewalMemoryRevisionStore", "renewalMessageReadReceipts", "renewalCredentialStore", "renewalSafetyEventStore", "renewalUsageStore", "__perpetualRenewalFallbackProfiles"] as const;
 const globals = globalThis as unknown as Record<string, unknown>;
 export function snapshot() { return encode(Object.fromEntries(stateKeys.map(key => [key, globals[key]]))); }
 export function hydrate(value: unknown) {
   const restored = decode(value) as Record<string, unknown>;
   for (const key of stateKeys) globals[key] = restored[key];
 }
-export function emptyState() {
+export function emptyState(newAccountId?: string) {
   return encode({
     renewalStore: { companions: [], conversations: [], messages: [], memories: [], proactiveMessages: [], relationshipStates: [] },
     renewalGroupStore: new Map(), renewalDreamStore: new Map(), renewalMemoryRevisionStore: [],
+    renewalJourneyStore: new Map(newAccountId ? [[newAccountId, { version: 1, step: "awakening", status: "active", companionId: null, revision: 0 }]] : []),
     renewalMessageReadReceipts: new Map(), renewalCredentialStore: new Map(), renewalSafetyEventStore: { events: [] },
     renewalUsageStore: { logs: [] }, __perpetualRenewalFallbackProfiles: new Map()
   });

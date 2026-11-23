@@ -1,4 +1,4 @@
-import { open, readFile, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import process from "node:process";
@@ -13,7 +13,9 @@ if (!secret || !["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname) ||
   console.error("Group worker requires a cron secret and a local HTTP app origin.");
   process.exit(1);
 }
-const lockPath = resolve(".tmp-group-worker.lock");
+const lockDirectory = resolve("logs", "current");
+await mkdir(lockDirectory, { recursive: true });
+const lockPath = resolve(lockDirectory, "group-worker.lock");
 let lock;
 try { lock = await open(lockPath, "wx"); }
 catch (error) {
