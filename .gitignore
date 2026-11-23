@@ -45,3 +45,6 @@ site/dist/
 
 # 查图用的临时缩略图
 .tmp-site-thumbs/
+
+# Netlify 个人访问令牌（本地运维用，不进仓库）
+.netlify-token
