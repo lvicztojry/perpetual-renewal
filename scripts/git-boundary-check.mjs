@@ -3,6 +3,17 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 
 const forbiddenPathPatterns = [
+  /(^|\/)\.env(?:\.(?!example$)[^/]*)?$/i,
+  /^deploy\/(?:cloud|site|scheduler)\.env$/i,
+  /^deploy\/\.secrets\//i,
+  /^\.netlify-token$/i,
+  /^\.netlify\//i,
+  /^\.release-keys\//i,
+  /^\.build-tools\//i,
+  /^logs\//i,
+  /^\.tmp-[^/]+\//i,
+  /^site\/dist\//i,
+  /^native\/(?:node_modules|dist|src-tauri\/(?:target|gen))\//i,
   /^\.env$/i,
   /^\.env\.local$/i,
   /^\.env\..*\.local$/i,

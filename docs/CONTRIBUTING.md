@@ -1,6 +1,16 @@
 # 协作者开发说明
 
-本文给新协作者快速说明如何参与“生生不息 / perpetual-renewal”的开发。进入代码前，先读根目录 [README.md](../README.md)、[PRD.md](PRD.md)、[ARCHITECTURE.md](ARCHITECTURE.md)、[MVP_STATUS.md](MVP_STATUS.md) 和 [TASKBOOK.md](TASKBOOK.md)。
+本文说明如何参与“生生不息 / perpetual-renewal”的开发。先读 [MVP_STATUS.md](MVP_STATUS.md) 的当前事实与验收边界，再读 [TASKBOOK.md](TASKBOOK.md) 的本轮任务定义；按需查阅 [文档导航](README.md)、[PRD.md](PRD.md) 和 [ARCHITECTURE.md](ARCHITECTURE.md)。
+
+## 协作与文档职责
+
+- 开工前读取相关代码、配置和 git 记录，确认本轮授权范围、文件归属及已有改动。并行协作只修改认领文件，跨边界问题交给负责人，不覆盖他人工作；交接写明变更文件、验证范围和未确定事项。
+- [MVP_STATUS.md](MVP_STATUS.md) 是唯一当前事实、任务快照与验收入口；当前任务状态使用 `planned`、`active`、`blocked`、`completed`、`cancelled`、`superseded`。[TASKBOOK.md](TASKBOOK.md) 只放近期窗口、有效决策、暂停长期队列与本轮任务定义，不复制验收流水。旧 PM/DEV/M 编号和 `integrated` 等口径属于历史，不作为当前任务状态。
+- [QA.md](QA.md) 和 [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md) 维护检查与交接流程；历史记录从各文档的归档入口查阅。操作与设计文档链接状态单源，不复制实时验收数字。
+- 介绍站部署、应用 Web 部署、客户端本机构建和 GitHub Releases 公开发行分别核对。当前开发范围为 Web、Windows、Android，macOS、iOS、微信暂停扩展；早期“四端”目标只作为历史背景。
+- 介绍站流程见 [SITE.md](SITE.md)，站点与下载配置只维护 [site/site.json](../site/site.json)。根级 `url` 为空不能推导应用地址；应用入口看 `downloads.web` 并结合状态中的实际验收。本地源码修改不等于线上已生效。
+- [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) 由 `src/lib/release-notes.json` 经 `npm run release:notes` 生成，不手工编辑。发布操作须属于当前授权范围。
+- 协作约定维护在本文件，沿用现有文档分工，无需新增 AGENTS、PLAN 或 STATUS 文档。历史记录保留日期和适用范围，不能当作当前验收结论。
 
 ## 项目定位
 
@@ -33,7 +43,7 @@
 
 ## 本地启动
 
-默认认证采用自托管邮箱/密码，需要数据库、认证迁移和邮件配置；注册先验证邮箱，旧 email-only 用户通过原邮箱恢复。个人邮箱 SMTP 授权码可测试，无需自有域名；也支持 HTTP 邮件网关，见 [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件)。仅显式非生产测试设置 `AUTH_MODE=local-email` 以运行演示登录/memory 夹具。截至 2026-10-31，真实隔离 PostgreSQL、当前迁移、QQ 用户注册收件及全量 E2E 33 项通过；增强真实主动 QA 与新部署目标待完成。
+应用 Web 默认认证采用自托管邮箱/密码，需要数据库、认证迁移和邮件配置；注册先验证邮箱，旧 email-only 用户通过原邮箱恢复。个人邮箱 SMTP 授权码可测试，无需自有域名；也支持 HTTP 邮件网关，见 [DEPLOYMENT.md](DEPLOYMENT.md#认证与邮件)。仅显式非生产测试设置 `AUTH_MODE=local-email` 以运行演示登录/memory 夹具。配置与验收结果见 [MVP_STATUS.md](MVP_STATUS.md)；独立客户端的设备本地账号见 [LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)。
 
 在仓库根目录运行：
 
@@ -118,15 +128,9 @@ npm run db:smoke
 
 ## Taskbook 与状态更新
 
-每个模块完成后都要更新 [TASKBOOK.md](TASKBOOK.md)：
+任务范围或依赖变化时，由负责人维护 [TASKBOOK.md](TASKBOOK.md) 的规划与分工；后续待办写明目标、前置条件和验收要求。当前任务状态、实际通过、失败、未执行项及证据只登记到 [MVP_STATUS.md](MVP_STATUS.md)，不把 Taskbook 当作第二份状态流水。
 
-- 在模块登记表新增或更新一行，写清楚模块编号、状态、负责人、改动文件和当前落点。
-- 状态使用现有口径：`planned`、`active`、`integrated`、`ready-for-decision`。
-- 如果模块只是文档收束，也要明确“只改文档”，避免主控误判代码能力已经改变。
-- 如果有验证命令，写明通过的命令；如果跳过某项，说明原因。
-- 如果遇到需要用户决定的事项，状态改为 `ready-for-decision`，并在说明里列出具体决策项。
-
-涉及 MVP 总体能力、上线阻塞、主控验收基线或继续施工队列时，同步更新 [MVP_STATUS.md](MVP_STATUS.md)。普通单模块实现只需更新 Taskbook；但如果改动改变了“当前是否可演示、是否可进入真实环境联调、下一步阻塞是什么”，就必须更新 MVP Status。
+模块交接须说明是否只改文档、改动文件、实际验证命令及结果、跳过原因和未确定事项，由主控集成当前状态与历史归档。未认领状态文件时，提供交接材料，不越界修改。需要用户决定的事项列出具体取舍；普通实现选择在现有授权内推进。
 
 ## 提交前自检
 

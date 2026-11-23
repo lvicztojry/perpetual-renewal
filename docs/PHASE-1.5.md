@@ -1,5 +1,7 @@
 # Phase 1.5 主控施工面板
 
+历史阶段面板：下文 M1—M6 等状态为当时的阶段记录，不是正在执行的工作窗口。当前任务只在 [MVP_STATUS.md](MVP_STATUS.md) 登记，任务定义见 [TASKBOOK.md](TASKBOOK.md)，完整旧任务见 [TASKBOOK_HISTORY.md](TASKBOOK_HISTORY.md)。
+
 当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
 
 目标：把现有骨架收束成可反复演示的纵切 MVP。

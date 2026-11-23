@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 import process from "node:process";
+import { validateDocumentationContract } from "./lib/documentation-contract.mjs";
 
 const findings = [];
 const files = readCommittableFiles();
@@ -20,6 +21,7 @@ const taskbookMilestones = readTaskbookMilestones();
 const verifyLocalScripts = readVerifyLocalBaseScripts();
 
 checkCurrentStatusSource();
+checkDocumentationContract();
 checkDocsText(docsAndReadmes);
 checkVolatileReleaseStateWording(docsAndReadmes);
 checkReleaseSyncWording();
@@ -34,7 +36,7 @@ checkPrdScopeSync();
 checkReleaseHandoff();
 checkTaskbookDecisions();
 checkTaskbookStatusSync();
-checkReleaseMilestoneSync();
+checkHistoricalMilestoneSync();
 checkVerificationCommandSync();
 checkProactiveSchedulerDocs();
 
@@ -52,7 +54,7 @@ console.log(
 
 function checkCurrentStatusSource() {
   const current = readText("docs/MVP_STATUS.md") ?? "";
-  for (const required of ["更新：", "## 验收记录", "## 当前施工顺序", "MVP_STATUS_HISTORY.md", "QA.md", "TASKBOOK.md"]) {
+  for (const required of ["更新：", "## 当前任务快照", "## 验收记录", "## 当前施工顺序", "MVP_STATUS_HISTORY.md", "QA.md", "TASKBOOK.md"]) {
     if (!current.includes(required)) findings.push("Current status missing: " + required);
   }
   for (const file of ["README.md", "docs/README.md", "docs/PHASE-1.5.md", "docs/QA.md", "docs/RELEASE_HANDOFF.md", "docs/PR_DRAFT.md"]) {
@@ -204,7 +206,7 @@ function checkReleaseSyncWording() {
 }
 
 function checkDerivedCount(location, line, pattern, expected, label, options = {}) {
-  if (location.replaceAll("\\", "/").startsWith("docs/MVP_STATUS_HISTORY.md:")) return;
+  if (/_HISTORY\.md:/.test(location.replaceAll("\\", "/"))) return;
   if (typeof expected !== "number" || expected <= 0) {
     return;
   }
@@ -498,8 +500,9 @@ function checkReleaseHandoff() {
     "Current branch tip",
     "git log -1 --oneline",
     "Initial baseline commit",
-    `${smokeMetrics.checkCount} checks`,
-    `${qaMetrics.safetyAreaCount} safety areas`
+    "MVP_STATUS.md",
+    "RELEASE_HANDOFF_HISTORY.md",
+    "site/site.json"
   ]) {
     if (!handoff.includes(snippet)) {
       findings.push(`docs/RELEASE_HANDOFF.md should mention ${snippet}.`);
@@ -526,21 +529,22 @@ function checkTaskbookDecisions() {
     }
   }
 
-  for (const snippet of ["已决策基线", "仍需外部配置", "已决策暂缓项", "M54 施工决策点收束", "M55 Session 接入状态收束"]) {
+  for (const snippet of ["## 本轮工作窗口", "## 有效决策与范围", "## 任务依赖关系", "## 任务定义", "TASKBOOK_HISTORY.md"]) {
     if (!taskbook.includes(snippet)) {
       findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
     }
   }
 
-  for (const snippet of ["sync taskbook status gates"]) {
-    if (!taskbook.includes(snippet)) {
-      findings.push(`docs/TASKBOOK.md should mention ${snippet}.`);
+  for (const snippet of ["M54 施工决策点收束", "M55 Session 接入状态收束", "sync taskbook status gates"]) {
+    if (!(readText("docs/TASKBOOK_HISTORY.md") ?? "").includes(snippet)) {
+      findings.push(`docs/TASKBOOK_HISTORY.md must preserve historical task ${snippet}.`);
     }
   }
 }
 
 function checkTaskbookStatusSync() {
-  const taskbook = readText("docs/TASKBOOK.md") ?? "";
+  // Preserve the old snapshot verbatim; current work has its own status table.
+  const taskbook = readText("docs/TASKBOOK_HISTORY.md") ?? "";
   const expectedStatuses = new Map([
     ["PM-1 全关系范围确认", "completed"],
     ["PM-2 原型与信息架构", "integrated"],
@@ -623,43 +627,36 @@ function checkDeploymentDocs() {
   }
 }
 
-function checkReleaseMilestoneSync() {
+function checkHistoricalMilestoneSync() {
+  // These M numbers belong to the preserved old delivery, not today's version.
   if (!taskbookMilestones.latestNumber) {
-    findings.push("docs/TASKBOOK.md has no integrated M milestone rows to use as release source of truth.");
+    findings.push("docs/TASKBOOK_HISTORY.md lost its historical integrated M milestone rows.");
     return;
   }
 
   const latest = taskbookMilestones.latestNumber;
   const mvp = readText("docs/MVP_STATUS.md") ?? "";
-  const handoff = readText("docs/RELEASE_HANDOFF.md") ?? "";
+  const handoff = readText("docs/RELEASE_HANDOFF_HISTORY.md") ?? "";
 
   if (!mvp.includes("TASKBOOK.md")) {
     findings.push("docs/MVP_STATUS.md must link the live Taskbook.");
   }
 
   if (!handoff.includes(`M${latest}`)) {
-    findings.push(`docs/RELEASE_HANDOFF.md should mention latest integrated Taskbook milestone M${latest}.`);
+    findings.push(`docs/RELEASE_HANDOFF_HISTORY.md lost historical milestone M${latest}.`);
   }
 
   const handoffScopeMilestones = collectMilestoneNumbers(handoff, /-\s+M(\d+)\s+scope:/g);
   if (handoffScopeMilestones.length > 0) {
-    assertConsecutiveMilestones(handoffScopeMilestones, "docs/RELEASE_HANDOFF.md scope milestone list");
+    assertConsecutiveMilestones(handoffScopeMilestones, "docs/RELEASE_HANDOFF_HISTORY.md scope milestone list");
     const handoffLatest = Math.max(...handoffScopeMilestones);
     if (handoffLatest !== latest) {
       findings.push(
-        `docs/RELEASE_HANDOFF.md latest scope milestone should be M${latest}; found M${handoffLatest}.`
+        `Historical handoff milestone should remain M${latest}; found M${handoffLatest}.`
       );
     }
   }
 
-  const mvpQueueMilestones = collectMilestoneNumbers(mvp, /^-\s+M(\d+)\s+/gm);
-  if (mvpQueueMilestones.length > 0) {
-    assertConsecutiveMilestones(mvpQueueMilestones, "docs/MVP_STATUS.md construction queue milestone list");
-    const mvpLatest = Math.max(...mvpQueueMilestones);
-    if (mvpLatest !== latest) {
-      findings.push(`docs/MVP_STATUS.md latest construction queue milestone should be M${latest}; found M${mvpLatest}.`);
-    }
-  }
 }
 
 function checkVerificationCommandSync() {
@@ -832,7 +829,7 @@ function readE2eMetrics() {
 }
 
 function readTaskbookMilestones() {
-  const taskbook = readText("docs/TASKBOOK.md") ?? "";
+  const taskbook = readText("docs/TASKBOOK_HISTORY.md") ?? "";
   const milestones = [];
   const rowPattern = /^\|\s*M(\d+)\s+[^|]+\|\s*integrated\s*\|/gm;
 
@@ -912,6 +909,21 @@ function parseJsonFile(file) {
     findings.push(`${file} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
+}
+
+function checkDocumentationContract() {
+  const documents = Object.fromEntries(docsAndReadmes.map(file => [file.replaceAll("\\", "/"), readText(file) ?? ""]));
+  findings.push(...validateDocumentationContract({
+    documents,
+    versions: {
+      native: parseJsonFile("native/package.json")?.version,
+      application: parseJsonFile("package.json")?.version,
+      tauri: parseJsonFile("native/src-tauri/tauri.conf.json")?.version,
+      announcement: parseJsonFile("src/lib/release-notes.json")?.[0]?.version
+    },
+    site: parseJsonFile("site/site.json") ?? {},
+    netlify: readText("netlify.toml") ?? ""
+  }));
 }
 
 function expectEqual(actual, expected, label) {

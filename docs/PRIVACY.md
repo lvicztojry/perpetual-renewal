@@ -1,12 +1,14 @@
 # 生生不息隐私与数据导出 v0.1
 
+本文维护数据契约；当前实现和实际验收以 [MVP_STATUS.md](MVP_STATUS.md) 为准。原生内部备份、资料 JSON 导出与完整账号迁移的区别见 [LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)。
+
 ## 用户数据导出快照
 
 截至 2026-10-31，密码认证通过真实隔离 PostgreSQL，用户真实注册/邮件验证/登录已完成：密码仅存随机盐 scrypt hash，验证/恢复令牌仅存 hash，30 分钟内单次有效；邮件链接使用 fragment token，通过请求体消费，不应进入访问日志或导出。v2 密码 session 有服务端到期与凭证版本校验，重置密码后旧 session 失效。旧 email-only 账号必须通过原邮箱恢复，不能仅凭邮箱取得登录态。`AUTH_MODE=local-email` 仅允许显式非生产测试。
 
 认证邮件会将收件邮箱和验证/恢复邮件正文交给所选 SMTP 邮箱服务或 HTTP 网关。`AUTH_SMTP_PASSWORD` 为邮箱授权码，`AUTH_MAIL_API_KEY` 为可选 HTTP 凭证；两者只存本地/部署 secret，不进入仓库、日志或用户导出。个人邮箱测试无需自有域名，QQ SMTP verify 与用户真实注册收件已通过；HTTP 投递、公开注册送达率及新部署目标另验。
 
-`GET /api/me/export` 返回当前 session 用户的 JSON 快照，用于用户查看、备份或迁移自己的项目数据。
+`GET /api/me/export` 返回当前 session 用户的脱敏 JSON 快照，用于查看和保存资料；它不包含可恢复账号的凭据，不能据此完整恢复原生账户或迁移个人模型 Key。
 
 设置页的数据导出会在点击后显示导出中、成功或失败状态。成功下载的文件名使用
 `perpetual-renewal-export-YYYY-MM-DD.json` 格式，便于用户识别来源和日期；失败时只显示友好错误提示，不暴露内部接口细节。
@@ -16,7 +18,7 @@
 - 用户资料：昵称、邮箱、语言、时区、主动回响偏好。
 - 关系对象：关系类型、自定义设定、称呼、性格、语气、背景、边界与关系状态。
 - 对话数据：每个关系对象当前可见的会话和消息。
-- 记忆数据：包含 pending、active、archived、deleted 状态，便于用户审阅完整记忆生命周期。
+- 记忆数据：包含当前可见的 pending、active、archived 记忆及允许导出的变更历史，排除 deleted 记忆；遗忘不等于删除原始聊天文本。
 - 主动回响：草稿、发送、忽略或阻断记录，以及脱敏后的安全元数据。
 - 模型调用记录：provider、model、用途、状态、token、估算成本、延迟和错误类别等脱敏审计字段。
 - 安全事件：仅导出事件类型、动作、阶段、严重度、`contentHash`、`riskHash` 和时间。

@@ -77,15 +77,13 @@ const body = [
   `| Windows x64 | \`renewal-${version}-windows-x64-setup.exe\` | \`${checksums.windows}\` |`,
   `| Android ARM64 | \`renewal-${version}-arm64.apk\` | \`${checksums.android}\` |`,
   "",
-  "当前仍是测试版本，功能与数据格式可能继续调整；升级前建议先在客户端内导出一次备份。",
+  "当前仍是测试版本；升级前建议创建客户端内部备份，并另行导出需要保留的资料。内部备份仍在本设备，不等于完整账号的外部备份或跨设备迁移。",
   "Windows 安装包未做 Authenticode 签名，首次运行 SmartScreen 可能提示。",
   "",
   "---",
   "",
-  readFileSync(join(root, "dist/installers/VALIDATION-0.1.3.json"), "utf8").includes(version)
-    ? "验证记录见仓库 `dist/installers/VALIDATION-*.json`（该目录不进 Git）。"
-    : ""
-].filter(Boolean).join("\n");
+  `公开验证范围见 [该版本状态记录](${repo}/blob/${encodeURIComponent(tag)}/docs/MVP_STATUS.md) 和同目录历史归档；本地 dist/installers/ 验证 JSON 不作为公开附件。`
+].join("\n");
 
 if (dryRun) {
   console.log(JSON.stringify({ slug, tag, title: `生生不息 ${version}`, body, files, checksums }, null, 2));

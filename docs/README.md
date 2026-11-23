@@ -1,44 +1,26 @@
 # 生生不息文档入口
 
-当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
+先读 [MVP_STATUS.md](MVP_STATUS.md) 确认当前能力、发行与部署边界、验收证据和阻塞，再读 [TASKBOOK.md](TASKBOOK.md) 的本轮任务与依赖；按任务需要查阅设计和操作文档。历史通过不代表本轮复验。
 
-## 快速入口
+## 阅读顺序与按需入口
 
-- 四端独立本地客户端：[LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)，Windows/macOS/Android/iPhone 源码准备、加密数据、保留账号的更新规则与原生构建待办。
+1. [当前状态与验收](MVP_STATUS.md) → [本轮任务规划](TASKBOOK.md) → [协作规则](CONTRIBUTING.md)。
+2. 按需设计：[产品范围](PRD.md)、[架构](ARCHITECTURE.md)、[模型接入](LLM.md)、[记忆变化](MEMORY_LIFECYCLE.md)、[入梦](DREAM.md)、[群聊](GROUPS.md)、[消息同步](MESSAGE_SYNC.md)。
+3. 运行与交付：[本机/LAN 试用](LAN_TRIAL.md)、[独立客户端](LOCAL_CLIENTS.md)、[介绍站操作](SITE.md)、[应用部署与真实配置](DEPLOYMENT.md)（含 `SESSION_COOKIE_SECRET`）、[认证与邮件](AUTH.md)、[远程分享部署方案](CLOUD_SHARING.md)。介绍站上线、应用 Web 公网运行和安装包公开发行须分别判断。
+4. 检查与发布：[质量检查](QA.md)、[人工验收流程](RELEASE_ACCEPTANCE.md)、[发布交接](RELEASE_HANDOFF.md)、[提交前检查](PRE_COMMIT_CHECKLIST.md)；实际结果统一回到当前状态。
 
-- 给异地朋友长期体验：[CLOUD_SHARING.md](CLOUD_SHARING.md)，独立数据库、受邀邮箱、默认中转站及个人 Key 覆盖的容器部署包；目标云端尚待选择与验收。
+## 文档职责
 
-- 手机同 Wi-Fi 试用：[LAN_TRIAL.md](LAN_TRIAL.md)。
+| 入口 | 负责内容 |
+| --- | --- |
+| [MVP_STATUS.md](MVP_STATUS.md) | 唯一当前事实、任务快照与验收入口：能力、交付、证据、未覆盖项和阻塞 |
+| [TASKBOOK.md](TASKBOOK.md) | 任务范围、规划、依赖和分工；不复制验收流水 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 协作规则、模块边界、验证与交接要求 |
+| [SITE.md](SITE.md) / [site/site.json](../site/site.json) | 介绍站操作流程 / 站点与下载配置单源 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) / [LOCAL_CLIENTS.md](LOCAL_CLIENTS.md) | 应用服务部署 / 本地客户端构建、数据与更新规则 |
+| [PRD.md](PRD.md) / [ARCHITECTURE.md](ARCHITECTURE.md) 等专题 | 产品与技术设计、长期契约；不代替当前状态 |
+| [MVP_STATUS_HISTORY.md](MVP_STATUS_HISTORY.md) | 历史状态与验收证据；不作为当前已通过结论 |
+| [TASKBOOK_HISTORY.md](TASKBOOK_HISTORY.md) / [QA_HISTORY.md](QA_HISTORY.md) / [RELEASE_HANDOFF_HISTORY.md](RELEASE_HANDOFF_HISTORY.md) | 整理前的任务定义、详细用例和交接原文；编号与历史证据保留 |
+| [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | 从 [release-notes.json](../src/lib/release-notes.json) 生成的版本日志，不手工编辑 |
 
-- 跨端消息与未读：[MESSAGE_SYNC.md](MESSAGE_SYNC.md)。
-
-- 本地启动：在仓库根目录运行 `npm ci`，再运行 `npm run dev`；本机真实体验可打开 `http://127.0.0.1:3000`。
-- 账号与邮件：默认自托管邮箱/密码，注册验证邮箱，旧 email-only 账号通过原邮箱恢复；个人邮箱 SMTP 授权码测试无需自有域名，也支持 HTTP 网关。配置见 [DEPLOYMENT.md 的认证与邮件](DEPLOYMENT.md#认证与邮件)。`AUTH_MODE=local-email` 仅限显式非生产测试；10 月新增认证、真实投递与目标迁移状态以 [MVP_STATUS.md](MVP_STATUS.md) 为准。
-- 真实配置：优先看 [DEPLOYMENT.md](DEPLOYMENT.md)，根 README 也列出 Neon/PostgreSQL `DATABASE_URL`、TryAnotherOne compatible LLM、`USER_KEY_VAULT_SECRET`、可选独立 `SESSION_COOKIE_SECRET`、`PROACTIVE_CRON_SECRET` 和 `VOICE_PROVIDER=shared-llm` 的最小配置。
-- 网站内配置：进入设置页保存当前登录用户自己的 API key、读取模型列表、测试连接，并查看只读配置状态；读取模型列表失败时可手动填模型名再测试连接。
-- 本地主动回响：工作台打开时会每分钟检查当前关系对象；生产 all-user 自动调度需要 Vercel Cron、GitHub Actions 或外部 cron 调用受保护入口。
-- 入梦与能力演出：[DREAM.md](DREAM.md) 说明人物校准、独立草稿、确认应用与版本恢复；设置页可进入「回响录」预览两种动画。
-- 群聊：[GROUPS.md](GROUPS.md) 说明邀请人物、多人接话、共同记忆、主动节奏与本机后台调度。
-- 记忆变化：[MEMORY_LIFECYCLE.md](MEMORY_LIFECYCLE.md) 说明原子替代、版本冲突、变更历史、遗忘范围和一致导出。
-- 发布候选验收：先跑根 README 的验收命令，其中包含 `npm run docs:check` 的发布口径自动检查和 `npm run git:boundary` 的文件边界检查；再按 [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md) 做 20 分钟人工演示。
-
-## 阅读顺序
-
-账号与 QQ 邮箱专项配置见 [AUTH.md](AUTH.md)：个人 SMTP 授权码、本机 localhost 示例、生产 HTTPS 地址与认证验证边界。
-
-1. [PRD.md](PRD.md)：产品定位、用户场景、MVP 范围、功能需求与边界。
-2. [TASKBOOK.md](TASKBOOK.md)：总任务拆解、依赖关系、验收标准与阶段规划。
-3. [ARCHITECTURE.md](ARCHITECTURE.md)：第一版技术施工路线、系统模块、数据层和模型调用策略。
-4. [CONTRIBUTING.md](CONTRIBUTING.md)：新协作者开发说明，覆盖模块边界、本地 fallback、密钥规则、常用命令和状态更新方式。
-5. [MVP_STATUS.md](MVP_STATUS.md)：当前 MVP 能力、最新验收、真实配置状态与继续施工队列。
-6. [DEPLOYMENT.md](DEPLOYMENT.md)：Vercel + Neon/PostgreSQL 上线流程、本地 `migrate dev` 与生产 `migrate deploy`、LLM/VOICE 共用 TryAnotherOne compatible 中转站 env、session/cron secret 与上线前隐私/安全 checklist。
-7. [PRIVACY.md](PRIVACY.md)：用户数据导出、用户自带 API key 不入仓库、不入导出快照的隐私规则。
-8. [ERROR_COPY.md](ERROR_COPY.md)：聊天、导入、语音、模型连接、导出、数据库、session 和 cron secret 等错误状态的中文文案规范。
-9. [RELEASE_ACCEPTANCE.md](RELEASE_ACCEPTANCE.md)：发布候选 20 分钟人工演示/验收脚本，覆盖全关系、聊天、记忆、导入、主动回响、模型、语音、用量、导出和移动端快检。
-10. [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)：发布候选 push/PR 交接说明、CI 预期、目标环境配置复核和后续动作。
-11. [PRE_COMMIT_CHECKLIST.md](PRE_COMMIT_CHECKLIST.md)：第一次 commit/push 前的文件边界、密钥、验收命令和真实配置检查。
-12. [COMMIT_PLAN.md](COMMIT_PLAN.md)：首次提交的推荐分组、提交信息和应纳入/排除文件范围。
-
-## 项目一句话
-
-生生不息希望在用户“想交流却无法实现”的时刻，提供一个具有明确设定、长期记忆和关系演化能力的 AI 陪伴对象。关系类型不预设上限，现实人物、虚构角色、逝者纪念、理想关系与完全自定义关系都应能被承接，让“只要想念，就会想见”，“念念不忘，必有回响”成为可体验的产品能力。
+隐私、安全与文案约束见 [PRIVACY.md](PRIVACY.md)、[SAFETY.md](SAFETY.md)、[ERROR_COPY.md](ERROR_COPY.md)。

@@ -1,211 +1,47 @@
-# Release Handoff
+# 发布与交接
 
-当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
+当前版本、部署和实际验收统一见 [MVP_STATUS.md](MVP_STATUS.md)。本文件只描述交接流程；旧的 M 系列范围、提交与验收原文见 [RELEASE_HANDOFF_HISTORY.md](RELEASE_HANDOFF_HISTORY.md)，历史任务定义见 [TASKBOOK_HISTORY.md](TASKBOOK_HISTORY.md)。
 
-本文件用于把当前发布候选交给远端仓库、PR 或后续部署流程。真实 secret 不写入本文件。
+## 三条交付线
 
-## Current Candidate
-
-
-
-
-
-- Branch: `codex/mvp-release-candidate`
-- Remote branch: `origin/codex/mvp-release-candidate`
-- Current branch tip: check `git status --short --branch` and `git log -1 --oneline` immediately before handoff or push.
-- Initial baseline commit: `ef4939e feat: build relationship ai mvp baseline`
-- Status follow-up commit: `dbd9714 docs: record baseline commit status`
-- Handoff follow-up commit: `97fc7e8 docs: add release handoff template`
-- M56 implementation commit: `d7a72f2 docs: sync taskbook status gates`
-- M66 release-gate commit: `fd6778a test: isolate memory fallback and derive release gates`
-- Recent release-candidate commits include M49-M135 stabilization, runtime hardening, PRD scope sync, QA expansion, export privacy hardening, fallback isolation, release gate cleanup, proactive scheduler handoff guardrails, relationship-state API persistence cleanup, JSON input guardrails, runtime handoff metadata cleanup, database documentation state sync, runtime code boundary gates, runtime privacy hardening, memory API coverage, API/export privacy boundary hardening, API validation error hardening, model-list provider branch coverage, proactive duplicate-draft guard coverage, manual memory input guard coverage, memory edit validation, settings model-list privacy E2E coverage, chat message validation coverage, import error recovery E2E coverage, companion validation boundary coverage, usage range validation, relationship form failure recovery, deferred operations-feedback wording, credential endpoint type validation, export token redaction hardening, settings save-error redaction, voice transcription metadata validation, release wording sync, workspace error redaction, model connection failure privacy coverage, private no-store API response boundaries, signed session cookie hardening, session signing secret readiness gates, verify typegen preflight, env template secret placeholder sync, session secret log-redaction coverage, PR config checklist session-secret sync, exported conversation secret scrubbing, voice fallback display redaction, API private JSON boundary enforcement, API fallback response redaction, response safety QA, automatic quote redaction, account-deletion derived-data regression coverage, one-minute proactive workspace auto-check coverage, assistant reply format normalization, deleted-memory export visibility hardening, local secret generation helper docs, Prisma local env loading for real database migration, optional Neon direct migration URLs, DB smoke transient connection retries, Vercel Cron compatible proactive scheduling, real-person-substitute immersion wording, model diagnostic redaction hardening, shared relationship-state evolution, configured-database no-silent-memory fallback, safe retryable persistence outage UX, opt-in real BYOK provider QA, fake-compatible real-provider QA self-test, settings error redaction consistency, single-companion proactive draft diagnostics, chat-completion connection probes, provider endpoint switch isolation, safety/usage export privacy gates, shared-LLM voice QA, BYOK browser flow QA, production proactive cron deploy gates, non-compatible provider adapter hermetic QA, proactive scheduler scan performance guards, and settings model-list diagnostic redaction.
-- Live ahead/push state is intentionally not hard-coded here; check it with `git status --short --branch` immediately before handoff or push.
-- M51 scope: import candidate dedupe.
-- M52 scope: shared-LLM voice metadata hardening.
-- M53 scope: proactive scheduler `maxDrafts` guardrail.
-- M54 scope: construction decision points clarified into decided baselines vs. remaining external setup.
-- M55 scope: session `userId` integration status settled in Taskbook.
-- M56 scope: Taskbook task-definition statuses synced with the current task snapshot and guarded by `docs:check`.
-- M57 scope: account deletion confirmation flow, current-user data cleanup, and smoke coverage.
-- M58 scope: PWA manifest, app icons, offline shell, and API-skipping service worker.
-- M59 scope: structured media/photo/contact import planner, privacy-preserving browser-only file summaries, and workspace import UI.
-- M60 scope: PRD v0.3 scope sync and docs consistency guardrails.
-- M61 scope: import/voice API input hardening and expanded smoke coverage.
-- M62 scope: vault fingerprint hardening, broader secret scanning, PWA check, PR/deploy verification scripts.
-- M63 scope: PR template/docs link and documented npm script consistency checks.
-- M64 scope: structured import planner QA and config/vault security QA.
-- M65 scope: export scrub string-level secret redaction, ProviderCredential DB smoke coverage, settings/privacy E2E expansion, and volatile push-state docs guard.
-- M66 scope: memory fallback session/user isolation, proactive all-user cron auth guard coverage, and docs metrics derived from test sources.
-- M67 scope: proactive scheduler architecture/deployment wording guard, PR draft path/status sync, and production-only `verify:deploy` handoff wording.
-- M68 scope: relationship-state API now reads/writes session-scoped repository state through the shared relationship-state evolution path instead of returning early mock metadata.
-- M69 scope: core write APIs reject invalid JSON bodies with friendly 400 responses and no parser internals.
-- M70 scope: remaining high/medium-risk JSON write APIs require object bodies, return friendly 400s for invalid or non-object JSON, and avoid leaking parser internals, TypeError text, stack traces, Bearer/baseUrl strings, or secret-shaped content.
-- M71 scope: all API JSON parsing now routes through shared helpers; chat, import, voice, and proactive scheduler inputs share invalid/non-object 400 behavior while proactive scheduler keeps empty-body default dry-run compatibility.
-- M72 scope: safety check responses no longer expose stale `next`/`DEV-11` handoff metadata, with smoke coverage across the safety sample set.
-- M73 scope: database docs now match current session-scoped repository behavior and relationship-state persistence, replacing stale mock-dev/mock-oriented wording.
-- M74 scope: git boundary now blocks direct `request.json()` calls in API routes and `DEV-*` handoff metadata in runtime `src/app` or `src/lib` code.
-- M75 scope: runtime fallback warnings are sanitized, user LLM vault status no longer returns Base URL plaintext or a `baseUrl` field, model-list errors use stable friendly copy, smoke covers profile-driven proactive disable and endpoint privacy, and docs checks guard BYOK/TryAnotherOne/shared-LLM/deferred-product scope.
-- M76 scope: smoke now covers manual companion memory candidate creation success, list visibility, and unsupported memory type rejection.
-- M77 scope: credential save errors are mapped to stable safe copy, voice unsupported-provider fallback no longer echoes misconfigured env values, export scrubs profile fields, and git boundary blocks raw API error/voice payload regressions.
-- M78 scope: import/profile/account validation errors no longer directly return exception messages; smoke covers rejected profile updates avoiding partial writes; git boundary blocks direct API `error.message` responses.
-- M79 scope: smoke covers saved non-compatible LLM providers rejecting `/api/me/llm-models` with stable compatible-gateway copy and no key, endpoint, Bearer, `baseUrl`, or raw payload leakage.
-- M80 scope: smoke covers saved proactive drafts becoming the scheduler anchor so an immediate second run at the same `now` does not generate or save duplicate drafts.
-- M81 scope: smoke covers manual memory creation preserving `sourceMessageId`, rejecting unknown `sourceMessageId`, and rejecting blank content with stable 400 copy.
-- M82 scope: smoke covers blank memory edits returning stable 400 and preserving the existing memory content.
-- M83 scope: settings E2E covers model-list read/select success and failure without displaying the full user API key.
-- M84 scope: smoke covers blank chat messages and invalid regenerate targets returning stable validation copy without raw exception details.
-- M85 scope: relationship-flow E2E covers recovering from a broken `.json` import by showing stable copy, keeping the import action disabled, and then successfully selecting a valid `.jsonl` file.
-- M86 scope: companion create/update validation now returns stable white-listed 400 copy for blank names, blank speaking styles, and unsupported relationship kinds; rejected creates do not persist records and rejected edits do not partially mutate companion fields.
-- M87 scope: usage dashboard `rangeDays` rejects non-finite or out-of-range values with stable copy and no query/key/Base URL/prompt/raw payload leakage.
-- M88 scope: relationship create/edit failure UI reads safe server copy, keeps drafts editable, restores the submit button, and has E2E coverage for create failure recovery.
-- M89 scope: PRD/Taskbook/deployment wording confirms moderation admin, feedback survey, and beta invite mechanisms stay deferred for the first release.
-- M90 scope: LLM credential save rejects non-string `baseUrl` values with stable validation copy and no submitted key or endpoint field leakage.
-- M91 scope: export snapshot string scrub now redacts common external token shapes such as GitHub PAT/`ghp_` values accidentally stored in user content.
-- M92 scope: settings credential errors are redacted in the browser before display, covering model list, connection test, and save failures while preserving retryable drafts.
-- M93 scope: voice transcription validates metadata fields for unsafe filenames, invalid language tags, and overlong mock transcripts without leaking Bearer, prompt, raw payload, or user config values.
-- M94 scope: release docs now sync the current smoke checks / 13 E2E tests baseline, `qa:logging`, Neon-first PostgreSQL deployment guidance, compatible TryAnotherOne gateway wording, BYOK, and `VOICE_PROVIDER=shared-llm`.
-- M95 scope: workspace error display now redacts Bearer, API key-shaped strings, Base URLs, prompt/raw payload/debug fields, and stack-like frames before rendering backend or exception messages.
-- M96 scope: LLM connection test and model-list failure paths now cover URL construction, provider HTTP, and fetch failures without returning API keys, Bearer headers, endpoint/Base URL values, prompt, raw payload, stack, or low-level transport text.
-- M97 scope: API JSON responses now use a shared private no-store helper so user data, settings, model, usage, voice, memory, chat, export, proactive, and safety endpoints carry cache-busting private response headers.
-- M98 scope: email session cookies now store HMAC-signed payloads instead of raw user ids; smoke covers forged raw userId cookies, login cookie attributes, logout clearing, and account-delete clearing.
-- M99 scope: session signing secret readiness is shared across runtime, settings config status, and CLI env readiness; production requires a 32-byte-or-longer `SESSION_COOKIE_SECRET` or strong `USER_KEY_VAULT_SECRET` fallback.
-- M100 scope: local/release verification now runs `next:typegen` before `git:boundary`, so Next dev route type imports are normalized inside the gate instead of requiring a manual pre-step.
-- M101 scope: `.env.example` now includes an empty `SESSION_COOKIE_SECRET` placeholder, and `docs:check` guards empty placeholders for database, vault, session, and cron secrets.
-- M102 scope: runtime log sanitization, logging QA, and secret scan smoke now explicitly cover `SESSION_COOKIE_SECRET`.
-- M103 scope: PR template and PR draft production-config checklists now mention `SESSION_COOKIE_SECRET` or a strong vault-secret fallback, and `docs:check` guards that wording.
-- M104 scope: export snapshot scrubs secret-shaped strings across the companion subtree, including conversation messages, proactive text, relationship state, and settings text.
-- M105 scope: workspace voice synthesis fallback reasons are redacted before display, with E2E coverage for Bearer, API key, Base URL, rawPayload, and stack-shaped leaks.
-- M106 scope: `git:boundary` blocks API routes from returning JSON through `NextResponse.json()` or `Response.json()` directly; routes must use `privateJson()` so private no-store headers remain universal.
-- M107 scope: chat, voice synthesis, and voice transcription API fallback reasons are redacted before JSON response; smoke statically guards API route JSON parsing, private response helpers, and high-risk fallback redaction.
-- M108 scope: response safety QA dynamically verifies redaction for secret-shaped values, endpoints, prompt/raw payload fields, stack traces, and authorization; proactive drafts, automatic pending memory quotes, and usage fallback reasons sanitize before secondary persistence or response; deployment env docs now include `SESSION_COOKIE_SECRET`.
-- M109 scope: smoke verifies account deletion cannot be followed by relogin reads of the deleted user's relationships, vault status, usage dashboard rows, export counts, old key, endpoint, or vault fields.
-- M110 scope: relationship-level proactive defaults now use a 1 minute cadence, current workspace sessions check the active companion every minute, and single-companion draft creation anchors timing on previous proactive drafts to avoid immediate repeats.
-- M111 scope: assistant replies are normalized before persistence/API response to remove Markdown emphasis, code fences, links, star actions, and residual `*`/`＊` markers.
-- M112 scope: user-facing memory lists ignore `includeDeleted=true`, export snapshots include only non-deleted memories, and smoke covers deleted-memory API/export invisibility.
-- M113 scope: `npm run env:secrets` prints strong random vault/session/cron secret candidates without writing project files, and setup docs point users to local/deployment secret stores only.
-- M114 scope: Prisma npm scripts load `.env.local`/`.env` before invoking the CLI, so real Neon/PostgreSQL migrations, generate, seed, and deploy checks share the same local env source as readiness and DB smoke.
-- M115 scope: optional `DATABASE_URL_UNPOOLED` is documented and guarded as an empty placeholder; Prisma migration commands prefer it when present so Neon pooled app traffic and direct schema migrations can be configured separately.
-- M116 scope: DB smoke retries short-lived database connection drops during cleanup and cleanup verification so serverless pooler blips do not fail otherwise healthy release gates.
-- M117 scope: proactive scheduling now has a Vercel Cron compatible `GET /api/proactive/run` all-user entrypoint, `CRON_SECRET` alias support, copyable Vercel Cron and GitHub Actions scheduled workflow examples, readiness/config-status alias checks, and smoke coverage for GET auth without echoing secrets.
-- M118 scope: real-person-substitute prompts now preserve daily immersion by carrying projection and longing without proactively breaking character, while still returning to capability boundaries for real-person intent, offline contact, meeting, or real-world actions; ex-partner and public-figure-imagined relationships now have explicit tone hints.
-- M119 scope: model-list diagnostics are redacted before API JSON responses, response sanitization covers `raw payload` text labels, and smoke statically guards diagnostic/raw-payload/provider-endpoint redaction.
-- M120 scope: relationship-state updates now reuse shared evolution for chat and API paths with concrete emotion/event signals; configured PostgreSQL mode no longer silently falls back to memory on Prisma connectivity errors.
-- M121 scope: configured database outages now return safe retryable 503 responses across key user APIs, workspace/settings display actionable redacted copy, and deployment docs distinguish local verification from target-environment `verify:deploy`.
-- M122 scope: `npm run qa:real-provider` provides an explicit opt-in compatible BYOK target flow that saves a test key to user vault, checks model diagnostics and connection test, sends one real chat message, confirms persistence/usage logging/proactive dry-run, and redacts key/Base URL/prompt/raw payload from failures; it is not part of default CI or release gates.
-- M123 scope: `npm run qa:real-provider:fake` runs the M122 flow against a local fake OpenAI-compatible provider, using placeholder credentials to verify BYOK script logic, persistence, usage logging, proactive dry-run, and redacted failures without external network or real keys; it is part of default local/CI gates and does not prove a real provider works.
-- M124 scope: settings and workspace error display now redact the remaining delete/logout and `raw payload`/stack variants; settings E2E covers credential delete failures that include API key, Base URL, Bearer token, raw payload and stack text.
-- M125 scope: single-companion proactive draft generation now returns schedule metadata and truncation metadata, foreground auto-checks save at most one draft, and workspace status explains the next candidate time plus elapsed minutes from the timing anchor.
-- M126 scope: model connection tests now require a low-token chat completion probe; compatible `/models` responses are advisory, and failure diagnostics remain redacted across endpoint, prompt, raw payload, authorization and stack variants.
-- M127 scope: provider changes no longer silently reuse stale compatible Base URLs for Anthropic/Gemini/OpenAI Responses; compatible providers still require an explicit endpoint from the form, user vault, or compatible env fallback.
-- M128 scope: persistent safety events now require HMAC keyed hashes from a strong `USER_KEY_VAULT_SECRET`; missing secrets fail closed for Prisma logging while local memory fallback can still use development hashes.
-- M129 scope: usage metadata is sanitized on write/read for provider, model, errorKind and fallbackReason, and exports now include usage/safety `limits` metadata so collection caps are visible.
-- M130 scope: `npm run qa:voice` covers shared-LLM fake-compatible STT/TTS, Bearer headers, model fallback, user-vault reuse and sanitized provider failures; it is part of local verify and CI.
-- M131 scope: browser E2E now covers the BYOK compatible flow end-to-end against a local fake provider, and Playwright runs with one worker for stable memory/fake-provider isolation.
-- M132 scope: `npm run qa:proactive-cron` verifies the Vercel Cron GET path, Bearer/`CRON_SECRET` alias boundary, GET `dryRun:false` default, `limit`/`maxDrafts` guards, and deployment docs; it is part of local verify, CI, and `verify:deploy`.
-- M133 scope: `npm run qa:providers` hermetically covers Anthropic, Gemini, and OpenAI Responses adapter auth headers, payload shapes, default official base URLs avoiding compatible `LLM_BASE_URL`, and sanitized provider failure diagnostics.
-- M134 scope: proactive all-user scheduling pushes normalized scan limits into repository/Prisma queries, caches repeated user profile reads, and stops scanning once `maxDrafts` is reached; smoke covers the early-stop path.
-- M135 scope: settings model-list failure diagnostic text is redacted again on the client, with E2E coverage for Bearer, API key, Base URL, prompt, rawPayload and stack leakage attempts.
-- M136 scope: per-conversation draft, delayed-history and in-flight reply isolation; main verified the historical 32-case E2E suite (2026-10-26) on Next.js 16.4.3.
-- M137 scope: normalize transcription locale zh-CN to zh; 16 local language checks passed, with live-provider validation separate.
-- M138 scope: durable checkpoint and keyset cursor resume all-user scans across cold starts; 31 scheduler checks, current DB migrations and real isolated checkpoint CAS passed; new deployment targets require independent verification.
-- Current scope: relationship AI MVP baseline with docs, CI, smoke, E2E, provider adapters, memory, proactive drafts, safety events, usage logs, voice fallback, export, config readiness, and release guardrails.
-- PR creation page: https://github.com/lvicztojry/perpetual-renewal/pull/new/codex/mvp-release-candidate
-- PR body draft: [PR_DRAFT.md](PR_DRAFT.md)
-
-## Latest Pre-push Verification
-
-当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
-
-验证状态更新（2026-10-31）：M136 的 32 项为 2026-10-26 历史全量；新增后全量 E2E 33 项与最终 typecheck 已通过。
-
-| 候选 | 范围 | 验证状态 |
+| 交付物 | 构建与说明 | 事实来源 |
 | --- | --- | --- |
-| M136 | Conversation switching: isolate per-conversation drafts, delayed history and in-flight replies | 已验证：全量 E2E 32 项通过 |
-| M137 | Normalize transcription locale `zh-CN` to `zh` | 已验证：本地语音语言 16 项通过；真实供应商另验 |
-| M138 | Durable DB checkpoint and keyset cursor prevent all-user scan starvation across serverless cold starts | 已验证：调度 31 项、当前数据库迁移及真实隔离 checkpoint CAS 通过；新部署另验 |
-| M139 | Self-hosted password auth, verified registration, mailbox recovery, fragment tokens and expiring/revocable sessions | 本地后端/SMTP 33 项、UI、真实隔离 PostgreSQL 与当前数据库迁移通过；QQ SMTP verify、用户真实注册/邮件验证/登录通过；新部署另验 |
-| M140 | Dependency security refresh | 16.4.3 升级后 audit 零漏洞、lint/typecheck/build、memory smoke 94 checks 通过；新增后全量 E2E 33 项与最终 typecheck 通过 |
+| 静态介绍站 | npm run site:build；部署 site/dist | netlify.toml、site/site.json；操作见 [SITE.md](SITE.md) |
+| Web 聊天应用 | npm run build；数据库/邮件/调度另行部署 | [DEPLOYMENT.md](DEPLOYMENT.md)；介绍站上线不能替代应用验收 |
+| Windows / Android | 原生构建、同身份更新、签名与发布 | [LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)；版本与下载元数据取配置 |
 
-历史记录（2026-10-26）：早期 PostgreSQL 在 CREATE SCHEMA 遇到 database_unreachable，未创建 schema/执行迁移，当时严格 readiness 缺邮件配置；该阻塞已恢复。最新真实 DB/QQ/聊天结果见上，增强真实主动 QA 和新部署目标 verify:deploy 仍待完成。下列 2026-08-23 为历史结果。
+Current branch tip：交接时运行 git status --short --branch 和 git log -1 --oneline，不在文档固定 ahead/behind。Initial baseline commit 及历史里程碑只用于追溯，见上面的历史归档，不代表当前 Release。
 
-Last updated: 2026-08-23
+## 交接前检查
 
-- `npm run docs:check`: passed.
-- `npm run git:boundary`: passed.
-- `npm run secrets:check`: passed.
-- `npm run typecheck`: passed with `next:typegen`.
-- `npm run lint`: passed.
-- `npm run smoke`: passed, 94 checks.
-- `npm run qa:samples`: passed, 10 relationship kinds and 19 safety areas.
-- `npm run qa:prompt`: passed, 10 relationship kinds.
-- `npm run qa:imports`: passed.
-- `npm run qa:vault`: passed.
-- `npm run qa:logging`: passed.
-- `npm run qa:response`: passed.
-- `npm run qa:providers`: passed.
-- `npm run qa:voice`: passed.
-- `npm run qa:proactive-cron`: passed.
-- `npm run qa:real-provider:fake`: passed.
-- `npm run env:readiness -- --strict`: passed, missing=0 and warning=3.
-- `npm run pwa:check`: passed.
-- `npm run prisma:validate`: passed.
-- `npm run db:smoke`: passed against the real Neon/PostgreSQL configuration.
-- `npm run build`: passed.
-- M135 historical `npm run e2e`: passed, 15 tests (2026-08-23).
-- `npm --cache .\.npm-cache audit --audit-level=high`: passed, 0 vulnerabilities.
-- `git status --short --ignored`: the latest full verification snapshot reported a clean source tree with only ignored generated folders. Re-check after any handoff/documentation edits.
-- M49 follow-up: `npm run typecheck` now runs `npm run next:typegen` first, and E2E normalizes Next route type imports after stopping the dev server.
-- M56 follow-up: `npm run docs:check` now also verifies key Taskbook task-definition statuses stay aligned with the current task snapshot.
-- M57-M135 follow-up: smoke now covers account deletion, post-delete derived-data isolation, PWA static assets, invalid import JSON, voice validation errors, vault/secret hardening, export scrub of accidental high-risk strings across companion export subtrees, memory fallback session isolation, all-user cron auth boundaries, Vercel Cron GET auth, proactive scheduler maxDrafts early-stop, private no-store API response headers, signed session cookie anti-forgery, session signing readiness, API response-boundary static guards, automatic quote redaction, 1 minute proactive cadence defaults, assistant reply format normalization, deleted-memory API/export invisibility, compatible model diagnostics, raw-payload response sanitization, concrete relationship-state emotion/event updates, safe configured-database outage responses, single-companion proactive draft truncation/schedule diagnostics, chat-completion connection probes, provider endpoint switch isolation, keyed safety-event hash export, and usage/safety export limit metadata; dedicated QA now covers structured import planner compatibility, config/vault security, settings/privacy E2E paths, memory isolation E2E, session secret log redaction, response text sanitization, non-compatible provider adapter hermetic auth/payload/default-endpoint coverage, shared-LLM voice provider behavior, proactive cron deploy contracts, BYOK fake-compatible browser flow, voice fallback display redaction, settings credential-delete failure/model-list diagnostic redaction, real-person-substitute immersion prompt wording, optional real compatible BYOK target flow, and fake-compatible real-provider QA self-test, while release verification normalizes Next route type imports before boundary checks, docs check guards empty secret placeholders in `.env.example` plus session signing secret wording in PR/deployment materials, `env:secrets` standardizes local secret generation without writing project files, Prisma scripts load local env before migration/deploy commands, optional Neon direct migration URLs are supported, DB smoke retries transient database cleanup connection drops, configured PostgreSQL no longer silently falls back to memory on Prisma connectivity errors, deployment docs now include copyable protected proactive scheduler examples for Vercel Cron and GitHub Actions, and target deployments must mirror env/secrets then run `npm run verify:deploy`.
+1. 阅读当前状态与 Taskbook，确认本次范围和未验项目。
+2. 在对应隔离环境执行 [QA.md](QA.md) 所需检查；实际结果只登记当前状态，保留日期、环境和失败/跳过项。
+3. 检查 git diff、生成物/密钥边界与 npm run secrets:check。数据库、个人数据、.netlify-token、签名私钥、缓存和安装包不入 Git。
+4. 更新 src/lib/release-notes.json 时运行 npm run release:notes；不要手改 DEVELOPMENT_LOG。
+5. 同步客户端版本、构建号及 site/site.json；运行 npm run release:check、npm run docs:check。
+6. 提交、push、发布 Release 或触发 Netlify 均是独立动作。本地构建成功不代表已执行这些动作；按当前用户授权处理。
 
-## Before Push Or PR Update
+## 安装包和介绍站发布
 
-Additional production access gate after `npm run build`: `npm run qa:auth-access`.
+- 安装包在 dist/installers/，公开附件及 SHA-256 对照 site/site.json；源码、包内配置与分发范围需逐次复核，不沿用旧“仅封闭测试”的结论。
+- 发布前先用 npm run release:publish -- --dry-run 检查正文和文件；真实发布步骤见 [SITE.md](SITE.md)。
+- 验证证据链接应能被接收者访问，公开记录指向仓库文档，不能声称 Git 忽略目录里的 JSON 是公开附件。
+- 内部数据库备份、脱敏资料 JSON 和完整跨设备账户迁移是不同能力，不写成“已有一键外部恢复”。
+- 部署静态站后核对线上首页、版本、下载链接和 Web 入口提示；记录实际部署与本地待发布修改的区别。
 
-Run:
+## 应用服务部署
 
-```bash
-npm run verify:local -- --skip-e2e
-npm run e2e
-npm run verify:release
-git status --short --ignored
-```
-
-Expected local status after commit should only show ignored generated folders such as `.next/`, `.npm-cache/`, `node_modules/`, `test-results/`, and `tsconfig.tsbuildinfo`.
-
-Run `npm run verify:deploy` in the target deployment environment after `DATABASE_URL`, `USER_KEY_VAULT_SECRET`, a session signing secret source, and `PROACTIVE_CRON_SECRET` are present there. The current local environment has passed this gate with real Neon/PostgreSQL; each deployment target still needs its own secret-store verification.
-
-## Push And PR
-
-Check live branch state:
-
-```bash
-git status --short --branch
-```
-
-Push command:
-
-```bash
-git push origin codex/mvp-release-candidate
-```
-
-PR checklist:
-
-- Use `.github/pull_request_template.md`.
-- Use [PR_DRAFT.md](PR_DRAFT.md) as the prefilled summary and verification notes.
-- Link `docs/MVP_STATUS.md` for current capability status.
-- Link `docs/RELEASE_ACCEPTANCE.md` for manual demo acceptance.
-- Link `docs/DEPLOYMENT.md` for production configuration.
-- Do not paste real API keys, database URLs, vault secrets, session secrets, cron secrets, screenshots containing secrets, provider raw payloads, or exported private data.
+仅当另行部署聊天应用时，在目标环境配置 DATABASE_URL、USER_KEY_VAULT_SECRET、SESSION_COOKIE_SECRET 或强 vault-secret fallback、PROACTIVE_CRON_SECRET、认证邮件和模型配置，再运行 npm run prisma:migrate:deploy 与 npm run verify:deploy。语音共用网关时为 VOICE_PROVIDER=shared-llm。细节见 DEPLOYMENT；本地历史通过不能代替新目标的验证。
 
 ## CI Expectations
 
-GitHub Actions should run:
+以下命令与 .github/workflows/ci.yml、scripts/verify-local.mjs 保持一致；列出命令不表示本轮已经执行。
 
 ```bash
 npm ci
 npm run secrets:check
 npm run docs:check
+npm run next:typegen
 npm run git:boundary
 npm run typecheck
 npm run lint
@@ -220,57 +56,28 @@ npm run qa:groups
 npm run qa:journey
 npm run qa:abilities
 npm run qa:vault
+npm run qa:auth
 npm run qa:logging
 npm run qa:response
 npm run qa:chat-delivery
 npm run qa:providers
 npm run qa:voice
 npm run qa:voice-language
-npm run qa:auth
 npm run qa:proactive-scheduler
-npm run qa:proactive-availability
 npm run qa:proactive-cron
+npm run qa:proactive-availability
 npm run qa:real-provider:fake
+npm run pwa:check
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
-npm run pwa:check
 npm run smoke
 npm run build
+npm run qa:auth-access
 ```
 
-CI intentionally does not require real `DATABASE_URL`, real LLM key, E2E browser availability, or network audit.
+npm run e2e、npm run qa:native、npm run qa:journey:native 及原生实机检查按改动范围执行。完整本地验证入口 npm run verify:local，发布依赖审计用 npm run verify:release；静态站构建单独使用 site:build。
 
-Production deploy candidates should additionally run `npm run verify:deploy` in the target environment. That command uses strict readiness, the proactive cron contract gate, Prisma validation, and DB smoke, so local success does not replace target-environment verification.
+## 交接应附内容
 
-## Production Configuration To Mirror
-
-- Auth: default email/password; registration requires email verification. Legacy email-only accounts must recover through their mailbox; `AUTH_MODE=local-email` is permitted only for explicit nonproduction tests.
-- Mail: `AUTH_APP_URL`, `AUTH_MAIL_FROM`, `AUTH_MAIL_TRANSPORT=smtp` and `AUTH_SMTP_HOST/PORT/USER/PASSWORD`; personal mailbox app-password tests need no owned domain. Optional HTTP uses `AUTH_MAIL_TRANSPORT=http` and `AUTH_MAIL_API_URL/KEY`. QQ SMTP verify and user registration inbox verification passed; HTTP delivery, public-user deliverability and new deployments require independent verification.
-- Apply the new auth and scheduler checkpoint migrations in the target database before deploy verification. v2 password sessions must expire server-side and be revoked after password reset; verification/reset links carry tokens in URL fragments.
-
-- `DATABASE_URL`: Neon/PostgreSQL connection string in deployment secrets only.
-- `USER_KEY_VAULT_SECRET`: production-only strong random secret, at least 32 bytes.
-- `SESSION_COOKIE_SECRET`: optional dedicated session signing secret, at least 32 bytes; if omitted, production must use a strong `USER_KEY_VAULT_SECRET` fallback.
-- `PROACTIVE_CRON_SECRET`: separate strong random secret for all-user proactive scheduling.
-- `CRON_SECRET`: Vercel Cron alias for the same scheduler secret when using `vercel.json`.
-- LLM: `LLM_PROVIDER=compatible`, `LLM_BASE_URL=https://api.tryanotherone.com/v1`, model selected through settings or server fallback.
-- Voice: `VOICE_PROVIDER=shared-llm`, with `VOICE_STT_MODEL` and `VOICE_TTS_MODEL` when the gateway requires audio-specific models.
-
-Generate secrets locally and paste only into local/deployment secret stores:
-
-```bash
-npm run env:secrets
-```
-
-Use the generated `USER_KEY_VAULT_SECRET`, `SESSION_COOKIE_SECRET`, and `PROACTIVE_CRON_SECRET` values only in `.env.local` or deployment secrets. When deploying on Vercel Cron, set `CRON_SECRET` to the same scheduler secret or another strong scheduler secret in Vercel environment variables. The command prints values and does not write them to project files.
-
-## Known Non-blocking Local Warnings
-
-- Git may warn that it cannot read `C:\Users\lvicztojry/.config/git/ignore`; this is an environment-level global ignore permission warning.
-- `env:readiness -- --strict` currently reports warning=3 with missing=0; review warnings before final production rollout, but they are not database blockers.
-
-## Deferred Product Decisions
-
-- Deferred by product decision for first release: paid subscription/quota system, moderation admin, feedback survey, and beta invite mechanism.
-- Remaining external setup: mirror the locally verified PostgreSQL and secret configuration into the target deployment environment, then rerun deploy verification there.
+本次范围、对应状态链接、执行过的命令与环境、仍失败/待验的项目、交付物位置及下一动作。秘密只放本地或目标平台的 secret store，不粘贴进交接、Issue、日志或截图。

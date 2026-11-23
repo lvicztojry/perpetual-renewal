@@ -1,184 +1,79 @@
 # 生生不息 / perpetual-renewal
 
-每次版本更新的功能与修复记录见 [开发与版本更新日志](docs/DEVELOPMENT_LOG.md)。发布前更新 `src/lib/release-notes.json` 并运行 `npm run release:notes`；客户端公告与开发日志共用该记录，原生构建会检查其与版本号是否一致。
+只要想念，就会想见。一个基于《十日终焉》二创世界观的全关系 AI 陪伴项目，支持人物设定、私聊/群聊、长期记忆、主动回响和「入梦」校准。
 
-当前能力、验收日期和施工顺序统一见 [项目当前状态](docs/MVP_STATUS.md)；本页保留操作流程和历史说明。
+[介绍站](https://perpetual-renewal.netlify.app/) · [下载测试版](https://github.com/lvicztojry/perpetual-renewal/releases) · [当前进度与验收](docs/MVP_STATUS.md) · [文档目录](docs/README.md)
 
-当前持续开发 Web、Windows、Android，共用初醒接引、留灯会与能力演出。已有账号可在侧栏点击「找余念安」开启或重返初醒；新账号首次进入自动接引。原生账号仍保存在各自设备。安装与数据边界见 [本地客户端](docs/LOCAL_CLIENTS.md)。微信、macOS、iOS 暂停扩展，既有代码保留。
+当前持续开发 Web、Windows、Android。介绍站已上线，应用 Web 仍为本机/同 Wi-Fi 试用；原生客户端按设备保存账户和数据，尚无自动跨设备同步。具体版本、部署事实与待验项只在 [MVP_STATUS.md](docs/MVP_STATUS.md) 维护。
 
-历史微信预览入口：导入 `miniprogram/`，步骤见 [小程序联调说明](docs/WECHAT_MINIPROGRAM.md)。
+## 选择使用方式
 
-群聊从侧栏进入：邀请已有的人物，多人逐条接话、确认共同记忆，并可配置主动话题。一键启动同时启动本机群聊调度；配置与首版边界见 [群聊说明](docs/GROUPS.md)。
+| 需要做什么 | 入口 |
+| --- | --- |
+| 了解项目、获取 Windows / Android 测试安装包 | 介绍站与 GitHub Releases；数据及更新限制见 [LOCAL_CLIENTS.md](docs/LOCAL_CLIENTS.md) |
+| 在电脑运行 Web 应用 | 根目录「启动生生不息.bat」，或按下文开发步骤启动 |
+| 手机与电脑同 Wi-Fi 试用 Web | 「局域网启动生生不息.bat」，步骤见 [LAN_TRIAL.md](docs/LAN_TRIAL.md) |
+| 配置模型、邮件和数据库 | 网站设置页管理个人模型；服务配置见 [DEPLOYMENT.md](docs/DEPLOYMENT.md) 和 [.env.example](.env.example) |
+| 修改/部署介绍站 | [SITE.md](docs/SITE.md)，与聊天应用分开构建 |
 
-“生生不息”是一个关系型 AI 陪伴项目：当用户想交流却无法真正抵达某个人或某段关系时，用可设定、可记忆、会回响的 AI 关系对象承接亲情、友情、爱情、纪念、替代和自定义陪伴。
+已有账号可从侧栏「找余念安」进入初醒；普通聊天保留沉浸，人物校准集中在入梦。素材导入只发送用户选中的双方样本，不解密微信/QQ 数据库。模型与语音生成仍需访问用户配置的供应商。
 
-
-
-
-
-## 本地启动
-
-主动回响会结合人物设定、已确认记忆和近期聊天选择话题与长度，并检查重复表达；手动草稿也走同一生成流程。机制与限制见 [主动回响说明](docs/PROACTIVE_QUALITY.md)。
-
-Windows 本机试用可直接双击项目根目录的 `启动生生不息.bat`。它会检查依赖和 `.env.local`、复用已运行的应用，或在后台启动并自动打开浏览器；服务日志写入本机忽略文件 `.tmp-local-dev.*.log`。首次使用前仍需先运行一次 `npm ci`。
+## 本地开发
 
 ```bash
 npm ci
+npm run prisma:generate
 npm run dev
 ```
 
-默认开发地址：`http://localhost:3000`；本机真实体验时也可以固定用 `http://127.0.0.1:3000`，避免浏览器或代理把 `localhost` 解析得不一致。默认认证路线为自托管邮箱/密码：需要 PostgreSQL、认证迁移及邮件配置；注册须验证邮箱，已有 email-only 账号须通过原邮箱“忘记密码”设置密码。缺少模型配置时仍可使用 mock 回复；一旦配置了 `DATABASE_URL`，数据库连接或写入失败会直接暴露，不会静默保存到 memory。
+先将 .env.example 复制为本机 .env.local，按 [AUTH.md](docs/AUTH.md) 和部署文档配置。默认邮箱密码认证需要数据库与验证邮件。个人模型 Key 优先在设置页保存到用户 vault；数据库连接、vault、session 签名和 cron secret 由本机/部署环境提供。
 
-只有显式非生产测试可设置 `AUTH_MODE=local-email` 使用旧邮箱演示登录和 memory/mock 路线；它不是默认登录方式，生产环境不允许启用。截至 2026-10-31，真实隔离 PostgreSQL 认证、当前数据库迁移与用户 QQ 注册收件验证已通过，见 [认证与邮件部署](docs/DEPLOYMENT.md#认证与邮件)。
+本机地址通常为 http://localhost:3000。只有显式非生产测试才可启用 AUTH_MODE=local-email 和 memory/mock；不要把测试模式当作公开登录服务。配置数据库后可用 npm run db:smoke 检查，目标应用部署另需 npm run verify:deploy。
 
-如果要接真实数据库或模型，先复制 `.env.example` 为 `.env.local`，真实 key 只放 `.env.local`、部署平台 secret 或网站设置页的用户级 vault。
-可用 `npm run env:secrets` 生成本地/部署用强随机 secret；命令只打印值，不写入文件。
-
-## 当前发布候选
-
-- 分支：`codex/mvp-release-candidate`
-- 当前同步点：运行 `git status --short --branch` 和 `git log -1 --oneline` 查看。
-- 初始 baseline：`ef4939e feat: build relationship ai mvp baseline`
-- 推远端前建议运行：`npm run verify:pr`、`npm run e2e`、`npm run verify:release`、`git status --short --ignored`；本机已验证不等于目标部署已验证，真实部署前要把 env/secrets mirror 到目标环境并在那里运行 `npm run verify:deploy`。
-- `npm run e2e` 默认启动 managed mock/memory 服务，作为稳定 UI 门禁；如要复用当前真实配置服务，先启动 `npm run dev`，再设置 `E2E_BASE_URL=http://127.0.0.1:3000` 只跑目标 spec/用例。
-- 类型检查：`npm run typecheck` 会先运行 `npm run next:typegen`，确保 Next route types 已生成且 `next-env.d.ts` 保持稳定。
-
-## 真实配置
-
-真实值只放在 `.env.local`、部署平台环境变量或网站设置页的用户级 vault，不写入仓库。
-分工可以这样记：`.env.local` 负责数据库、vault/session/cron secret 和可选服务端 fallback；网站设置页负责当前登录用户自己的 LLM API key、模型和连接测试。BYOK 模式下，`LLM_API_KEY` 和 `LLM_MODEL` 不一定要写进 `.env.local`，用户在设置页保存后也能完成真实聊天链路。
+静态介绍站可独立构建：
 
 ```bash
-DATABASE_URL="Neon or PostgreSQL connection string"
-DATABASE_URL_UNPOOLED=""
-LLM_PROVIDER="compatible"
-LLM_BASE_URL="https://api.tryanotherone.com/v1"
-LLM_MODEL="selected-model-name"
-USER_KEY_VAULT_SECRET="32-byte-or-longer-random-secret"
-SESSION_COOKIE_SECRET=""
-PROACTIVE_CRON_SECRET="random-cron-secret"
-CRON_SECRET=""
-VOICE_PROVIDER="shared-llm"
-AUTH_APP_URL="http://127.0.0.1:3000"
-AUTH_MAIL_TRANSPORT="smtp"
-AUTH_MAIL_FROM="your-mailbox@example.com"
-AUTH_SMTP_HOST="smtp.example.com"
-AUTH_SMTP_PORT="465"
-AUTH_SMTP_USER="your-mailbox@example.com"
-AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
+npm run site:build
+npm run site:preview
 ```
 
-- 数据库：第一版推荐 Neon PostgreSQL；`DATABASE_URL` 可使用 pooled 连接服务应用请求，`DATABASE_URL_UNPOOLED` 可选填 direct 连接供 Prisma 迁移使用；配置后运行 `npm run db:smoke` 做连通性检查，部署目标还必须在 mirror env/secrets 后运行 `npm run verify:deploy`。
-- LLM：默认使用 TryAnotherOne 的 compatible 中转站；用户可在网站内保存自己的 API key，也可用服务端环境变量做 fallback。
-- 模型列表：设置页读取模型列表需要已保存或即将保存的 API key；如果供应商不支持 `/models` 或临时失败，可以手动填入模型名后点“测试连接”。
-- 真实 BYOK 联调：需要显式 opt-in，设置 `REAL_PROVIDER_QA=1`、`REAL_LLM_API_KEY`、`REAL_LLM_BASE_URL`、`REAL_LLM_MODEL` 后运行 `npm run qa:real-provider`；脚本会验证用户 vault -> 模型诊断 -> 真实聊天 -> 用量记录，并脱敏输出。它不属于默认 `verify:pr`、CI 或发布门禁。
-- fake-compatible 自测：`npm run qa:real-provider:fake` 使用本地假供应商验证真实联调脚本逻辑，不需要真实 key，不代表真实供应商联调通过。
-- Vault：`USER_KEY_VAULT_SECRET` 用于加密用户 API key，生产环境必须设置强随机值。
-- Session：`SESSION_COOKIE_SECRET` 可单独用于签名 session cookie；如果不设置，会复用强 `USER_KEY_VAULT_SECRET`。
-- 认证：新账号验证邮箱后才能用密码登录；密码 session 使用带服务端到期时间的 v2 签名 cookie，重置密码撤销旧 session。旧 email-only 用户走原邮箱恢复，不能仅凭邮箱认领账号。
-- 邮件：个人邮箱可用 SMTP 授权码测试，无需自有域名；`465` 使用 TLS，`587` 使用 STARTTLS。可改为 `AUTH_MAIL_TRANSPORT=http` 并设置 `AUTH_MAIL_API_URL`、`AUTH_MAIL_API_KEY`；两条路线共用 `AUTH_APP_URL`、`AUTH_MAIL_FROM`。QQ SMTP verify 与用户真实注册收件已通过；HTTP 投递、公开注册送达率及新部署目标另验。
-- 主动回响：`PROACTIVE_CRON_SECRET` 保护 all-user 调度入口；Vercel Cron 可用 `CRON_SECRET` 作为同用途 alias。
-- 本地主动回响：打开工作台时，当前关系对象会按 1 分钟节奏做前台检查；关闭页面后本地不会有常驻后台调度器。生产 all-user 自动调度由 Vercel Cron 或外部 cron 调用受保护入口。
-- 语音：`VOICE_PROVIDER=shared-llm` 表示语音与 LLM 共用中转站配置。
-- 命令行检查：`npm run env:readiness` 会读取项目根目录的 `.env.local`/`.env`，只输出就绪状态和下一步，不打印真实值。
-- Secret 生成：`npm run env:secrets` 会生成 `USER_KEY_VAULT_SECRET`、`SESSION_COOKIE_SECRET` 和 `PROACTIVE_CRON_SECRET` 的强随机值，输出结果只应放入 `.env.local` 或部署平台 secret。
+前者生成 site/dist，后者本地预览；两者都不会自行部署。无需为文档或静态站整理启动真实聊天、邮件或数据库测试。
 
-## 网站内配置
+## 目录归属
 
-进入设置页后可以：
+| 路径 | 职责 |
+| --- | --- |
+| [src/](src/) / [prisma/](prisma/) | Web 应用与共享业务 / PostgreSQL 数据模型和版本迁移 |
+| [native/](native/) | Windows、Android 本地运行适配、Tauri 和原生构建 |
+| [site/](site/) / [netlify.toml](netlify.toml) | 静态介绍站素材、下载配置 / Netlify 构建目标 |
+| [public/](public/) / [design/](design/) | 应用运行素材 / 设计来源、方案与带日期截图；历史设计不代表当前主题 |
+| [scripts/](scripts/) / [tests/](tests/) | 开发、构建、运维和验证工具 / 自动回归与夹具 |
+| [docs/](docs/) | 状态、任务、契约、操作与明确标记的历史归档 |
+| [deploy/](deploy/) | 应用服务的容器部署方案，目录存在不代表目标环境已上线 |
+| [miniprogram/](miniprogram/) | 历史小程序实现，当前暂停扩展 |
+| dist/、site/dist/、native/dist/ | 本机交付/生成目录，不入 Git |
+| logs/、.tmp-*/、.build-tools/ | 本机日志、隔离 QA 和工具缓存，保留在 D 盘、不入 Git |
+| .env.local、.netlify-token、.release-keys/ | 私密配置和签名材料，不入 Git、不放进文档 |
 
-- 保存或删除用户自己的 LLM API key。
-- 读取兼容中转站模型列表并选择模型。
-- 点击“测试连接”验证当前 provider/baseUrl/model/key 是否可用。
-- 查看配置状态向导，确认数据库、vault、session 签名、cron、LLM 和 voice 是否就绪。
+不为整理而删除用户数据、签名身份、工具链或带日期的验证素材。各目录新增文件应按职责归位，临时结果使用已忽略的目录。
 
-## 验收命令
-
-本地推荐一条命令顺序执行，避免 `smoke` 和 `e2e` 并发抢 dev server 锁：
+## 验证与协作
 
 ```bash
-npm run verify:local
-```
-
-PR 快速验证：
-
-```bash
-npm run verify:pr
-```
-
-发布前需要额外跑依赖漏洞扫描：
-
-```bash
-npm run verify:release
-```
-
-生产部署前严格验证：
-
-```bash
-npm run verify:deploy
-```
-
-也可以逐条执行：
-
-```bash
-npm run typecheck
-npm run lint
 npm run docs:check
-npm run git:boundary
-npm run db:smoke
-npm run smoke
-npm run qa:samples
-npm run qa:prompt
-npm run qa:memory-lifecycle
-npm run qa:sync
-npm run qa:imports
-npm run qa:dream
-npm run qa:vault
-npm run qa:logging
-npm run qa:response
-npm run qa:providers
-npm run qa:voice
-npm run qa:voice-language
-npm run qa:auth
-npm run qa:proactive-scheduler
-npm run qa:proactive-cron
-npm run qa:real-provider:fake
-npm run pwa:check
-npm run env:readiness
-npm run build
-npm run e2e
+npm run release:check
 npm run secrets:check
-npm --cache .\.npm-cache audit --audit-level=high
+npm run git:boundary
 ```
 
-真实 BYOK 供应商目标联调是单独的可选命令：
+按改动范围选择 [QA.md](docs/QA.md) 的其他检查。完整入口 npm run verify:local；PR 用 npm run verify:pr；发布依赖审计用 npm run verify:release。注意完整验证可能连接本机配置的数据库，不要与使用同一构建目录的 E2E/构建并行执行。
 
-```bash
-REAL_PROVIDER_QA=1 REAL_LLM_API_KEY="..." REAL_LLM_BASE_URL="..." REAL_LLM_MODEL="..." npm run qa:real-provider
-```
+先读当前状态，再按 [TASKBOOK.md](docs/TASKBOOK.md) 定位任务，遵守 [CONTRIBUTING.md](docs/CONTRIBUTING.md) 的模块和文件边界。提交前运行 git status --short --branch 和 git log -1 --oneline 查看实际状态，文档不固定远端同步结论。
 
-## 文档入口
+## 文档与配置单源
 
-- [AUTH：默认密码认证与 QQ 邮箱 SMTP](docs/AUTH.md)
-- [PRD](docs/PRD.md)
-- [TASKBOOK](docs/TASKBOOK.md)
-- [MVP_STATUS](docs/MVP_STATUS.md)
-- [DEPLOYMENT](docs/DEPLOYMENT.md)
-- [QA](docs/QA.md)
-- [RELEASE_ACCEPTANCE](docs/RELEASE_ACCEPTANCE.md)
-- [RELEASE_HANDOFF](docs/RELEASE_HANDOFF.md)
-- [ERROR_COPY](docs/ERROR_COPY.md)
-
-## 初始人物与线上群聊
-
-私聊和群聊侧栏中的「认识留灯会」可以预览并添加六位 19—25 岁的初始人物，同时建立留灯会群聊。人物拥有各自的生活背景、现实交情、性格弱点和文字交流样例；只通过社交媒体交流，不输出动作或场景旁白。示例用于表达风格，不作为用户真实经历或记忆。
-
-添加操作按账号隔离，可重复执行；保留已经修改的人物、问候语删除状态、群设置和聊天记录。初始关系从零开始，不预置用户发言、用户记忆或亲密关系。新增人物的私聊主动消息和初始群主动聊天默认关闭。
-
-群聊调度适用于所有用户自定义人物：结合点名、话题、连续追问、最近参与情况选择少量发言者，以每轮回复上限约束人数。自动续聊跟随最新群友消息；生成时只加载当前说话者的完整资料，其他成员仅提供公开姓名和群内身份。共享记忆先按知情范围过滤再检索，私聊记忆须显式授权，入群前历史不可见。
-
-参考：[SillyTavern 人物卡与示例](https://docs.sillytavern.app/usage/core-concepts/characterdesign/)、[群聊发言与人物卡切换](https://docs.sillytavern.app/usage/core-concepts/groupchats/)、[RisuAI Lorebook](https://github.com/kwaroran/RisuAI/wiki/Lorebook)。人物内容及本次实现均为原创，没有引入这些项目的代码依赖。
-
-验证：运行 npm run qa:groups（含初始人物安装、账号隔离、群聊生成和并发测试），以及 npm run e2e -- --grep "starter|group"。离线及浏览器测试不调用付费模型；自然度仍需在实际选用的模型上进行对话评估。
-
-故事背景独立放在 /story，可从人物预览中的“故事背景”进入。觉醒、人物来源和交流媒介的叙事说明不放在日常操作文案与群介绍中；内部提示继续约束人物以文字聊天方式交流。
+- 当前事实、任务状态、实际验收：[MVP_STATUS.md](docs/MVP_STATUS.md)。
+- 近期任务与暂停的长期队列：[TASKBOOK.md](docs/TASKBOOK.md)。
+- 版本记录：[release-notes.json](src/lib/release-notes.json)；[DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md) 由 npm run release:notes 生成，不手改。
+- 介绍站与下载元数据：[site/site.json](site/site.json)；发布/部署流程见 [RELEASE_HANDOFF.md](docs/RELEASE_HANDOFF.md)。
+- 历史任务、QA 和交接全文在 docs 中对应 *_HISTORY.md，不作为当前实现或刚通过的证据。

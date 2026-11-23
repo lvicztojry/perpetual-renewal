@@ -1,5 +1,7 @@
 # 生生不息技术施工路线 v0.1
 
+本文保留 Web 初始架构与接口契约，不能视为当前施工快照。当前架构包括独立静态介绍站 site/、Next.js Web 应用 src/、复用业务的 Tauri Windows/Android 客户端 native/；三者分别构建。当前进度见 [MVP_STATUS.md](MVP_STATUS.md)，原生数据与更新见 [LOCAL_CLIENTS.md](LOCAL_CLIENTS.md)，介绍站见 [SITE.md](SITE.md)。原生本地账户和 Web 服务端账户并非自动同步。
+
 ## 1. 施工原则
 
 第一版采用“单关系对象纵切 MVP”路线：先把一个用户与一个 AI 关系对象之间的完整体验打通，再扩展多角色、市场、多模态和外部渠道。

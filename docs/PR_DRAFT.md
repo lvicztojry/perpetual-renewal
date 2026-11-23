@@ -1,5 +1,7 @@
 # PR Draft
 
+历史 PR 草稿：下文保留当时的首版候选描述，不能原样作为新 PR 的当前范围或验证结果。新 PR 按实际 diff 编写，流程见 [RELEASE_HANDOFF.md](RELEASE_HANDOFF.md)，当前事实见 [MVP_STATUS.md](MVP_STATUS.md)。
+
 当前能力、验收日期和施工顺序统一见 [项目当前状态](MVP_STATUS.md)；本页保留操作流程和历史说明。
 
 ## Title

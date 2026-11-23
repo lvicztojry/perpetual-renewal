@@ -111,7 +111,6 @@ try {
     }
     case "deploy": {
       const site = await resolveSite(target);
-      const prod = rest.includes("--prod") || true;
       const deploy = await api(`/sites/${site.id}/builds`, {
         method: "POST",
         body: JSON.stringify({ clear_cache: false })
@@ -128,7 +127,7 @@ try {
           "  node scripts/netlify.mjs set-branch <site> <branch>",
           "  node scripts/netlify.mjs deploy <site>",
           "",
-          "Token：环境变量 NETLIFY_AUTH_TOKEN，或 git credential helper。"
+          "Token：环境变量 NETLIFY_AUTH_TOKEN，或根目录被忽略的 .netlify-token 文件。"
         ].join("\n")
       );
   }

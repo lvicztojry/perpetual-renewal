@@ -34,9 +34,6 @@ const esc = value =>
 
 const fill = value => String(value ?? "").replaceAll("{{version}}", nativeVersion);
 
-/** 发布标签：默认 v{{version}}，可在 site.json 里覆盖。 */
-const releaseTag = fill(config.releaseTag ?? "v{{version}}");
-const releasePageUrl = `${config.repo}/releases/tag/${releaseTag}`;
 const releasesIndexUrl = `${config.repo}/releases`;
 
 /**
@@ -260,11 +257,11 @@ const html = `<!doctype html>
         <p class="section__note">几件实际会影响你使用方式的事。</p>
       </div>
       <ul class="facts">
-        <li><strong>三端同行</strong>：网页版、Windows 与 Android 共用同一套人物、故事与能力规则。</li>
+        <li><strong>三端同行</strong>：网页版、Windows 与 Android 共用同一套人物、故事与能力规则；原生本地账号和数据按设备独立保存，暂不自动同步。</li>
         <li><strong>本地优先</strong>：本地客户端把账号、聊天、记忆与备份存在你自己的设备上，用密码与恢复码管理。</li>
-        <li><strong>自备模型</strong>：可以在设置页填入自己的模型 API Key，也可以在本地部署时配置服务端默认模型。</li>
+        <li><strong>自备模型</strong>：可以在设置页填入自己的模型 API Key，也可以在本地部署时配置服务端默认模型；模型生成、提炼与语音仍需联网调用所选供应商。</li>
         <li><strong>群聊与记忆</strong>：邀请已有的人物组成群聊，多人逐条接话；记忆按知情范围检索，私聊内容需要显式授权才会进入群聊。</li>
-        <li><strong>数据归你</strong>：支持导出与恢复；删除账号会一并清理对应的人物与聊天记录。</li>
+        <li><strong>数据归你</strong>：支持资料 JSON 导出与设备内部备份恢复，两者都不等于完整账号跨设备迁移；删除账号会一并清理对应的人物与聊天记录。</li>
       </ul>
     </div>
   </section>

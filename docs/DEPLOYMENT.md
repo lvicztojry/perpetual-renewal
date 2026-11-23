@@ -2,7 +2,9 @@
 
 本文件记录“生生不息 / perpetual-renewal”第一版推荐上线流程。仓库文档只写配置流程、变量名和占位值；真实 `DATABASE_URL`、LLM key、模型名和 secret 只放本机、部署平台或用户 vault。
 
-2026-11-21 用户改为准备给异地朋友长期分享，先交付独立云端部署包、再选择云服务。容器路线及受邀邮箱配置见 [CLOUD_SHARING.md](CLOUD_SHARING.md)。下文 Vercel/Neon 路线保留备选；尚未购买、迁移个人数据或发布公网服务。
+本页只记录应用 Web 的部署流程，当前配置、运行与验收结果统一见 [MVP_STATUS.md](MVP_STATUS.md)。介绍站已由用户完成 Netlify 部署，Windows/Android 0.1.3 已通过 GitHub Releases 公开发行；应用 Web 仍仅 LAN 试用。三者须分别判断，介绍站地址不是应用登录或认证回调地址。介绍站操作见 [SITE.md](SITE.md)，客户端下载配置见 [site/site.json](../site/site.json)。
+
+2026-11-21 曾准备给异地朋友长期分享的独立云端部署包，容器路线及受邀邮箱配置见 [CLOUD_SHARING.md](CLOUD_SHARING.md)。下文 Vercel/Neon 路线保留备选，不代表该应用服务已经公网部署。
 
 ## Recommended Stack
 
@@ -53,11 +55,11 @@ npm run env:secrets
 
 ### 认证与邮件
 
-当前 QQ SMTP 授权码配置及 verify、实际注册收件均已验证。剩余生产配置是将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；该待办不表示缺少 QQ 密码。readiness 已分别检查邮件凭据和生产 HTTPS 回调，12 项隔离测试通过，安全阈值保持不变。
+生产配置需将本地 HTTP 的 `AUTH_APP_URL` 换为用户可访问的应用 HTTPS 回调，再在目标环境复跑严格 readiness/verify:deploy；不得使用纯静态介绍站地址代替。readiness 分别检查邮件凭据和生产 HTTPS 回调；当前就绪状态与验收证据见 [MVP_STATUS.md](MVP_STATUS.md)，不能据历史收件结果推断新目标已通过。
 
 个人 QQ 邮箱的精确本机配置与授权码说明见 [AUTH.md](AUTH.md)；无需自有域名，生产邮件中的链接须使用公开可访问的 HTTPS 站点地址。
 
-截至 2026-10-31：真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过。新增投递迁移通过真实 PostgreSQL 并发/关系验证且已应用到 public schema。QQ SMTP verify 通过，用户完成真实注册、邮件验证及登录。用户 vault 探针成功；此前 tests/qa-vault-provider 真实聊天及独立持久化通过。历史上增强版 vault QA 两次失败均为 kind=provider_response、HTTP 503，记录为当前上游可用性限制；临时 QA 关系对象清理通过。此前成功的真实聊天/独立持久化证据仍保留；模板 fallback 与投递已验证，2026-11-02 已通过真实模型主动生成、手动发送、独立持久化及去重验证；当前账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。 新部署目标须独立验收；8 月结果仅作历史记录。
+历史验证（2026-10-31 / 2026-11-02）：当时真实数据库已恢复，认证/检查点迁移已应用，真实隔离 PostgreSQL 认证与 checkpoint CAS、DB smoke 通过；新增投递迁移通过真实 PostgreSQL 并发/关系验证并应用到 public schema。QQ SMTP verify、用户真实注册、邮件验证及登录通过。用户 vault 探针成功，此前 `tests/qa-vault-provider` 真实聊天及独立持久化通过。增强版 vault QA 曾两次出现 `kind=provider_response`、HTTP 503，临时 QA 关系对象清理通过；该失败记录不代表当前上游状态。模板 fallback 与投递已有验证，2026-11-02 通过真实模型主动生成、手动发送、独立持久化及去重验证；当时账号全局主动开关关闭，自动投递正确拒绝，测试未修改用户偏好。详细历史证据见 [MVP_STATUS_HISTORY.md](MVP_STATUS_HISTORY.md)，当前配置与通过范围以 [MVP_STATUS.md](MVP_STATUS.md) 为准；新部署目标须独立验收，8 月结果也仅作历史记录。
 
 默认使用邮箱与密码登录。注册邮件验证成功后才创建可登录账号；历史 email-only 用户通过原邮箱“忘记密码”设置密码，沿用原账号资料和关系。密码须为 12–128 个字符。验证与重置邮件链接分别为 `/verify-email#token=…`、`/reset-password#token=…`，令牌 30 分钟内单次有效；页面读取 fragment 后通过请求体提交，避免令牌进入 URL query 与访问日志。密码 v2 session 在服务端检查到期时间（30 天）和凭证版本；密码重置后旧 session 失效。
 
@@ -430,7 +432,7 @@ npm run env:secrets
 
 ### 4. Proactive Cron Gate
 
-- [ ] 第一版没有应用进程内常驻调度器；生产 all-user 调度由 Vercel Cron 调用 `GET /api/proactive/run`，或由 GitHub Actions/外部 cron 调用 `POST /api/proactive/run`。
+- [ ] 应用 Web 的生产 all-user 私聊调度由 Vercel Cron 调用 `GET /api/proactive/run`，或由 GitHub Actions/外部 cron 调用 `POST /api/proactive/run`；容器包的私聊/群聊调度见 [CLOUD_SHARING.md](CLOUD_SHARING.md)，本机群调度见 [GROUPS.md](GROUPS.md)，不以页面前台检查代替后台调度验收。
 - [ ] all-user 调度只允许携带 `Authorization: Bearer <PROACTIVE_CRON_SECRET_OR_CRON_SECRET>` 或 `x-proactive-cron-secret` 的请求访问。
 - [ ] Cron 平台中只配置 secret 值，不把 secret 写进 URL query、日志命令或仓库脚本。
 - [ ] 首次上线先用 POST `dryRun:true` 验证扫描数量和候选时间，再启用 Vercel Cron 或切换外部 cron 为 `dryRun:false`。

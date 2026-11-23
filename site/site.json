@@ -1,8 +1,8 @@
 {
-  "url": "",
+  "url": "https://perpetual-renewal.netlify.app",
   "repo": "https://github.com/lvicztojry/perpetual-renewal",
   "version": "0.1.3",
-  "downloadNotice": "测试安装包公开提供，所有人都可以下载。当前仍是测试版本，功能与数据格式可能继续调整；升级前建议先用客户端内的备份功能导出一次数据。",
+  "downloadNotice": "测试安装包公开提供，所有人都可以下载。当前仍是测试版本，升级前建议先创建客户端内部备份，并另行导出需要保留的资料。内部备份仍保存在本设备，不等于完整账号的外部备份或跨设备迁移。",
   "downloads": {
     "windows": {
       "label": "Windows",
