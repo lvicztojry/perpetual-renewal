@@ -2962,19 +2962,30 @@ async function runSmoke() {
   assert(chat.body.activeMemoryCount === 1, "chat complete should only count active memories");
   pass("POST /api/chat/complete mock fallback and active memory filtering");
 
-  const voiceTranscription = await request("/api/voice/transcribe", {
-    method: "POST",
-    body: JSON.stringify({
-      audioBase64: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
-      mimeType: "audio/wav",
-      fileName: "smoke.wav",
-      language: "zh-CN",
-      mockTranscript: "Smoke 语音转写"
-    })
-  });
+  const voiceTranscription = await request(
+    "/api/voice/transcribe",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        audioBase64: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+        mimeType: "audio/wav",
+        fileName: "smoke.wav",
+        language: "zh-CN"
+      })
+    },
+    { allowError: true }
+  );
+  // 默认环境没有 STT 通道：mock 不能再编一句"我刚发来一段语音"当识别结果。
   assert(
-    typeof voiceTranscription.body.text === "string" && voiceTranscription.body.text.length > 0,
-    "voice transcription should return text"
+    voiceTranscription.response.status === 502 &&
+      voiceTranscription.body.errorType === "voice_transcription_unavailable" &&
+      voiceTranscription.body.error === "这段语音没有识别出来，可以再录一次，或改用文字。" &&
+      !("text" in voiceTranscription.body),
+    "mock transcription must report unavailable instead of returning canned text"
+  );
+  assert(
+    typeof voiceTranscription.body.retryable === "boolean" && voiceTranscription.body.retryable,
+    "unavailable transcription should stay retryable"
   );
   assert(
     voiceTranscription.body.provider === "mock" ||
@@ -3016,7 +3027,21 @@ async function runSmoke() {
     ),
     "voice transcription"
   );
-  pass("POST /api/voice/transcribe safe provider response");
+  pass("POST /api/voice/transcribe reports unavailable instead of canned mock text");
+
+  const explicitMockTranscription = await request("/api/voice/transcribe", {
+    method: "POST",
+    body: JSON.stringify({
+      language: "zh-CN",
+      mockTranscript: "联调用的显式转写"
+    })
+  });
+  assert(
+    explicitMockTranscription.body.text === "联调用的显式转写" &&
+      explicitMockTranscription.body.provider === "mock",
+    "an explicit mockTranscript should still round-trip for local development"
+  );
+  pass("POST /api/voice/transcribe keeps explicit mock transcripts for local development");
 
   const rejectedVoiceTranscription = await request(
     "/api/voice/transcribe",

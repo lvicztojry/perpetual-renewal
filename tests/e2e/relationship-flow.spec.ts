@@ -603,6 +603,176 @@ test("silent fallback audio is reported as unavailable instead of a ready voice 
   expect(synthesizeRequests).toBe(1);
 });
 
+test("unrecognised speech reports unavailable instead of filling the draft with canned text", async ({
+  page,
+}) => {
+  const unique = Date.now();
+  const companionName = `转写失败${unique}`;
+  const assistantReply = "我在这里，慢慢听你说。";
+  let transcribeRequests = 0;
+  let voiceMessages: Array<{
+    id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    metadata: { provider?: string; model?: string } | null;
+    createdAt: string;
+  }> = [];
+
+  // 浏览器录音本身可用；失败点在服务端 STT（网关没有转写通道）。
+  await page.addInitScript(() => {
+    const silentTrack = {
+      kind: "audio",
+      enabled: true,
+      stop() {},
+      getSettings: () => ({ deviceId: "e2e-fake-mic" }),
+    };
+    const stream = { getTracks: () => [silentTrack], getAudioTracks: () => [silentTrack] };
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => stream },
+    });
+
+    class FakeMediaRecorder {
+      state = "inactive";
+      mimeType = "audio/webm;codecs=opus";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onerror: (() => void) | null = null;
+      onstop: (() => void) | null = null;
+
+      constructor(_stream: unknown, options?: { mimeType?: string }) {
+        if (options?.mimeType) this.mimeType = options.mimeType;
+      }
+
+      static isTypeSupported() {
+        return true;
+      }
+
+      start() {
+        this.state = "recording";
+      }
+
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob([new Uint8Array(2048)], { type: this.mimeType }) });
+        this.onstop?.();
+      }
+    }
+
+    Object.defineProperty(window, "MediaRecorder", {
+      configurable: true,
+      value: FakeMediaRecorder,
+    });
+  });
+
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ messages: voiceMessages }),
+      });
+      return;
+    }
+    if (method !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const conversationId = getConversationIdFromRequest(route.request().url());
+    voiceMessages = [
+      {
+        id: `stt-user-${unique}`,
+        conversationId,
+        role: "user",
+        content: "今天想听一段声音。",
+        metadata: null,
+        createdAt: now,
+      },
+      {
+        id: `stt-assistant-${unique}`,
+        conversationId,
+        role: "assistant",
+        content: assistantReply,
+        metadata: { provider: "mock", model: "mock-local" },
+        createdAt: now,
+      },
+    ];
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        userMessage: voiceMessages[0],
+        assistantMessage: voiceMessages[1],
+        pendingMemory: null,
+        relationshipState: {
+          id: `stt-state-${unique}`,
+          companionId: `stt-companion-${unique}`,
+          familiarityScore: 4,
+          closenessScore: 3,
+          recentEmotion: "想念",
+          importantEvents: [],
+          lastInteractionAt: now,
+          explanation: "转写失败 E2E",
+          createdAt: now,
+          updatedAt: now,
+        },
+        completion: { provider: "mock", model: "mock-local" },
+      }),
+    });
+  });
+
+  await page.route("**/api/voice/transcribe", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    transcribeRequests += 1;
+    const body = route.request().postDataJSON() as { audioBase64?: string; mockTranscript?: string };
+    expect(body.audioBase64, "the recorded audio must actually be uploaded").toBeTruthy();
+    expect(body.mockTranscript, "the UI must not send a canned transcript").toBeUndefined();
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 502,
+      body: JSON.stringify({
+        error: "这段语音没有识别出来，可以再录一次，或改用文字。",
+        errorType: "voice_transcription_unavailable",
+        retryable: true,
+        provider: "mock",
+        requestedProvider: "shared-llm",
+        model: "mock-voice-local",
+        fallback: true,
+        fallbackKind: "missing_config",
+      }),
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`stt-unavailable-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("转写失败 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await page.getByLabel("名字").fill(companionName);
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
+
+  const input = page.getByPlaceholder("把想说的话放在这里");
+  await input.fill("我自己写的草稿");
+
+  await page.getByRole("button", { name: "语音输入" }).click();
+  await expect(page.getByRole("button", { name: "停止录音" })).toBeVisible();
+  await page.getByRole("button", { name: "停止录音" }).click();
+
+  await expect(page.getByText("这段语音没有识别出来，可以再录一次，或改用文字。")).toBeVisible();
+  // 关键回归：草稿不能被"我刚发来一段语音…"这类假转写覆盖。
+  await expect(input).toHaveValue("我自己写的草稿");
+  await expect(input).not.toHaveValue(/我刚发来一段语音/);
+  expect(transcribeRequests).toBe(1);
+});
+
 async function stubChatResponseWithPendingMemory(page: Page, unique: number, expectedContent: string) {
   const now = new Date().toISOString();
   let companionId = `e2e-companion-${unique}`;

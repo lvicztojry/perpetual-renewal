@@ -21,17 +21,18 @@ export class MockVoiceProvider implements VoiceProvider {
   ) {}
 
   async transcribe(options: VoiceTranscriptionOptions): Promise<VoiceTranscription> {
-    const text =
-      options.mockTranscript?.trim() ||
-      readMockTranscriptFromAudio(options.audioBase64) ||
-      "我刚用语音说：今天也很想你。";
+    // 只有调用方显式给了 mockTranscript（本地联调/测试）才返回文字；
+    // 否则音频并没有被真正识别，必须标记为占位，让 API 层按失败处理。
+    const mockText = options.mockTranscript?.trim();
 
     return {
-      text,
+      text: mockText ?? "",
       provider: this.name,
       model: "mock-voice-local",
       language: options.language ?? "zh-CN",
       fallbackReason: this.fallbackReason,
+      // true 表示"这段文字不是从音频里识别出来的"。
+      placeholder: !mockText,
       ...this.metadata
     };
   }
@@ -65,10 +66,4 @@ export class MockVoiceProvider implements VoiceProvider {
       }
     };
   }
-}
-
-function readMockTranscriptFromAudio(audioBase64: string | undefined) {
-  if (!audioBase64) return "";
-
-  return "我刚发来一段语音，想让你听见我的想念。";
 }

@@ -50,6 +50,11 @@ export type VoiceTranscription = {
   missingConfig?: string[];
   retryable?: boolean;
   status?: number;
+  /**
+   * True when text was not actually recognised from the uploaded audio (mock or
+   * fallback). API routes must not present these as a successful transcription.
+   */
+  placeholder?: boolean;
   raw?: unknown;
 };
 

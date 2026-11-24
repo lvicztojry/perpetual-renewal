@@ -1467,7 +1467,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     if (!activeCompanion || isTranscribing) return;
 
     if (!canRecordVoice()) {
-      await transcribeMockVoice("当前浏览器不支持录音，已使用 mock 语音链路。");
+      showVoiceUnavailable("当前浏览器不支持录音，请改用文字输入");
       return;
     }
 
@@ -1516,7 +1516,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setStatus("正在录音，再点一次麦克风结束");
     } catch {
       cleanupVoiceRecording();
-      await transcribeMockVoice("麦克风不可用，已使用 mock 语音链路。");
+      showVoiceUnavailable("麦克风不可用，请改用文字输入");
     }
   }
 
@@ -1532,47 +1532,13 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     cleanupVoiceRecording();
   }
 
-  async function transcribeMockVoice(fallbackStatus?: string) {
-    if (!activeCompanion || isTranscribing) return;
-
-    setIsTranscribing(true);
-    setError(null);
-    setVoicePreview(null);
-    setVoiceFailure(null);
-    setStatus(fallbackStatus ?? "正在转写语音...");
-
-    try {
-      const response = await fetch("/api/voice/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language: "zh-CN",
-          mockTranscript: draft.trim() || `我想听见${activeCompanion.name}的声音。`
-        })
-      });
-      const payload = (await response.json()) as {
-        text?: string;
-        provider?: string;
-        model?: string;
-        requestedProvider?: string;
-        credentialSource?: "server-env" | "user-vault";
-        fallback?: boolean;
-        fallbackKind?: string;
-        error?: string;
-      };
-
-      if (!response.ok || !payload.text) {
-        throw new Error(payload.error ?? "语音转写失败。");
-      }
-
-      setDraft(payload.text);
-      setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
-    } catch (voiceError) {
-      setError(toSafeWorkspaceError(voiceError, "语音转写失败。"));
-      setStatus("语音转写失败，请稍后重试");
-    } finally {
-      setIsTranscribing(false);
-    }
+  /**
+   * 浏览器不能录音（或麦克风被拒绝）时的降级：不伪造转写结果，
+   * 直接告诉用户改用文字输入，并保留原有草稿。
+   */
+  function showVoiceUnavailable(hint: string) {
+    setError(voiceTranscriptionUnavailableCopy);
+    setStatus(hint);
   }
 
   async function transcribeAudioBlob(audioBlob: Blob) {
@@ -1614,13 +1580,13 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       };
 
       if (!response.ok || !payload.text) {
-        throw new Error(payload.error ?? "语音转写失败。");
+        throw new Error(payload.error ?? voiceTranscriptionUnavailableCopy);
       }
 
       setDraft(payload.text);
       setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
-      setError(toSafeWorkspaceError(voiceError, "语音转写失败。"));
+      setError(toSafeWorkspaceError(voiceError, voiceTranscriptionUnavailableCopy));
       setStatus("语音转写失败，请稍后重试");
     } finally {
       setIsTranscribing(false);
@@ -3013,6 +2979,7 @@ function redactWorkspaceError(message: string, fallback = "操作失败，请稍
 }
 
 const voiceReplyUnavailableCopy = "语音暂时没有生成成功，文字回复还在。";
+const voiceTranscriptionUnavailableCopy = "这段语音没有识别出来，可以再录一次，或改用文字。";
 
 function isUnplayableVoicePreview(payload: VoicePreview) {
   const dataUrl = payload.audioDataUrl ?? "";

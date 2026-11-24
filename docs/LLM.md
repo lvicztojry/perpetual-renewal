@@ -328,8 +328,8 @@ POST /api/voice/transcribe
 POST /api/voice/synthesize
 ```
 
-`/api/voice/transcribe` 接收 JSON 中的 `audioBase64`、`mimeType`、`fileName`、`language`；真实 provider 会组装 multipart form-data。`mockTranscript` 仅供 mock fallback 与本地联调用。
+`/api/voice/transcribe` 接收 JSON 中的 `audioBase64`、`mimeType`、`fileName`、`language`；真实 provider 会组装 multipart form-data。`mockTranscript` 仅供本地联调：显式传入时 mock provider 会原样返回这段文字，不传时 mock 不编造识别结果，转而返回 HTTP 502、`errorType: "voice_transcription_unavailable"` 和稳定文案 `这段语音没有识别出来，可以再录一次，或改用文字。`。
 
 `/api/voice/synthesize` 接收 `text`、`voice`、`format`、`speed`，成功时返回 `audioBase64`、`mimeType` 与 `audioDataUrl`。mock provider 只能返回 0 秒静音 wav，因此成功响应不会再来自 mock/fallback 路径：静音占位会被判为 `voice_unavailable` 失败。业务 UI 不直接依赖具体语音供应商。
 
-聊天输入区的麦克风按钮已接入浏览器 `MediaRecorder`：第一次点击开始录音，第二次点击停止并转写。前端只把当前录音的 base64 音频发送到 `/api/voice/transcribe`，不会保存到仓库；如果浏览器不支持录音或麦克风不可用，会回落到 mock STT，便于本地开发和 CI 演示。
+聊天输入区的麦克风按钮已接入浏览器 `MediaRecorder`：第一次点击开始录音，第二次点击停止并转写。前端只把当前录音的 base64 音频发送到 `/api/voice/transcribe`，不会保存到仓库；浏览器不支持录音或麦克风不可用时，页面直接提示改用文字输入，不会把假的转写文字塞进输入框。真实转写需要 `VOICE_PROVIDER=shared-llm`（或 `compatible`）且网关具备 STT 通道；`VOICE_PROVIDER=edge` 只负责朗读合成，转写仍走共享网关。网关没有 STT 通道时接口返回 `voice_transcription_unavailable`，这是配置问题，不是录音问题。

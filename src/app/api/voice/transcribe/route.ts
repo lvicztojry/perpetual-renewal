@@ -44,6 +44,13 @@ export async function POST(request: Request) {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.transcribe(body);
+
+    // mock/回退路径并没有真正识别音频。以前它返回一句固定的想念文案，
+    // 前端会把这句话当成"你刚说的话"塞进输入框，看起来就是"录了音但不识别"。
+    if (result.placeholder || !result.text.trim()) {
+      return privateJson(toTranscriptionUnavailableResponse(result), { status: 502 });
+    }
+
     return privateJson(toSafeTranscriptionResponse(result));
   } catch (error) {
     const persistenceError = persistenceUnavailableResponse(error, "credentials");
@@ -76,6 +83,27 @@ function toSafeTranscriptionResponse(result: VoiceTranscription) {
     fallbackReason: redactSensitiveResponseText(result.fallbackReason),
     missingConfig: result.missingConfig,
     retryable: result.retryable,
+    status: result.status
+  };
+}
+
+// 与 docs/ERROR_COPY.md「语音转文字失败」保持一致。
+const transcriptionUnavailableCopy = "这段语音没有识别出来，可以再录一次，或改用文字。";
+
+function toTranscriptionUnavailableResponse(result: VoiceTranscription) {
+  return {
+    error: transcriptionUnavailableCopy,
+    errorType: "voice_transcription_unavailable",
+    retryable: true,
+    provider: result.provider,
+    requestedProvider: result.requestedProvider,
+    credentialSource: result.credentialSource,
+    model: result.model,
+    language: result.language,
+    fallback: result.fallback ?? result.provider === "mock",
+    fallbackKind: result.fallbackKind ?? "mock_provider",
+    fallbackReason: redactSensitiveResponseText(result.fallbackReason),
+    missingConfig: result.missingConfig,
     status: result.status
   };
 }
