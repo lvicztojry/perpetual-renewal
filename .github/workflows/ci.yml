@@ -1,15 +1,23 @@
 name: CI
 
+# 只在 PR 和主分支上跑，避免同一 commit 被 push + pull_request 各触发一次。
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  quality:
-    name: Secret scan, QA, and build
+  # 第一档：必跑门槛。静态检查、QA、构建，任何一项失败都会拦截合并。
+  gate:
+    name: Gate (secrets, docs, types, lint, QA, build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -49,23 +57,31 @@ jobs:
 
       - name: Prompt QA
         run: npm run qa:prompt
+
       - name: Memory lifecycle QA
         run: npm run qa:memory-lifecycle
+
       - name: Message sync QA
         run: npm run qa:sync
 
       - name: Structured import QA
         run: npm run qa:imports
+
       - name: Chat character import QA
         run: npm run qa:character-import
+
       - name: Dream persona QA
         run: npm run qa:dream
+
       - name: Group conversation QA
         run: npm run qa:groups
+
       - name: Awakening journey QA
         run: npm run qa:journey
+
       - name: Ability presentation QA
         run: npm run qa:abilities
+
       - name: Proactive availability QA
         run: npm run qa:proactive-availability
 
@@ -96,26 +112,17 @@ jobs:
       - name: Proactive scheduler QA
         run: npm run qa:proactive-scheduler
 
-      - name: Proactive cron contract QA
-        run: npm run qa:proactive-cron
-
       - name: Real provider QA fake
         run: npm run qa:real-provider:fake
 
       - name: PWA check
         run: npm run pwa:check
 
-      - name: Environment readiness
-        run: npm run env:readiness
+      - name: Database migration URL routing
+        run: npm run qa:database-url
 
       - name: Prisma validate
         run: npm run prisma:validate
-
-      - name: Database migration URL routing
-        run: node tests/database-url.mjs
-
-      - name: DB smoke
-        run: npm run db:smoke
 
       - name: Smoke tests
         run: npm run smoke
@@ -125,3 +132,53 @@ jobs:
 
       - name: Production auth access
         run: npm run qa:auth-access
+
+  # 第二档：提示不拦截。文档措辞类契约断言有价值，但不该一票否决合并。
+  advisory:
+    name: Advisory (docs contracts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 步骤级 continue-on-error：失败会标黄显示在日志里，但不把整个 job 判红。
+      - name: Proactive cron contract QA
+        continue-on-error: true
+        run: npm run qa:proactive-cron
+
+  # 第三档：需要真实数据库和密钥，仅在手动触发或发布前跑，不卡每个 PR。
+  deploy-readiness:
+    name: Deploy readiness (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Environment readiness
+        run: npm run env:readiness
+
+      - name: DB smoke
+        run: npm run db:smoke

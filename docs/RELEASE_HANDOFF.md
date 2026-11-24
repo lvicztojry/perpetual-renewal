@@ -35,7 +35,13 @@ Current branch tip：交接时运行 git status --short --branch 和 git log -1 
 
 ## CI Expectations
 
-以下命令与 .github/workflows/ci.yml、scripts/verify-local.mjs 保持一致；列出命令不表示本轮已经执行。
+CI 分三档，命名与 .github/workflows/ci.yml 的 job 对应；列出命令不表示本轮已经执行。
+
+- **Gate（必跑，拦截合并）**：secrets / docs / 类型 / lint / 静态 QA / 构建，即下列命令中除 qa:proactive-cron 与 env:readiness、db:smoke 以外的全部项。
+- **Advisory（提示，不拦截）**：npm run qa:proactive-cron。它是文档措辞契约断言，失败只提示，不阻断合并。
+- **Deploy readiness（手动触发，需真实数据库与密钥）**：npm run env:readiness、npm run db:smoke。发布前用 workflow_dispatch 运行；本地做发布前严格检查时自行加 --strict 参数。
+
+`npm run docs:check` 会把 scripts/verify-local.mjs 的基础步骤与本文件、ci.yml 对齐；改 CI 分档时三处需同步。
 
 ```bash
 npm ci
@@ -68,6 +74,7 @@ npm run qa:proactive-cron
 npm run qa:proactive-availability
 npm run qa:real-provider:fake
 npm run pwa:check
+npm run qa:database-url
 npm run env:readiness
 npm run prisma:validate
 npm run db:smoke
