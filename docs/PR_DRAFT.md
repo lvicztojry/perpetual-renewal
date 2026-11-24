@@ -44,7 +44,7 @@ Historical results (2026-10-26): audit initially reported 6 vulnerabilities (5 h
 - `npm run secrets:check`
 - `npm run git:boundary`
 - `npm run build`
-- `npm run smoke` -> 94 checks
+- `npm run smoke` -> 95 checks
 - `npm run qa:samples`
 - `npm run qa:prompt`
 - `npm run qa:imports`

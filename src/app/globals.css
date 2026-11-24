@@ -572,6 +572,24 @@ textarea:disabled {
   height: 34px;
 }
 
+.voice-preview.voice-failure {
+  grid-template-columns: 1fr;
+  border-color: #e1aaa2;
+  background: #fff3f1;
+  color: #8d3b31;
+}
+
+.voice-preview.voice-failure summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.voice-preview.voice-failure p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .composer-icon.recording {
   border-color: #b44747;
   background: #fff0ef;

@@ -163,6 +163,17 @@ type VoicePreview = {
   fallbackReason?: string;
 };
 
+/** 语音生成失败时保留的脱敏诊断信息，供"语音详情"展开查看。 */
+type VoiceFailure = {
+  provider?: string;
+  requestedProvider?: string;
+  credentialSource?: "server-env" | "user-vault";
+  model?: string;
+  fallback?: boolean;
+  fallbackKind?: string;
+  fallbackReason?: string;
+};
+
 type UsageDashboard = {
   persistence: "prisma" | "memory";
   rangeDays: number;
@@ -319,6 +330,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const [proactiveRefresh, setProactiveRefresh] = useState(0);
   const enablingProactiveRef = useRef(false);
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
+  const [voiceFailure, setVoiceFailure] = useState<VoiceFailure | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -665,6 +677,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setProactiveSafety(null);
     setProactivePersistence(null);
     setVoicePreview(null);
+    setVoiceFailure(null);
     setActiveId(companion.id);
     setForm(toForm(companion));
     setInspectorMode("profile");
@@ -778,6 +791,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setProactiveDrafts([]);
       setProactiveAutoCheck(null);
       setVoicePreview(null);
+      setVoiceFailure(null);
       setStatus("新关系对象已创建，可以开始聊天");
       setIsMobileConversation(true);
       setIsInspectorOpen(false);
@@ -828,6 +842,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setProactiveDrafts([]);
       setProactiveAutoCheck(null);
       setVoicePreview(null);
+      setVoiceFailure(null);
       setInspectorMode("profile");
       setStatus("关系对象已删除");
       setIsInspectorOpen(false);
@@ -1458,6 +1473,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
     setError(null);
     setVoicePreview(null);
+    setVoiceFailure(null);
     setStatus("正在请求麦克风权限...");
 
     try {
@@ -1522,6 +1538,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setIsTranscribing(true);
     setError(null);
     setVoicePreview(null);
+    setVoiceFailure(null);
     setStatus(fallbackStatus ?? "正在转写语音...");
 
     try {
@@ -1568,6 +1585,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setIsTranscribing(true);
     setError(null);
     setVoicePreview(null);
+    setVoiceFailure(null);
     setStatus("正在转写录音...");
 
     try {
@@ -1623,6 +1641,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setIsSynthesizing(true);
     setError(null);
     setVoicePreview(null);
+    setVoiceFailure(null);
     setStatus("正在生成语音回复...");
 
     try {
@@ -1635,16 +1654,31 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
           format: "wav"
         })
       });
-      const payload = (await response.json()) as VoicePreview & { error?: string };
+      const payload = (await response.json()) as VoicePreview & VoiceFailure & {
+        error?: string;
+        errorType?: string;
+      };
 
-      if (!response.ok || !payload.audioDataUrl) {
-        throw new Error(payload.error ?? "语音回复生成失败。");
+      // 服务端会把 mock/静音占位音频判为失败；前端不再把 0 秒音频当成"已生成"。
+      if (!response.ok || !payload.audioDataUrl || isUnplayableVoicePreview(payload)) {
+        setVoiceFailure({
+          provider: payload.provider,
+          requestedProvider: payload.requestedProvider,
+          credentialSource: payload.credentialSource,
+          model: payload.model,
+          fallback: payload.fallback,
+          fallbackKind: payload.fallbackKind,
+          fallbackReason: payload.fallbackReason
+        });
+        setError(toSafeWorkspaceError(payload.error, voiceReplyUnavailableCopy));
+        setStatus("语音回复生成失败，请稍后重试");
+        return;
       }
 
       setVoicePreview(payload);
       setStatus("语音已准备好。");
     } catch (voiceError) {
-      setError(toSafeWorkspaceError(voiceError, "语音回复生成失败。"));
+      setError(toSafeWorkspaceError(voiceError, voiceReplyUnavailableCopy));
       setStatus("语音回复生成失败，请稍后重试");
     } finally {
       setIsSynthesizing(false);
@@ -1979,6 +2013,17 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                   {voicePreview.voice ? ` · ${voicePreview.voice}` : ""}
                   {voicePreview.fallbackReason ? (
                     <p>{redactWorkspaceError(voicePreview.fallbackReason)}</p>
+                  ) : null}
+                </details>
+              </div>
+            ) : null}
+            {voiceFailure ? (
+              <div className="voice-preview voice-failure">
+                <details>
+                  <summary>语音详情</summary>
+                  <p>{formatVoiceProviderStatus(voiceFailure)}</p>
+                  {voiceFailure.fallbackReason ? (
+                    <p>{redactWorkspaceError(voiceFailure.fallbackReason)}</p>
                   ) : null}
                 </details>
               </div>
@@ -2965,6 +3010,59 @@ function redactWorkspaceError(message: string, fallback = "操作失败，请稍
       replacement: "[已隐藏堆栈]"
     }
   ].reduce((current, item) => current.replace(item.pattern, item.replacement), trimmed);
+}
+
+const voiceReplyUnavailableCopy = "语音暂时没有生成成功，文字回复还在。";
+
+function isUnplayableVoicePreview(payload: VoicePreview) {
+  const dataUrl = payload.audioDataUrl ?? "";
+  const base64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : "";
+
+  return isSilentWavBase64(base64);
+}
+
+/** 0 秒 WAV（mock/fallback 静音占位）不应当作可播放的语音回复。 */
+function isSilentWavBase64(base64: string) {
+  if (!base64) return false;
+
+  try {
+    const binary = atob(base64.replace(/\s+/g, ""));
+    if (binary.length < 12) return false;
+
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    const ascii = (start: number, end: number) => {
+      let value = "";
+      for (let index = start; index < end; index += 1) value += String.fromCharCode(bytes[index]);
+      return value;
+    };
+
+    if (ascii(0, 4) !== "RIFF" || ascii(8, 12) !== "WAVE") return false;
+
+    // 头不完整（< 44 字节）同样无法播放。
+    if (bytes.length < 44) return true;
+
+    // 按 RIFF 块遍历，找到 data 块判断是否 0 字节负载。
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let offset = 12;
+    while (offset + 8 <= bytes.length) {
+      const chunkId = ascii(offset, offset + 4);
+      const chunkSize = view.getUint32(offset + 4, true);
+
+      if (chunkId === "data") {
+        return chunkSize === 0 || bytes.length - (offset + 8) === 0;
+      }
+
+      offset += 8 + chunkSize + (chunkSize % 2);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function canRecordVoice() {

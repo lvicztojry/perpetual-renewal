@@ -44,7 +44,7 @@
 | 11:00-13:00 | 主动回响草稿 | 打开主动回响面板，生成一条草稿；依次使用状态筛选：草稿、已发送、已忽略、已拦截、全部；尝试“标记已发送”“忽略”“阻断”“恢复草稿”。 | 默认聚焦草稿；状态计数变化正确；草稿和历史状态不混在一起；文案是想念/撒娇式，不制造愧疚。 |
 | 13:00-14:00 | 配置状态检查 | 进入设置页“配置状态”面板，查看 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、VOICE_PROVIDER 的状态；点击“重新检查”。 | 状态与当前环境预期一致；缺失项给出下一步建议；页面和接口响应不展示数据库连接串、API key、Base URL 原文、vault secret、session secret、cron secret、Authorization header 或 raw payload。 |
 | 14:00-15:00 | 模型设置/连接测试 | 进入设置页模型区；在无 key 状态点击“测试连接”；如现场允许，再用个人测试 key 保存 provider/baseUrl/model 后测试连接。 | 无 key 时返回友好且可预测的失败；有 key 时能返回成功或供应商错误；页面不展示 API key 原文、Base URL 原文、Authorization header、prompt 或 raw payload。 |
-| 15:00-16:30 | 语音 fallback | 回到聊天输入区，点击录音；可选择拒绝麦克风权限，或在无真实 `VOICE_*` 配置下完成一次语音输入/朗读尝试。 | 浏览器不支持、拒绝权限、缺少语音配置或供应商失败时，UI 仍可继续使用并回落到 mock/fallback；不泄露 key/baseUrl。 |
+| 15:00-16:30 | 语音 fallback | 回到聊天输入区，点击录音；可选择拒绝麦克风权限，或在无真实 `VOICE_*` 配置下完成一次语音输入/朗读尝试。 | 浏览器不支持、拒绝权限、缺少语音配置或供应商失败时，UI 仍可继续使用；朗读最近回复会显示“语音暂时没有生成成功，文字回复还在。”并保留文字回复，不出现 0 秒空播放器；不泄露 key/baseUrl。 |
 | 16:30-17:30 | 用量看板 | 打开模型调用/成本看板，查看刚才聊天、重新生成、连接测试附近的记录。 | 展示 provider、model、延迟、token 或估算成本；不展示用户消息正文、AI 回复正文、API key、Base URL 或供应商 raw payload。 |
 | 17:30-18:30 | 数据导出 | 设置页点击“导出数据”。 | 按钮出现导出中、成功或失败状态；成功下载 `perpetual-renewal-export-YYYY-MM-DD.json`；导出 JSON 不包含 key/baseUrl/vault 密文，只包含脱敏配置摘要和安全事件 hash。 |
 | 18:30-20:00 | 移动端快检 | 用浏览器设备模式切到 390px；快速进入关系列表、创建表单、聊天、记忆、导入、主动回响、设置页。 | 无横向滚动；长关系名、模型名、错误提示、按钮文本可换行；rail/main/inspector 纵向排列且可滚动；关键入口可点击。 |

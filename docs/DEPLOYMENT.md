@@ -129,7 +129,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `SESSION_COOKIE_SECRET` 可单独用于 HMAC 签名 session cookie。为空时会复用强 `USER_KEY_VAULT_SECRET`，但生产更推荐单独配置以拆分职责。
 - `PROACTIVE_CRON_SECRET` 用于保护 `/api/proactive/run` 的 all-user 调度入口。不要和 `USER_KEY_VAULT_SECRET` 复用。
 - `CRON_SECRET` 是 Vercel Cron 的同用途 alias；Vercel 会把它作为 Bearer token 发给 cron 路径。使用 Vercel Cron 时，可把它设置为与 `PROACTIVE_CRON_SECRET` 相同的强随机值，或只设置 `CRON_SECRET`。
-- `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。
+- `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。文本模型通常不支持音频端点，网关没有 TTS 通道时 `/api/voice/synthesize` 会返回 `voice_unavailable` 失败（保留文字回复），不会把 mock 静音音频当成语音回复。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
 - 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。换句话说，设置页保存的是当前登录用户的 BYOK 凭据，`.env.local` 里的 `LLM_API_KEY` 是可选的服务端兜底。
 - 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、session secret、cron secret 或 Base URL 原文。
@@ -222,7 +222,7 @@ npm run smoke
 - 发送消息。
 - 查看回复中的 provider/model 是否来自真实供应商。
 - 打开模型调用看板，确认 latency、tokens、估算成本有记录。
-- 调用 `/api/voice/transcribe` 和 `/api/voice/synthesize`，确认语音接口返回真实 provider；如果网关暂未开通语音模型，应安全 fallback 到 mock。
+- 调用 `/api/voice/transcribe` 和 `/api/voice/synthesize`，确认语音接口返回真实 provider；如果网关暂未开通语音模型，合成接口会以 `voice_unavailable`（HTTP 502）和稳定文案失败，不会返回 0 秒静音 wav 冒充语音回复。
 
 如果缺少 key/baseUrl/model，开发环境会 fallback 到 mock provider，并在响应里返回 `fallbackReason`。这适合无密钥开发，但不应作为生产配置。
 
@@ -427,7 +427,7 @@ npm run env:secrets
 - [ ] `npm run qa:voice` 通过，确认 shared-LLM 语音 fake-compatible STT/TTS、Bearer、模型 fallback、用户 vault 优先和失败脱敏仍可用。
 - [ ] 可选执行 `npm run qa:real-provider` 做真实 compatible BYOK 目标联调；仅在显式设置 `REAL_PROVIDER_QA=1` 和 `REAL_LLM_*` 测试变量时运行，不写入默认 CI、`verify:pr` 或发布门禁。
 - [ ] 设置页“配置状态”重新检查后，LLM key/model/baseUrl 的状态与实际配置一致；缺失项只显示下一步建议，不显示用户 key、服务端 env key 或 Base URL 原文。
-- [ ] 真实语音调用与 LLM 共用中转站；若网关未开通音频模型，接口应安全 fallback 到 mock 或返回可理解失败，不泄露 key/baseUrl。
+- [ ] 真实语音调用与 LLM 共用中转站；若网关未开通音频模型，合成接口应返回 `voice_unavailable` 的语音失败（保留文字回复），不把 mock 静音 wav 当成功，也不泄露 key/baseUrl。
 - [ ] 成本看板只记录 provider、model、用途、状态、tokens、估算成本和延迟，不记录 prompt、用户消息、AI 回复、供应商 raw payload 或密钥。
 
 ### 4. Proactive Cron Gate

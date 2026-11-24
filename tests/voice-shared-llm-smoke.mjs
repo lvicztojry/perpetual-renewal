@@ -124,6 +124,7 @@ async function testUserVaultSharedLlmFallbackToVaultModel() {
         assert(synthesis.provider === "shared-llm", "user-vault TTS should use shared-llm provider");
         assert(synthesis.credentialSource === "user-vault", "user-vault TTS should report user-vault source");
         assert(synthesis.model === vaultModel, "empty VOICE_TTS_MODEL should fall back to user vault model");
+        assert(!synthesis.placeholder, "user-vault TTS should return real audio, not a silent placeholder");
 
         const requestText = JSON.stringify(server.requests);
         assert(requestText.includes(`Bearer ${vaultKey}`), "user-vault voice calls should send vault key");
@@ -175,6 +176,14 @@ async function testProviderFailureFallbackStaysSanitized() {
     assert(fallback.fallback === true, "provider HTTP failure should be marked as fallback");
     assert(fallback.fallbackKind === "provider_response", "500 response should be classified as provider_response");
     assert(fallback.status === 500, "fallback metadata should include safe HTTP status");
+    assert(
+      fallback.placeholder === true,
+      "mock fallback audio must be flagged as a silent placeholder so the API does not report it as a voice reply"
+    );
+    assert(
+      Buffer.from(fallback.audioBase64, "base64").readUInt32LE(40) === 0,
+      "mock fallback audio should stay a 0-second silent wav fixture"
+    );
     assert(!fallbackText.includes(vaultKey), "fallback result should not expose Bearer key");
     assert(!fallbackText.includes(server.url), "fallback result should not expose provider endpoint");
     assert(!fallbackText.includes(failurePrompt), "fallback result should not expose provider prompt text");

@@ -313,8 +313,8 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - 用户级 vault：当当前用户保存了 `compatible` 或 `openai-compatible` 的 LLM key、Base URL 和 model，语音 API 会优先复用这组服务端加密凭据；前端状态只显示端点配置状态和端点指纹，不显示 Base URL 明文。非兼容音频协议的供应商继续走服务端 env 或 mock fallback。
 - `VOICE_CREDENTIAL_SOURCE=user-vault`：表示真实语音请求来自用户 vault；key 加密保存，不写入仓库，也不返回给前端。
 - `.env.local`、`.env.*.local` 已在 `.gitignore`，真实 key 只放本地或部署平台 secret。
-- 如果缺少 key/baseUrl/model，或真实语音请求出现鉴权、限流、网络、超时、供应商响应异常，API 会安全 fallback 到 mock provider。
-- fallback 响应只返回脱敏的 `fallbackReason`、`fallbackKind`、`requestedProvider`、`credentialSource`、provider、model、HTTP status 等元数据，不返回 API key、Bearer token、baseUrl、供应商错误正文或 raw payload。
+- 如果缺少 key/baseUrl/model，或真实语音请求出现鉴权、限流、网络、超时、供应商响应异常，adapter 会安全 fallback 到 mock provider；但 mock 只产出 0 秒静音占位音频，`/api/voice/synthesize` 会把它当作失败，返回 HTTP 502、`errorType: "voice_unavailable"`、稳定文案 `语音暂时没有生成成功，文字回复还在。` 和 `retryable: true`，不会把静音 wav 当成可播放的语音回复。前端对应显示失败提示、保留文字回复，并只在“语音详情”里展示脱敏后的 provider 元数据。
+- 语音失败响应只返回脱敏的 `fallbackReason`、`fallbackKind`、`requestedProvider`、`credentialSource`、provider、model、HTTP status 等元数据，不返回 API key、Bearer token、baseUrl、供应商错误正文或 raw payload。
 - `/api/voice/*` 会从 provider 结果中剥离内部 `raw` 调试字段，只把前端需要展示/播放的安全字段返回给浏览器。
 - `VOICE_DEFAULT_VOICE` 会传给 `/audio/speech` 的 `voice`；请求体里传入 `voice` 时优先使用请求值。
 - `format=ogg` 会按兼容 OpenAI 的 `response_format=opus` 请求，响应侧仍返回 `audio/ogg` 语义。
@@ -329,6 +329,6 @@ POST /api/voice/synthesize
 
 `/api/voice/transcribe` 接收 JSON 中的 `audioBase64`、`mimeType`、`fileName`、`language`；真实 provider 会组装 multipart form-data。`mockTranscript` 仅供 mock fallback 与本地联调用。
 
-`/api/voice/synthesize` 接收 `text`、`voice`、`format`、`speed`，返回 `audioBase64`、`mimeType` 与 `audioDataUrl`。mock provider 返回一段静音 wav，供前端 `<audio>` 验证链路。业务 UI 不直接依赖具体语音供应商。
+`/api/voice/synthesize` 接收 `text`、`voice`、`format`、`speed`，成功时返回 `audioBase64`、`mimeType` 与 `audioDataUrl`。mock provider 只能返回 0 秒静音 wav，因此成功响应不会再来自 mock/fallback 路径：静音占位会被判为 `voice_unavailable` 失败。业务 UI 不直接依赖具体语音供应商。
 
 聊天输入区的麦克风按钮已接入浏览器 `MediaRecorder`：第一次点击开始录音，第二次点击停止并转写。前端只把当前录音的 base64 音频发送到 `/api/voice/transcribe`，不会保存到仓库；如果浏览器不支持录音或麦克风不可用，会回落到 mock STT，便于本地开发和 CI 演示。

@@ -275,8 +275,8 @@ export function UserSettings() {
       Boolean(credentialForm.baseUrl.trim()) ||
       (Boolean(credential?.endpointConfigured) && !providerChanged));
   const voiceSharedLlmHint = isCompatibleProvider
-    ? "语音输入和朗读会共用这组兼容中转站配置；未单独设置 VOICE_STT_MODEL/VOICE_TTS_MODEL 时使用当前模型，失败会自动回落到 mock。"
-    : "当前文本供应商不是兼容中转站；语音会优先使用服务端 VOICE/LLM 环境变量，缺配置或失败时自动回落到 mock。";
+    ? "语音输入和朗读会共用这组兼容中转站配置；未单独设置 VOICE_STT_MODEL/VOICE_TTS_MODEL 时使用当前模型。文本模型往往不支持音频端点，网关没有 TTS 通道时朗读会提示语音暂时没有生成，文字回复保留。"
+    : "当前文本供应商不是兼容中转站；语音会优先使用服务端 VOICE/LLM 环境变量。缺少可用语音配置时朗读会提示语音暂时没有生成，文字回复保留。";
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

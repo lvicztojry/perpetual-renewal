@@ -17,6 +17,8 @@ const maxSynthesisTextChars = 4_000;
 const maxVoiceNameChars = 80;
 const minSpeechSpeed = 0.25;
 const maxSpeechSpeed = 4;
+// 与 docs/ERROR_COPY.md「语音回复生成失败」保持一致：文字回复保留，语音可重试。
+const voiceUnavailableCopy = "语音暂时没有生成成功，文字回复还在。";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -43,6 +45,13 @@ export async function POST(request: Request) {
     const session = await getCurrentSession();
     const provider = await createUserVoiceProvider(session.userId);
     const result = await provider.synthesize(body);
+
+    // mock/fallback 会返回 0 秒静音 wav。它不是可播放的语音回复，必须按失败处理，
+    // 否则页面会显示"语音回复已生成"，播放器却是 0:00。
+    if (isUnplayableSynthesis(result)) {
+      return privateJson(toVoiceUnavailableResponse(result), { status: 502 });
+    }
+
     return privateJson(toSafeSynthesisResponse(result));
   } catch (error) {
     const persistenceError = persistenceUnavailableResponse(error, "credentials");
@@ -78,6 +87,64 @@ function toSafeSynthesisResponse(result: VoiceSynthesis) {
     retryable: result.retryable,
     status: result.status
   };
+}
+
+function toVoiceUnavailableResponse(result: VoiceSynthesis) {
+  return {
+    error: voiceUnavailableCopy,
+    errorType: "voice_unavailable",
+    retryable: true,
+    provider: result.provider,
+    requestedProvider: result.requestedProvider,
+    credentialSource: result.credentialSource,
+    model: result.model,
+    fallback: result.fallback ?? result.provider === "mock",
+    fallbackKind: result.fallbackKind ?? "mock_provider",
+    fallbackReason: redactSensitiveResponseText(result.fallbackReason),
+    missingConfig: result.missingConfig,
+    status: result.status
+  };
+}
+
+function isUnplayableSynthesis(result: VoiceSynthesis) {
+  if (result.placeholder) return true;
+
+  const bytes = decodeBase64Bytes(result.audioBase64);
+  if (!bytes || bytes.byteLength === 0) return true;
+
+  return hasEmptyWavPayload(bytes);
+}
+
+function decodeBase64Bytes(value: string) {
+  try {
+    return Buffer.from(value.replace(/\s+/g, ""), "base64");
+  } catch {
+    return null;
+  }
+}
+
+function hasEmptyWavPayload(bytes: Buffer) {
+  if (bytes.byteLength < 12) return false;
+  if (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") {
+    return false;
+  }
+
+  // RIFF/WAVE 头不完整时同样是空/损坏音频。
+  if (bytes.byteLength < 44) return true;
+
+  let offset = 12;
+  while (offset + 8 <= bytes.byteLength) {
+    const chunkId = bytes.toString("ascii", offset, offset + 4);
+    const chunkSize = bytes.readUInt32LE(offset + 4);
+
+    if (chunkId === "data") {
+      return chunkSize === 0 || bytes.byteLength - (offset + 8) === 0;
+    }
+
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+
+  return true;
 }
 
 function isSynthesisInput(value: unknown): value is VoiceSynthesisOptions {

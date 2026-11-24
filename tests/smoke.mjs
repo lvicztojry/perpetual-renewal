@@ -2182,18 +2182,25 @@ async function runSmoke() {
     "user export should scrub high-risk strings from profile fields"
   );
 
-  const voiceWithUserCredential = await request("/api/voice/synthesize", {
-    method: "POST",
-    body: JSON.stringify({
-      text: "用户 vault 语音链路",
-      voice: "warm",
-      format: "wav"
-    })
-  });
+  const voiceWithUserCredential = await request(
+    "/api/voice/synthesize",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        text: "用户 vault 语音链路",
+        voice: "warm",
+        format: "wav"
+      })
+    },
+    { allowError: true }
+  );
   assert(
-    typeof voiceWithUserCredential.body.audioBase64 === "string" &&
-      voiceWithUserCredential.body.audioBase64.length > 0,
-    "voice synthesis should work when user vault credential is present"
+    voiceWithUserCredential.response.status === 502 &&
+      voiceWithUserCredential.body.errorType === "voice_unavailable" &&
+      typeof voiceWithUserCredential.body.error === "string" &&
+      !("audioBase64" in voiceWithUserCredential.body) &&
+      !("audioDataUrl" in voiceWithUserCredential.body),
+    "voice synthesis fallback should report an unavailable reply instead of returning 0-second silent audio"
   );
   assert(
     voiceWithUserCredential.body.credentialSource === "user-vault" &&
@@ -2208,7 +2215,12 @@ async function runSmoke() {
       !JSON.stringify(voiceWithUserCredential.body).includes("raw"),
     "voice synthesis with user credential should not expose key or endpoint"
   );
-  pass("POST /api/voice/synthesize uses sanitized user vault fallback");
+  assert(
+    voiceWithUserCredential.body.error === "语音暂时没有生成成功，文字回复还在。" &&
+      voiceWithUserCredential.body.retryable === true,
+    "voice unavailable response should use the documented copy and stay retryable"
+  );
+  pass("POST /api/voice/synthesize reports unavailable instead of silent fallback audio");
 
   const voiceRouteKey = "voice-route-vault-key-value";
   const voiceRouteModel = "voice-route-vault-model";
@@ -3109,22 +3121,26 @@ async function runSmoke() {
   );
   pass("POST /api/voice/transcribe rejects unsafe language metadata");
 
-  const voiceSynthesis = await request("/api/voice/synthesize", {
-    method: "POST",
-    body: JSON.stringify({
-      text: "Smoke 语音合成",
-      voice: "warm",
-      format: "mp3"
-    })
-  });
-  assert(
-    typeof voiceSynthesis.body.audioBase64 === "string" && voiceSynthesis.body.audioBase64.length > 0,
-    "voice synthesis should return base64 audio"
+  const voiceSynthesis = await request(
+    "/api/voice/synthesize",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        text: "Smoke 语音合成",
+        voice: "warm",
+        format: "mp3"
+      })
+    },
+    { allowError: true }
   );
   assert(
-    typeof voiceSynthesis.body.audioDataUrl === "string" &&
-      voiceSynthesis.body.audioDataUrl.startsWith(`data:${voiceSynthesis.body.mimeType};base64,`),
-    "voice synthesis should return an audio data URL"
+    (voiceSynthesis.response.status === 502 &&
+      voiceSynthesis.body.errorType === "voice_unavailable" &&
+      typeof voiceSynthesis.body.error === "string" &&
+      !("audioBase64" in voiceSynthesis.body) &&
+      !("audioDataUrl" in voiceSynthesis.body)) ||
+      (voiceSynthesis.response.ok && typeof voiceSynthesis.body.audioBase64 === "string"),
+    "voice synthesis should either return playable audio or a stable unavailable error"
   );
   assert(
     voiceSynthesis.body.credentialSource === "server-env" ||
@@ -3161,6 +3177,25 @@ async function runSmoke() {
     "voice synthesis"
   );
   pass("POST /api/voice/synthesize safe provider response");
+
+  const silentFallbackSynthesis = await request(
+    "/api/voice/synthesize",
+    {
+      method: "POST",
+      body: JSON.stringify({ text: "静音占位不应被当成语音回复", voice: "warm", format: "wav" })
+    },
+    { allowError: true }
+  );
+  assert(
+    silentFallbackSynthesis.response.status === 502 &&
+      silentFallbackSynthesis.body.errorType === "voice_unavailable" &&
+      silentFallbackSynthesis.body.error === "语音暂时没有生成成功，文字回复还在。" &&
+      silentFallbackSynthesis.body.retryable === true &&
+      !("audioBase64" in silentFallbackSynthesis.body) &&
+      !("audioDataUrl" in silentFallbackSynthesis.body),
+    "silent mock fallback audio must not be returned as a playable voice reply"
+  );
+  pass("POST /api/voice/synthesize rejects silent fallback audio");
 
   const rejectedLongSynthesis = await request(
     "/api/voice/synthesize",

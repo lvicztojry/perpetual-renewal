@@ -55,6 +55,8 @@ export class MockVoiceProvider implements VoiceProvider {
       model: "mock-voice-local",
       voice: options.voice?.trim() || "mock-warm",
       fallbackReason: this.fallbackReason,
+      // 0 秒静音占位：调用方必须当成"没有语音"处理，不能当作可播放的语音回复。
+      placeholder: true,
       ...this.metadata,
       raw: {
         textPreview: text.slice(0, 80),

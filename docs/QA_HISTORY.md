@@ -174,7 +174,7 @@ npm run db:smoke
 | 数据导出 | `GET /api/me/export` | 当前 session 用户 JSON 快照；包含关系、消息、记忆、主动回响、模型调用和安全事件 keyed hash；不返回供应商密钥、endpoint URL 或 vault 字段；usage/safety 导出带 `limits` 元数据说明是否截断 |
 | 模型连接测试 | `POST /api/me/llm-test` | 无 key、无模型名、URL 构造失败、供应商 HTTP 失败或底层 fetch 失败均返回可预测失败；成功以低 token chat completion 探针为准；响应只包含状态、provider/model、credentialSource、latencyMs、probe 和友好错误，不返回 API key、Bearer、Base URL 原文、prompt、供应商 raw payload、底层网络原文或堆栈 |
 | 配置状态 | `GET /api/me/config-status` | 返回 DATABASE_URL、vault secret、session 签名 secret、cron secret、LLM key/model/baseUrl、语音配置的就绪状态和下一步；不返回真实连接串、API key、Base URL、secret 或 vault 密文 |
-| 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload |
+| 语音 STT/TTS | `POST /api/voice/transcribe` / `POST /api/voice/synthesize` | `VOICE_PROVIDER=shared-llm` 复用用户 vault 或服务端 LLM 配置；缺配置或供应商失败时 mock fallback 不断链；响应只返回 provider/model、credentialSource、fallbackKind、missingConfig 等脱敏元数据和必要音频数据，不返回 API key、Base URL、Bearer、供应商 raw payload；mock/静音占位音频（0 秒 wav）不再当作成功语音回复，合成接口返回 502 `voice_unavailable` 与稳定文案 |
 | 账号删除 | `DELETE /api/me/account` | 错误确认短语返回 400；正确确认删除当前用户数据并清除 session；响应只返回计数和状态，不暴露 key、Base URL、vault 密文或连接串 |
 | JSON 输入护栏 | 所有接收 JSON body 的 API | 坏 JSON 返回友好 400；`null`、数组、字符串等非对象 body 返回 JSON object required 400；`POST /api/proactive/run` 空 body 仍按默认 dry-run 运行；错误响应不包含 `SyntaxError`、`Unexpected token`、`Cannot read properties`、`stack`、`Bearer`、`baseUrl`、API key 或供应商 raw payload |
 | PWA 静态资源 | `/manifest.webmanifest`、`/offline.html`、`/sw.js` | manifest 使用产品名与 standalone；离线页可访问；service worker 明确跳过 `/api/*`，不缓存用户数据响应 |

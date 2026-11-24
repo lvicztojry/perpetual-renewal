@@ -78,6 +78,11 @@ export type VoiceSynthesis = {
   retryable?: boolean;
   status?: number;
   raw?: unknown;
+  /**
+   * True when the audio is a silent placeholder rather than speech (mock provider or
+   * fallback). API routes must not report these as a usable voice reply.
+   */
+  placeholder?: boolean;
 };
 
 export interface VoiceProvider {

@@ -56,7 +56,7 @@ npm run dev
 
 - 未配置 `DATABASE_URL`：领域 repository 可使用 memory fallback，`npm run db:smoke` 会安全跳过；演示登录还须显式非生产 `AUTH_MODE=local-email`。默认密码认证需要数据库。
 - 未配置 LLM key/model/baseUrl：聊天和语音链路可以走 mock fallback，方便先验证 UI 和业务流。
-- 语音默认可用 mock STT/TTS；真实语音供应商按当前决策与 LLM 共用中转站，使用 `VOICE_PROVIDER=shared-llm`。
+- 语音默认可用 mock STT/TTS；mock TTS 只返回 0 秒静音占位，`/api/voice/synthesize` 会把它判为 `voice_unavailable` 失败，不会冒充可播放的语音回复。真实语音供应商按当前决策与 LLM 共用中转站，使用 `VOICE_PROVIDER=shared-llm`。
 - 设置页的“配置状态”和 `npm run env:readiness` 只显示就绪状态和下一步，不显示真实值。
 
 ## 密钥与文件边界

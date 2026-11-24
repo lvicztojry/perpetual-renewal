@@ -61,6 +61,7 @@ input::placeholder, textarea::placeholder { color: #aaa596; opacity: 1; }
 .error-text { color: #efb2a3; }
 .error-box { border-color: #7d5147; background: #392923; color: #f0c1b1; }
 .status-box, .voice-preview { border-color: #5d5140; background: #302b23; color: #dbcaad; }
+.voice-preview.voice-failure { border-color: #7d5147; background: #392923; color: #f0c1b1; }
 .voice-ready { grid-column: 1 / -1; color: var(--ink); }
 .workspace-notice { border-color: #6a593d; background: #332e22; color: #e1cda5; }
 .workspace-notice .text-button { background: #423a2b; }

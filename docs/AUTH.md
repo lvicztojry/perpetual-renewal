@@ -36,7 +36,7 @@ AUTH_SMTP_PASSWORD="<QQ SMTP authorization code, NOT QQ password>"
 
 历史记录（2026-10-26）：主控已确认 Next.js 16.4.3 下全量 E2E 32 项、lint、typecheck、build 通过；主动调度本地 20 项、语音语言 16 项、本地认证后端及 SMTP 33 项通过；依赖升级后的 audit 为 0 vulnerabilities。这些结果包含认证 UI 的拦截响应及本地邮件测试，不能代替真实数据库的注册/恢复事务与邮件投递验证。
 
-数据库已恢复，两份认证/检查点迁移已应用到当前数据库，真实 DB smoke 通过。完整隔离 PostgreSQL 集成已验证注册、密码登录、重置撤销旧会话、旧账号恢复、限流、检查点 CAS 和级联清理；测试 schema 已移除。最近完整 memory smoke 已通过 94 checks。
+数据库已恢复，两份认证/检查点迁移已应用到当前数据库，真实 DB smoke 通过。完整隔离 PostgreSQL 集成已验证注册、密码登录、重置撤销旧会话、旧账号恢复、限流、检查点 CAS 和级联清理；测试 schema 已移除。最近完整 memory smoke 已通过 95 checks。
 
 本机 QQ SMTP 的 TLS 连接与账号认证已通过，未在自检中发送邮件。随后用户已完成网站注册、真实邮件验证并登录，数据库已确认邮箱验证成功。生产仍需 HTTPS `AUTH_APP_URL` 和独立部署环境验证；文档占位示例不表示部署 secret 已补齐。
 

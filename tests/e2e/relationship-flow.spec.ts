@@ -433,7 +433,8 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
       contentType: "application/json",
       status: 200,
       body: JSON.stringify({
-        audioDataUrl: "data:audio/wav;base64,UklGRg==",
+        audioDataUrl:
+          "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
         provider: "mock",
         requestedProvider: "shared-llm",
         credentialSource: "user-vault",
@@ -463,7 +464,10 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
   await expect(page.getByRole("button", { name: "朗读最近回复" })).toBeEnabled();
 
   await page.getByRole("button", { name: "朗读最近回复" }).click();
-  await expect(page.getByText("语音回复已生成")).toBeVisible();
+  await expect(page.getByText("语音暂时没有生成成功，文字回复还在。")).toBeVisible();
+  await expect(page.getByText("语音回复已生成")).toHaveCount(0);
+  await expect(page.locator(".voice-preview audio")).toHaveCount(0);
+  await expect(page.getByLabel("聊天记录").getByText("我在这里，慢慢听你说。")).toBeVisible();
   await page.getByText("语音详情", { exact: true }).click();
   await expect(page.getByText("语音供应商回退")).toBeVisible();
   await expect(page.getByText("Bearer [已隐藏]")).toBeVisible();
@@ -474,6 +478,128 @@ test("voice synthesis fallback reason is redacted before display", async ({ page
   await expect(page.getByText(fakeBaseUrl)).toHaveCount(0);
   await expect(page.getByText("rawPayload")).toHaveCount(0);
   await expect(page.getByText("src/lib/voice/provider.ts")).toHaveCount(0);
+  expect(synthesizeRequests).toBe(1);
+});
+
+test("silent fallback audio is reported as unavailable instead of a ready voice reply", async ({
+  page,
+}) => {
+  const unique = Date.now();
+  const companionName = `静音回响${unique}`;
+  const assistantReply = "我在这里，慢慢听你说。";
+  let synthesizeRequests = 0;
+  let voiceMessages: Array<{
+    id: string;
+    conversationId: string;
+    role: "user" | "assistant";
+    content: string;
+    metadata: { provider?: string; model?: string } | null;
+    createdAt: string;
+  }> = [];
+
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ messages: voiceMessages }),
+      });
+      return;
+    }
+    if (method !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const conversationId = getConversationIdFromRequest(route.request().url());
+    voiceMessages = [
+      {
+        id: `silent-user-${unique}`,
+        conversationId,
+        role: "user",
+        content: "今天想听一段声音。",
+        metadata: null,
+        createdAt: now,
+      },
+      {
+        id: `silent-assistant-${unique}`,
+        conversationId,
+        role: "assistant",
+        content: assistantReply,
+        metadata: { provider: "mock", model: "mock-local" },
+        createdAt: now,
+      },
+    ];
+
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        userMessage: voiceMessages[0],
+        assistantMessage: voiceMessages[1],
+        pendingMemory: null,
+        relationshipState: {
+          id: `silent-state-${unique}`,
+          companionId: `silent-companion-${unique}`,
+          familiarityScore: 8,
+          closenessScore: 6,
+          recentEmotion: "想念",
+          importantEvents: [],
+          lastInteractionAt: now,
+          explanation: "静音语音 E2E",
+          createdAt: now,
+          updatedAt: now,
+        },
+        completion: { provider: "mock", model: "mock-local" },
+      }),
+    });
+  });
+
+  // 服务端曾经把 mock 的 0 秒静音 wav 当作成功返回；现在应以 502 + 稳定文案失败。
+  await page.route("**/api/voice/synthesize", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    synthesizeRequests += 1;
+    await route.fulfill({
+      contentType: "application/json",
+      status: 502,
+      body: JSON.stringify({
+        error: "语音暂时没有生成成功，文字回复还在。",
+        errorType: "voice_unavailable",
+        retryable: true,
+        provider: "mock",
+        requestedProvider: "shared-llm",
+        model: "mock-voice-local",
+        fallback: true,
+        fallbackKind: "missing_config",
+      }),
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`silent-voice-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("静音语音 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await page.getByLabel("名字").fill(companionName);
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
+
+  await page.getByPlaceholder("把想说的话放在这里").fill("今天想听一段声音。");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByLabel("聊天记录").getByText(assistantReply)).toBeVisible();
+  await expect(page.getByRole("button", { name: "朗读最近回复" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "朗读最近回复" }).click();
+  await expect(page.getByText("语音暂时没有生成成功，文字回复还在。")).toBeVisible();
+  await expect(page.getByText("语音回复已生成")).toHaveCount(0);
+  await expect(page.locator(".voice-preview audio")).toHaveCount(0);
+  await expect(page.getByLabel("聊天记录").getByText(assistantReply)).toBeVisible();
+  await page.getByText("语音详情", { exact: true }).click();
+  await expect(page.getByText(/mock fallback/)).toBeVisible();
   expect(synthesizeRequests).toBe(1);
 });
 
