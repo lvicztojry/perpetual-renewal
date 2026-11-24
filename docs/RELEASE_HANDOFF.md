@@ -33,6 +33,8 @@ Current branch tip：交接时运行 git status --short --branch 和 git log -1 
 
 仅当另行部署聊天应用时，在目标环境配置 DATABASE_URL、USER_KEY_VAULT_SECRET、SESSION_COOKIE_SECRET 或强 vault-secret fallback、PROACTIVE_CRON_SECRET、认证邮件和模型配置，再运行 npm run prisma:migrate:deploy 与 npm run verify:deploy。语音共用网关时为 VOICE_PROVIDER=shared-llm。细节见 DEPLOYMENT；本地历史通过不能代替新目标的验证。
 
+主动回响的生产调度使用 `vercel.json` 里的 Vercel Cron 每分钟 GET `/api/proactive/run`；目标环境需配置 `CRON_SECRET`（`PROACTIVE_CRON_SECRET` 的同用途 alias），Vercel 会把它作为 Bearer token 发送到该路径。`npm run qa:proactive-cron` 静态复核这条链路与 `limit`/`maxDrafts` 护栏，本地交接前手动运行；它在 CI 里是提示档，不阻断合并。
+
 ## CI Expectations
 
 CI 分三档，命名与 .github/workflows/ci.yml 的 job 对应；列出命令不表示本轮已经执行。
