@@ -332,4 +332,8 @@ POST /api/voice/synthesize
 
 `/api/voice/synthesize` 接收 `text`、`voice`、`format`、`speed`，成功时返回 `audioBase64`、`mimeType` 与 `audioDataUrl`。mock provider 只能返回 0 秒静音 wav，因此成功响应不会再来自 mock/fallback 路径：静音占位会被判为 `voice_unavailable` 失败。业务 UI 不直接依赖具体语音供应商。
 
-聊天输入区的麦克风按钮已接入浏览器 `MediaRecorder`：第一次点击开始录音，第二次点击停止并转写。前端只把当前录音的 base64 音频发送到 `/api/voice/transcribe`，不会保存到仓库；浏览器不支持录音或麦克风不可用时，页面直接提示改用文字输入，不会把假的转写文字塞进输入框。真实转写需要 `VOICE_PROVIDER=shared-llm`（或 `compatible`）且网关具备 STT 通道；`VOICE_PROVIDER=edge` 只负责朗读合成，转写仍走共享网关。网关没有 STT 通道时接口返回 `voice_transcription_unavailable`，这是配置问题，不是录音问题。
+聊天输入区的麦克风按钮优先使用**浏览器内置语音识别**（Web Speech API，`src/lib/voice/browser-speech.ts`）：免费、不需要 API key，也不经过服务端 STT。识别中的临时结果实时写进草稿，最终结果追加在原有草稿之后，不会覆盖用户已经写的内容；切换会话或离开页面时会放弃进行中的识别。Chrome / Edge 支持该 API；Firefox 等不支持的浏览器自动回退到 `MediaRecorder` 录音 + `/api/voice/transcribe` 上传，音频不会保存到仓库。
+
+浏览器识别需要麦克风权限，页面若走 HTTPS 或 localhost 属于安全上下文；局域网 HTTP 访问在实测的 Edge 上仍可用，但不同浏览器版本可能收紧。浏览器识别失败时会给出「没有听到声音」「没有拿到麦克风权限」等针对性提示，并保留原草稿。
+
+回退链路（服务端转写）需要 `VOICE_PROVIDER=shared-llm`（或 `compatible`）且网关具备 STT 通道；`VOICE_PROVIDER=edge` 只负责朗读合成，转写仍走共享网关。网关没有 STT 通道时接口返回 `voice_transcription_unavailable`，这是配置问题，不是录音问题。

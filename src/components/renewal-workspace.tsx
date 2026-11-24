@@ -58,6 +58,12 @@ import { SyncAccessNotice, UnreadBadge } from "./sync-access-notice";
 import { reconcileMessageSnapshot } from "@/lib/client-sync/messages";
 import { createClientId } from "@/lib/client-sync/id";
 import { ABILITY_INTRO_STATE_EVENT, playAbilityIntro } from "@/lib/ability-events";
+import {
+  describeBrowserSpeechError,
+  isBrowserSpeechSupported,
+  startBrowserSpeech,
+  type BrowserSpeechHandle
+} from "@/lib/voice/browser-speech";
 
 type InspectorMode =
   | "profile"
@@ -334,6 +340,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const browserSpeechRef = useRef<BrowserSpeechHandle | null>(null);
   const activeConversationRef = useRef<string | null>(null);
   const messageRevisionRef = useRef(0);
   const draftsByConversationRef = useRef(new Map<string, string>());
@@ -416,6 +423,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         mediaRecorderRef.current.stop();
       }
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      browserSpeechRef.current?.abort();
+      browserSpeechRef.current = null;
     };
   }, []);
 
@@ -671,6 +680,10 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     }
     activeConversationRef.current = companion.conversationId;
     messageRevisionRef.current += 1;
+    // 切换会话时放弃进行中的识别，避免结果写进新会话的草稿。
+    browserSpeechRef.current?.abort();
+    browserSpeechRef.current = null;
+    setIsRecording(false);
     setMessages(localMessagesByConversationRef.current.get(companion.conversationId) ?? []);
     setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
     setProactiveDrafts([]);
@@ -1463,17 +1476,27 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     await startVoiceRecording();
   }
 
+  /**
+   * 优先用浏览器内置识别（免费、无需服务端 STT 通道）；不支持的浏览器
+   * 回退到录音上传 + /api/voice/transcribe。
+   */
   async function startVoiceRecording() {
     if (!activeCompanion || isTranscribing) return;
+
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+
+    if (isBrowserSpeechSupported()) {
+      startBrowserVoiceTranscript();
+      return;
+    }
 
     if (!canRecordVoice()) {
       showVoiceUnavailable("当前浏览器不支持录音，请改用文字输入");
       return;
     }
 
-    setError(null);
-    setVoicePreview(null);
-    setVoiceFailure(null);
     setStatus("正在请求麦克风权限...");
 
     try {
@@ -1521,6 +1544,12 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   }
 
   function stopVoiceRecording() {
+    if (browserSpeechRef.current) {
+      setStatus("正在整理识别结果...");
+      browserSpeechRef.current.stop();
+      return;
+    }
+
     const recorder = mediaRecorderRef.current;
 
     if (recorder && recorder.state === "recording") {
@@ -1530,6 +1559,61 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     }
 
     cleanupVoiceRecording();
+  }
+
+  /** 浏览器内置识别：边识别边把临时结果写进草稿，结束后保留最终结果。 */
+  function startBrowserVoiceTranscript() {
+    // 记下开始前的草稿，识别结果追加其后，不覆盖用户已经写的内容。
+    const draftBefore = draft;
+    const base = draftBefore.trim() ? draftBefore.trimEnd() : "";
+    let latestFinal = "";
+    let hadError = false;
+
+    const handle = startBrowserSpeech({
+      lang: "zh-CN",
+      onInterim: (text) => {
+        setDraft(joinTranscript(base, latestFinal, text));
+      },
+      onFinal: (text) => {
+        latestFinal = latestFinal ? `${latestFinal}${text}` : text;
+        setDraft(joinTranscript(base, latestFinal, ""));
+        setStatus("语音已识别，可继续编辑");
+      },
+      onError: (code) => {
+        hadError = true;
+        const message = describeBrowserSpeechError(code);
+        browserSpeechRef.current = null;
+        setIsRecording(false);
+        if (!message) {
+          setDraft(draftBefore);
+          setStatus("已取消语音输入");
+          return;
+        }
+        setError(message);
+        setStatus("语音识别失败，请稍后重试");
+      },
+      onEnd: () => {
+        browserSpeechRef.current = null;
+        setIsRecording(false);
+        if (hadError) return;
+        if (latestFinal.trim()) {
+          setDraft(joinTranscript(base, latestFinal, ""));
+          setStatus("语音已识别，可继续编辑");
+        } else {
+          setDraft(draftBefore);
+          setStatus("没有识别到内容，可以再说一次");
+        }
+      }
+    });
+
+    if (!handle) {
+      showVoiceUnavailable("当前浏览器不支持语音识别，请改用文字输入");
+      return;
+    }
+
+    browserSpeechRef.current = handle;
+    setIsRecording(true);
+    setStatus("正在听，再点一次麦克风结束");
   }
 
   /**
@@ -1599,6 +1683,14 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     mediaRecorderRef.current = null;
     audioChunksRef.current = [];
     setIsRecording(false);
+  }
+
+  /** 把草稿和识别片段拼回去：临时结果覆盖，最终结果累加，绝不覆盖已有草稿。 */
+  function joinTranscript(base: string, finalText: string, interimText: string) {
+    const spoken = `${finalText}${interimText}`.trim();
+    if (!spoken) return base;
+
+    return base ? `${base}${base.endsWith(" ") ? "" : " "}${spoken}` : spoken;
   }
 
   async function synthesizeLatestReply() {

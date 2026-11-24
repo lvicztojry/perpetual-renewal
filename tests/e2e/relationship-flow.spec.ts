@@ -619,8 +619,11 @@ test("unrecognised speech reports unavailable instead of filling the draft with 
     createdAt: string;
   }> = [];
 
-  // 浏览器录音本身可用；失败点在服务端 STT（网关没有转写通道）。
+  // 这个用例覆盖服务端转写链路：关掉浏览器内置识别，强制走录音上传。
   await page.addInitScript(() => {
+    Object.defineProperty(window, "SpeechRecognition", { configurable: true, value: undefined });
+    Object.defineProperty(window, "webkitSpeechRecognition", { configurable: true, value: undefined });
+
     const silentTrack = {
       kind: "audio",
       enabled: true,
@@ -771,6 +774,85 @@ test("unrecognised speech reports unavailable instead of filling the draft with 
   await expect(input).toHaveValue("我自己写的草稿");
   await expect(input).not.toHaveValue(/我刚发来一段语音/);
   expect(transcribeRequests).toBe(1);
+});
+
+test("browser speech recognition fills the draft without calling the server", async ({ page }) => {
+  const unique = Date.now();
+  const companionName = `浏览器识别${unique}`;
+  let transcribeRequests = 0;
+
+  await page.addInitScript(() => {
+    // 没有真实麦克风与识别服务：用可控的替身验证接线，不依赖网络。
+    class FakeSpeechRecognition {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      maxAlternatives = 1;
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: { error?: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      onstart: (() => void) | null = null;
+
+      start() {
+        (window as unknown as { __speechStarted: number }).__speechStarted =
+          ((window as unknown as { __speechStarted?: number }).__speechStarted ?? 0) + 1;
+      }
+
+      stop() {
+        const results = [
+          Object.assign([{ transcript: "明天下午三点" }], { isFinal: true }),
+          Object.assign([{ transcript: "在老地方见" }], { isFinal: true }),
+        ];
+        this.onresult?.({ resultIndex: 0, results: Object.assign(results, { length: 2 }) });
+        this.onend?.();
+      }
+
+      abort() {
+        this.onend?.();
+      }
+    }
+
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: FakeSpeechRecognition,
+    });
+    Object.defineProperty(window, "webkitSpeechRecognition", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  // 服务端转写不应被调用：浏览器识别直接给结果。
+  await page.route("**/api/voice/transcribe", async (route) => {
+    transcribeRequests += 1;
+    await route.fulfill({ status: 500, body: "{}" });
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(`browser-speech-${unique}@perpetual-renewal.local`);
+  await page.getByLabel("昵称").fill("浏览器识别 QA");
+  await page.getByRole("button", { name: "进入" }).click();
+
+  await expect(page).toHaveURL("/");
+  await page.getByRole("button", { name: "创建关系对象" }).first().click();
+  await page.getByLabel("名字").fill(companionName);
+  await page.getByRole("button", { name: "创建并开始聊天" }).last().click();
+  await expect(page.getByRole("heading", { exact: true, name: companionName })).toBeVisible();
+
+  const input = page.getByPlaceholder("把想说的话放在这里");
+  await input.fill("先写下的话");
+
+  await page.getByRole("button", { name: "语音输入" }).click();
+  await expect(page.getByRole("button", { name: "停止录音" })).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { __speechStarted?: number }).__speechStarted)
+  ).toBe(1);
+
+  await page.getByRole("button", { name: "停止录音" }).click();
+
+  // 已有草稿保留，识别结果追加在后面。
+  await expect(input).toHaveValue("先写下的话 明天下午三点在老地方见");
+  expect(transcribeRequests).toBe(0);
 });
 
 async function stubChatResponseWithPendingMemory(page: Page, unique: number, expectedContent: string) {
