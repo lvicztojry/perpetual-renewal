@@ -95,15 +95,23 @@ export async function getConfigReadinessSnapshot(
     {
       id: "voice",
       label: "语音供应商",
-      status: voiceProvider === "shared-llm" || voiceProvider === "compatible" ? "ready" : "warning",
+      status: voiceProvider === "mock" ? "warning" : "ready",
       description:
-        voiceProvider === "shared-llm" || voiceProvider === "compatible"
-          ? "语音已配置为与 LLM 共用中转站。"
-          : "语音供应商不是默认共用中转站模式。",
+        voiceProvider === "edge"
+          ? "朗读使用免费的 Microsoft Edge 语音，不需要 API key；语音转写仍走共享网关或 mock。"
+          : voiceProvider === "shared-llm" || voiceProvider === "compatible"
+            ? "语音已配置为与 LLM 共用中转站。"
+            : voiceProvider === "mock"
+              ? "语音供应商被固定为 mock，朗读只会返回静音占位并判为失败。"
+              : "语音供应商用了未知取值。",
       nextStep:
-        voiceProvider === "shared-llm" || voiceProvider === "compatible"
-          ? "按供应商能力填写 VOICE_STT_MODEL 和 VOICE_TTS_MODEL；为空时会回落到 LLM_MODEL。"
-          : "确认语音供应商是否具备兼容 STT/TTS 接口。"
+        voiceProvider === "edge"
+          ? "朗读已可直接使用；如需语音转写，再配置 LLM key 与 VOICE_STT_MODEL。"
+          : voiceProvider === "shared-llm" || voiceProvider === "compatible"
+            ? "按供应商能力填写 VOICE_STT_MODEL 和 VOICE_TTS_MODEL；为空时会回落到 LLM_MODEL。"
+            : voiceProvider === "mock"
+              ? "把 VOICE_PROVIDER 改成 edge 或 shared-llm 才能生成真实语音。"
+              : "改用 edge、shared-llm、compatible 或 mock。"
     }
   ];
 

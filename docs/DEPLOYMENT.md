@@ -116,6 +116,7 @@ VOICE_STT_MODEL="provider-stt-model"
 VOICE_TTS_MODEL="provider-tts-model"
 VOICE_DEFAULT_VOICE="warm"
 VOICE_CREDENTIAL_SOURCE="server-env"
+# 改用免费 Edge 朗读时把 VOICE_PROVIDER 设为 edge，并可调 VOICE_EDGE_TIMEOUT_MS。
 ```
 
 最小真实试用不要把所有变量都混在一起理解：数据库连接串、三类 secret 与认证邮件配置 放 `.env.local`；当前用户自己的 LLM key、模型名和连接测试优先在网站设置页完成。`LLM_API_KEY`/`LLM_MODEL` 只有在你需要部署方提供服务端 fallback 时才必须写入服务端环境变量；纯 BYOK 试用可以保持为空。
@@ -130,6 +131,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `PROACTIVE_CRON_SECRET` 用于保护 `/api/proactive/run` 的 all-user 调度入口。不要和 `USER_KEY_VAULT_SECRET` 复用。
 - `CRON_SECRET` 是 Vercel Cron 的同用途 alias；Vercel 会把它作为 Bearer token 发给 cron 路径。使用 Vercel Cron 时，可把它设置为与 `PROACTIVE_CRON_SECRET` 相同的强随机值，或只设置 `CRON_SECRET`。
 - `VOICE_PROVIDER=shared-llm` 时语音与文本共用 `LLM_API_KEY` 和 `LLM_BASE_URL`，调用兼容 OpenAI 风格的 `/audio/transcriptions` 与 `/audio/speech`；`VOICE_STT_MODEL`、`VOICE_TTS_MODEL` 为空时 fallback 到 `LLM_MODEL`。文本模型通常不支持音频端点，网关没有 TTS 通道时 `/api/voice/synthesize` 会返回 `voice_unavailable` 失败（保留文字回复），不会把 mock 静音音频当成语音回复。
+- `VOICE_PROVIDER=edge` 时朗读改用 Microsoft Edge「大声朗读」语音：免费、无需 API key，`VOICE_DEFAULT_VOICE` 或请求里的 `warm`/`soft`/`calm`/`deep` 会映射到 `zh-CN-XiaoxiaoNeural` 等中文神经音色，也可直接传完整音色名（如 `zh-CN-YunxiNeural`）。Edge 只提供合成，转写仍走共享网关或 mock；`VOICE_EDGE_TIMEOUT_MS` 可选，默认 30000。该端点不是微软承诺 SLA 的正式 API，正式商用应改用 Azure Speech 或硅基流动等有合同的服务。
 - `LLM_INPUT_COST_USD_PER_1M` 与 `LLM_OUTPUT_COST_USD_PER_1M` 用于成本看板估算，单位是每 100 万 tokens 的美元价格，只做展示，不做订阅、扣费或额度限制。
 - 用户也可以在设置页保存自己的 LLM API key。服务端只返回 provider、model、key 尾号、key 指纹、端点是否已配置和端点指纹；不返回 key 原文、Base URL 明文或 `baseUrl` 字段。聊天链路优先使用用户 vault，未配置时回落服务端环境变量或 mock。换句话说，设置页保存的是当前登录用户的 BYOK 凭据，`.env.local` 里的 `LLM_API_KEY` 是可选的服务端兜底。
 - 设置页“配置状态”面板调用 `GET /api/me/config-status` 做只读检查，会提示 `DATABASE_URL`、`USER_KEY_VAULT_SECRET`、session 签名 secret、`PROACTIVE_CRON_SECRET`、LLM key/model/baseUrl 和 `VOICE_PROVIDER` 的就绪状态与下一步动作；响应只返回状态、标签和建议，不显示真实数据库连接串、API key、vault secret、session secret、cron secret 或 Base URL 原文。

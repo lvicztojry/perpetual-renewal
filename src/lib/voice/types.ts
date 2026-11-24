@@ -1,4 +1,4 @@
-export type VoiceProviderName = "mock" | "shared-llm" | "compatible";
+export type VoiceProviderName = "mock" | "shared-llm" | "compatible" | "edge";
 
 export type VoiceCredentialSource = "server-env" | "user-vault";
 

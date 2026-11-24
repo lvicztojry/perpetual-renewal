@@ -39,7 +39,7 @@
     "qa:response": "node tests/response-safety-smoke.mjs",
     "qa:chat-delivery": "node tests/message-client-id.mjs",
     "qa:providers": "node tests/provider-adapters-smoke.mjs",
-    "qa:voice": "node tests/voice-shared-llm-smoke.mjs",
+    "qa:voice": "node tests/voice-shared-llm-smoke.mjs && node tests/voice-edge-tts.mjs",
     "qa:voice-language": "node tests/voice-transcription-language.mjs",
     "qa:auth": "node tests/auth-backend.mjs && node tests/auth-smtp.mjs && node tests/auth-mail-check.mjs && node tests/env-readiness-auth.mjs && node tests/lan-auth-origin.mjs && node tests/lan-mutation-origin.mjs",
     "qa:auth:postgres": "node tests/auth-postgres.mjs",
@@ -87,13 +87,15 @@
     "next": "16.4.6",
     "nodemailer": "10.2.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "ws": "8.23.0"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
+    "@types/ws": "8.18.2",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.6",
     "prisma": "6.12.0",

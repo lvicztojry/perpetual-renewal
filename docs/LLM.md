@@ -309,6 +309,7 @@ VOICE_CREDENTIAL_SOURCE="server-env"
 - `VOICE_PROVIDER=mock`：本地 mock STT/TTS，可用于 UI 与 API 联调。
 - `VOICE_PROVIDER=shared-llm`：语音与文本 LLM 共用 `LLM_API_KEY`、`LLM_BASE_URL`；STT/TTS 模型优先读取 `VOICE_STT_MODEL`、`VOICE_TTS_MODEL`，为空时 fallback 到 `LLM_MODEL`。
 - `VOICE_PROVIDER=compatible`：`shared-llm` 的兼容别名，保留给兼容网关语义；新配置推荐只用 `LLM_*`。
+- `VOICE_PROVIDER=edge`：朗读改用 Microsoft Edge「大声朗读」免费语音，无需 API key；实现见 `src/lib/voice/edge-tts-provider.ts`，走 WebSocket + SSML，不经过 `/audio/speech`。它只提供合成，转写继续走共享网关或 mock。`warm`/`soft`/`calm`/`deep` 会映射到 `zh-CN-XiaoxiaoNeural` 等音色，也可直接传完整音色名。Edge 只开放 mp3 与 webm，`format=wav` 仍按 mp3 返回，`format=ogg` 按 webm 返回并相应改写 MIME。该端点不是微软承诺 SLA 的正式公开 API，正式商用应改用 Azure Speech 或硅基流动等有合同的服务。
 - `VOICE_CREDENTIAL_SOURCE=server-env`：服务端统一环境变量模式，适合自部署内测。
 - 用户级 vault：当当前用户保存了 `compatible` 或 `openai-compatible` 的 LLM key、Base URL 和 model，语音 API 会优先复用这组服务端加密凭据；前端状态只显示端点配置状态和端点指纹，不显示 Base URL 明文。非兼容音频协议的供应商继续走服务端 env 或 mock fallback。
 - `VOICE_CREDENTIAL_SOURCE=user-vault`：表示真实语音请求来自用户 vault；key 加密保存，不写入仓库，也不返回给前端。

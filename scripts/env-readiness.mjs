@@ -343,17 +343,22 @@ function llmModelCheck() {
 function voiceCheck() {
   const provider = process.env.VOICE_PROVIDER?.trim() || "shared-llm";
   const shared = provider === "shared-llm" || provider === "compatible";
+  const edge = provider === "edge";
   return {
     label: "VOICE_PROVIDER",
-    status: shared ? "ready" : "warning",
+    status: shared || edge ? "ready" : "warning",
     required: false,
     strictWarning: false,
-    detail: shared
-      ? "Voice is configured to share the LLM-compatible gateway."
-      : "Voice provider is not the default shared gateway mode.",
-    next: shared
-      ? "Set VOICE_STT_MODEL and VOICE_TTS_MODEL if the gateway requires specific audio models."
-      : "Confirm the provider supports compatible STT/TTS endpoints."
+    detail: edge
+      ? "Voice synthesis uses the free Microsoft Edge Read Aloud service; no API key is required."
+      : shared
+        ? "Voice is configured to share the LLM-compatible gateway."
+        : "Voice provider is not the default shared gateway mode.",
+    next: edge
+      ? "Speech synthesis works without extra configuration; set LLM_* and VOICE_STT_MODEL only if you need transcription."
+      : shared
+        ? "Set VOICE_STT_MODEL and VOICE_TTS_MODEL if the gateway requires specific audio models."
+        : "Set VOICE_PROVIDER to edge, shared-llm, compatible or mock."
   };
 }
 

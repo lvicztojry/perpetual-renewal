@@ -50,7 +50,7 @@ await new Promise((resolve, reject) => {
 after(() => new Promise((resolve) => server.close(resolve)));
 
 const modules = {};
-for (const name of ["types", "compatible-provider", "mock-provider", "provider"]) {
+for (const name of ["types", "compatible-provider", "mock-provider", "edge-tts-provider", "provider"]) {
   modules[`./${name}`] = await loadModule(name);
 }
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
@@ -116,11 +116,16 @@ async function loadModule(name) {
     Buffer,
     DOMException,
     FormData,
+    // Edge TTS uses the platform WebSocket; these cases only exercise the gateway adapters.
+    WebSocket: class UnusedWebSocket {},
+    crypto,
+    TextEncoder,
     fetch,
     // Exercise adapters without reading local credentials or environment values.
     process: { env: {} },
     exports: {},
     require(specifier) {
+      if (specifier === "ws") return { default: class UnusedWebSocket {} };
       assert.ok(Object.hasOwn(modules, specifier), `Unexpected import: ${specifier}`);
       return modules[specifier];
     }

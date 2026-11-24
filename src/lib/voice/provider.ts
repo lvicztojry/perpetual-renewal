@@ -1,4 +1,5 @@
 import { CompatibleVoiceProvider } from "./compatible-provider";
+import { EdgeTtsVoiceProvider } from "./edge-tts-provider";
 import { MockVoiceProvider } from "./mock-provider";
 import {
   VoiceProviderError,
@@ -27,6 +28,34 @@ export function createVoiceProvider(config: Partial<VoiceProviderConfig> = {}): 
     });
   }
 
+  if (requestedProvider === "edge") {
+    const synthesis = new FallbackVoiceProvider(
+      new EdgeTtsVoiceProvider({
+        defaultVoice: config.defaultVoice ?? process.env.VOICE_DEFAULT_VOICE,
+        timeoutMs: readEdgeTimeoutMs()
+      }),
+      credentialSource
+    );
+    const transcription =
+      createSharedLlmProvider(config, credentialSource) ??
+      new MockVoiceProvider(
+        "VOICE_PROVIDER=edge only provides synthesis; using mock transcription.",
+        {
+          requestedProvider,
+          credentialSource,
+          fallback: true,
+          fallbackKind: "missing_config",
+          missingConfig: ["shared-llm transcription config"],
+          retryable: false
+        }
+      );
+
+    return new SplitVoiceProvider(synthesis, transcription);
+  }
+
+  const shared = createSharedLlmProvider(config, credentialSource);
+  if (shared) return shared;
+
   const apiKey = config.apiKey ?? readSharedApiKey(requestedProvider);
   const baseUrl = config.baseUrl ?? readSharedBaseUrl(requestedProvider);
   const sttModel = config.sttModel ?? readVoiceModel(process.env.VOICE_STT_MODEL, process.env.LLM_MODEL);
@@ -38,43 +67,65 @@ export function createVoiceProvider(config: Partial<VoiceProviderConfig> = {}): 
     ttsModel
   });
 
-  if (missingConfig.length > 0) {
-    return new MockVoiceProvider(
-      `${requestedProvider} voice provider missing ${missingConfig.join(", ")}; using mock provider.`,
-      {
-        requestedProvider,
-        credentialSource,
-        fallback: true,
-        fallbackKind: "missing_config",
-        missingConfig,
-        retryable: false
-      }
-    );
-  }
-
-  const configuredApiKey = apiKey;
-  const configuredBaseUrl = baseUrl;
-  const configuredSttModel = sttModel;
-  const configuredTtsModel = ttsModel;
-
-  if (!configuredApiKey || !configuredBaseUrl || !configuredSttModel || !configuredTtsModel) {
-    return new MockVoiceProvider(`${requestedProvider} voice provider missing required config; using mock provider.`, {
+  return new MockVoiceProvider(
+    `${requestedProvider} voice provider missing ${missingConfig.join(", ")}; using mock provider.`,
+    {
       requestedProvider,
       credentialSource,
       fallback: true,
       fallbackKind: "missing_config",
-      missingConfig: ["required voice config"],
+      missingConfig,
       retryable: false
-    });
+    }
+  );
+}
+
+/** Edge 合成 + 兼容网关（或 mock）转写：两条链路的能力和配置完全不同。 */
+class SplitVoiceProvider implements VoiceProvider {
+  readonly name: VoiceProviderName;
+
+  constructor(
+    private readonly synthesis: VoiceProvider,
+    private readonly transcription: VoiceProvider
+  ) {
+    this.name = synthesis.name;
   }
+
+  transcribe(options: VoiceTranscriptionOptions) {
+    return this.transcription.transcribe(options);
+  }
+
+  synthesize(options: VoiceSynthesisOptions) {
+    return this.synthesis.synthesize(options);
+  }
+}
+
+function readEdgeTimeoutMs() {
+  const raw = Number(process.env.VOICE_EDGE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 60_000 ? raw : undefined;
+}
+
+function createSharedLlmProvider(
+  config: Partial<VoiceProviderConfig>,
+  credentialSource: VoiceCredentialSource
+): VoiceProvider | null {
+  // edge 模式下语音合成走 Edge，这里的实例只用于转写，仍按共享网关处理。
+  const provider: "shared-llm" | "compatible" =
+    config.provider === "compatible" ? "compatible" : "shared-llm";
+  const apiKey = config.apiKey ?? readSharedApiKey(provider);
+  const baseUrl = config.baseUrl ?? readSharedBaseUrl(provider);
+  const sttModel = config.sttModel ?? readVoiceModel(process.env.VOICE_STT_MODEL, process.env.LLM_MODEL);
+  const ttsModel = config.ttsModel ?? readVoiceModel(process.env.VOICE_TTS_MODEL, process.env.LLM_MODEL);
+
+  if (!apiKey || !baseUrl || !sttModel || !ttsModel) return null;
 
   return new FallbackVoiceProvider(
     new CompatibleVoiceProvider({
-      provider: requestedProvider,
-      apiKey: configuredApiKey,
-      baseUrl: configuredBaseUrl,
-      sttModel: configuredSttModel,
-      ttsModel: configuredTtsModel,
+      provider,
+      apiKey,
+      baseUrl,
+      sttModel,
+      ttsModel,
       defaultVoice: config.defaultVoice ?? process.env.VOICE_DEFAULT_VOICE
     }),
     credentialSource
@@ -147,7 +198,7 @@ class FallbackVoiceProvider implements VoiceProvider {
 }
 
 function readProviderName(value: string | undefined): VoiceProviderName {
-  if (value === "compatible" || value === "shared-llm" || value === "mock") {
+  if (value === "compatible" || value === "shared-llm" || value === "mock" || value === "edge") {
     return value;
   }
 

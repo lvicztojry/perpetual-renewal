@@ -281,6 +281,7 @@ async function loadVoiceModules() {
     require(specifier) {
       if (specifier === "./compatible-provider") return compatibleProvider;
       if (specifier === "./mock-provider") return mockProvider;
+      if (specifier === "./edge-tts-provider") return { EdgeTtsVoiceProvider: class UnusedEdgeTts {} };
       if (specifier === "./types") return types;
       throw new Error(`Unexpected require while loading voice provider: ${specifier}`);
     }

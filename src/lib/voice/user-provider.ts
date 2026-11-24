@@ -3,13 +3,15 @@ import { createVoiceProvider } from "./provider";
 
 export async function createUserVoiceProvider(userId: string) {
   const credential = await readDecryptedLlmCredential(userId);
+  const requestedProvider = process.env.VOICE_PROVIDER?.trim();
 
   if (
     credential &&
     (credential.provider === "compatible" || credential.provider === "openai-compatible")
   ) {
     return createVoiceProvider({
-      provider: "shared-llm",
+      // edge 只负责合成；用户的 vault 凭据用于转写，不能被覆盖成 shared-llm 合成。
+      provider: requestedProvider === "edge" ? "edge" : "shared-llm",
       credentialSource: "user-vault",
       apiKey: credential.apiKey,
       baseUrl: credential.baseUrl,
