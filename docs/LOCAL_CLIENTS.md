@@ -107,6 +107,14 @@ npm --prefix native run android:build
 
 语音识别依赖设备的识别服务：多数量产 ROM 自带，部分精简 ROM 没有，此时按钮会提示改用文字输入。系统的 `SpeechRecognizer` 在某些引擎上需要联网才能出结果，因此离线设备可能识别失败——这是引擎限制，不是应用配置问题。
 
+只改了 Kotlin 原生插件时，不必等完整的 `android:build`（它要先编译 Rust 再打包）。在真实 PowerShell 窗口里跑：
+
+```powershell
+.\native\scripts\check-android-kotlin.ps1
+```
+
+它只编译 Android 工程的 Kotlin 源码，约 30 秒给出编译错误。注意必须在真实终端运行：在受限沙箱里执行时 JVM 无法建立本地回环连接，会报 `Unable to establish loopback connection`，那是沙箱限制而非代码问题。
+
 iPhone 在 Mac 上准备 Xcode、Rust iOS targets，设置实际 Apple 团队和签名，再运行：
 
 ```bash
