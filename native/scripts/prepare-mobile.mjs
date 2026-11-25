@@ -30,6 +30,21 @@ console.log(
   "Android microphone permissions are declared (RECORD_AUDIO, MODIFY_AUDIO_SETTINGS). Runtime recording permission still requires device verification."
 );
 
+// 原生语音识别插件：Tauri 不会自动把应用自己的 Kotlin 插件编进工程，
+// 这里复制到生成工程的应用包目录（与 MainActivity 同包）。
+const speechSource = fileURLToPath(new URL("../android/SpeechPlugin.kt", import.meta.url));
+if (existsSync(speechSource)) {
+  const appPackageDir = fileURLToPath(
+    new URL(
+      "../src-tauri/gen/android/app/src/main/java/com/perpetualrenewal/localtest/",
+      import.meta.url
+    )
+  );
+  mkdirSync(appPackageDir, { recursive: true });
+  copyFileSync(speechSource, join(appPackageDir, "SpeechPlugin.kt"));
+  console.log("Android speech recognition plugin staged.");
+}
+
 // Reapply canonical launcher resources after Tauri staging as well as initialization.
 const iconRoot = fileURLToPath(new URL("../src-tauri/icons/android/", import.meta.url));
 const resourceRoot = fileURLToPath(new URL("../src-tauri/gen/android/app/src/main/res/", import.meta.url));

@@ -65,6 +65,13 @@ import {
   type BrowserSpeechHandle
 } from "@/lib/voice/browser-speech";
 import { shouldUseSystemSpeech, speakWithSystemVoice, type SystemSpeechHandle } from "@/lib/voice/system-speech";
+import {
+  canUseNativeSpeech,
+  describeNativeSpeechError,
+  isNativeSpeechAvailable,
+  startNativeSpeech,
+  type NativeSpeechHandle
+} from "@/lib/voice/native-speech";
 
 type InspectorMode =
   | "profile"
@@ -343,6 +350,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const audioChunksRef = useRef<BlobPart[]>([]);
   const browserSpeechRef = useRef<BrowserSpeechHandle | null>(null);
   const systemSpeechRef = useRef<SystemSpeechHandle | null>(null);
+  const nativeSpeechRef = useRef<NativeSpeechHandle | null>(null);
   const activeConversationRef = useRef<string | null>(null);
   const messageRevisionRef = useRef(0);
   const draftsByConversationRef = useRef(new Map<string, string>());
@@ -429,6 +437,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       browserSpeechRef.current = null;
       systemSpeechRef.current?.stop();
       systemSpeechRef.current = null;
+      nativeSpeechRef.current?.cancel();
+      nativeSpeechRef.current = null;
     };
   }, []);
 
@@ -687,6 +697,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     // 切换会话时放弃进行中的识别，避免结果写进新会话的草稿。
     browserSpeechRef.current?.abort();
     browserSpeechRef.current = null;
+    nativeSpeechRef.current?.cancel();
+    nativeSpeechRef.current = null;
     setIsRecording(false);
     setMessages(localMessagesByConversationRef.current.get(companion.conversationId) ?? []);
     setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
@@ -1481,8 +1493,10 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   }
 
   /**
-   * 优先用浏览器内置识别（免费、无需服务端 STT 通道）；不支持的浏览器
-   * 回退到录音上传 + /api/voice/transcribe。
+   * 识别路径优先级：
+   * 1. 原生安卓壳 → 系统 SpeechRecognizer（WebView 没有 Web Speech API）
+   * 2. 浏览器 → Web Speech API（免费、无需服务端 STT）
+   * 3. 兜底 → 录音上传 + /api/voice/transcribe
    */
   async function startVoiceRecording() {
     if (!activeCompanion || isTranscribing) return;
@@ -1490,6 +1504,14 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setError(null);
     setVoicePreview(null);
     setVoiceFailure(null);
+
+    if (canUseNativeSpeech()) {
+      const available = await isNativeSpeechAvailable();
+      if (available) {
+        startNativeVoiceTranscript();
+        return;
+      }
+    }
 
     if (isBrowserSpeechSupported()) {
       startBrowserVoiceTranscript();
@@ -1548,6 +1570,12 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   }
 
   function stopVoiceRecording() {
+    if (nativeSpeechRef.current) {
+      setStatus("正在整理识别结果...");
+      nativeSpeechRef.current.cancel();
+      return;
+    }
+
     if (browserSpeechRef.current) {
       setStatus("正在整理识别结果...");
       browserSpeechRef.current.stop();
@@ -1563,6 +1591,45 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     }
 
     cleanupVoiceRecording();
+  }
+
+  /** 原生安卓识别：一次性返回整段文字，结果同样追加在既有草稿之后。 */
+  function startNativeVoiceTranscript() {
+    const draftBefore = draft;
+    const base = draftBefore.trim() ? draftBefore.trimEnd() : "";
+
+    const handle = startNativeSpeech({ lang: "zh-CN" });
+    if (!handle) {
+      showVoiceUnavailable("当前设备不支持语音识别，请改用文字输入");
+      return;
+    }
+
+    nativeSpeechRef.current = handle;
+    setIsRecording(true);
+    setStatus("正在听，再点一次麦克风结束");
+
+    void handle.done.then((result) => {
+      if (nativeSpeechRef.current === handle) nativeSpeechRef.current = null;
+      setIsRecording(false);
+
+      if (result.ok) {
+        setDraft(joinTranscript(base, result.text, ""));
+        setStatus("语音已识别，可继续编辑");
+        return;
+      }
+
+      const message = describeNativeSpeechError(result);
+      if (!message) {
+        // 用户主动取消：恢复原草稿，不显示错误。
+        setDraft(draftBefore);
+        setStatus("已取消语音输入");
+        return;
+      }
+
+      setDraft(draftBefore);
+      setError(message);
+      setStatus("语音识别失败，请稍后重试");
+    });
   }
 
   /** 浏览器内置识别：边识别边把临时结果写进草稿，结束后保留最终结果。 */

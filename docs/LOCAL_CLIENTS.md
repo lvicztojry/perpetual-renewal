@@ -20,7 +20,7 @@
 | 本地业务 | 复用既有服务和接口处理逻辑，由设备内请求分发器执行；不启动 HTTP 服务 | 原生完整功能验收 |
 | 数据 | 每个账户独立的密码包装主密钥、AES-GCM 加密状态；SQLite 原子比较版本写入；Windows/Android 已实际写入 | 实体手机断电恢复和容量测试；Apple 构建暂缓 |
 | 账号 | 本地创建、登录、锁定、恢复码重设密码；重设时保留原主密钥和数据 | 原生生命周期与密码管理器检查 |
-| 模型与语音 | 沿用多供应商适配器和个人 vault，原生 HTTPS 请求传输；朗读在原生壳内改用设备本地语音引擎（`speechSynthesis`），因为 WebView 无法完成 Edge TTS 的自定义 WebSocket 头与 wss 连接 | 使用者实际供应商配置、录音/播放和权限真机验收 |
+| 模型与语音 | 沿用多供应商适配器和个人 vault，原生 HTTPS 请求传输；朗读在原生壳内改用设备本地语音引擎（`speechSynthesis`），语音转文字改用系统 `SpeechRecognizer`（内联插件 `renewal-speech`），因为 WebView 既不支持 Edge TTS 的自定义 WebSocket 头，也不实现 Web Speech API | 使用者实际供应商配置、录音/播放/识别和权限真机验收 |
 | 后台任务 | 应用运行时检查私聊和群聊；群聊使用现有完整 scheduled 流程；手机返回前台检查 | Android 实际生命周期；iOS 暂缓；没有实现系统定时唤醒的承诺 |
 | 文件 | 保留已有 JSON/资料导入导出；原生保存对话框与文件写入已接入 | 当前平台文件选择、Android content URI；iOS 保存待恢复扩展后另验 |
 | 更新保护 | 固定应用 ID、SQLite 迁移历史校验、升级前备份、事务回滚、拒绝降级、旧版本来源检查 | 逐版本覆盖更新证据、未执行项见 [MVP_STATUS.md](MVP_STATUS.md)；实体设备及 Apple 平台另验 |
@@ -103,7 +103,9 @@ npm --prefix native run android:init
 npm --prefix native run android:build
 ```
 
-`android:build` 会先执行 `native/scripts/prepare-mobile.mjs`，向生成的 AndroidManifest 补齐 `RECORD_AUDIO` 与 `MODIFY_AUDIO_SETTINGS`。两者缺一不可：wry 处理 WebView 的音频采集时会同时申请这两个权限，并要求全部授予才放行 `getUserMedia`。声明不等于用户已经授予权限，录音仍需真机检查，包括第一次点击麦克风时的系统授权弹窗。
+`android:build` 会先执行 `native/scripts/prepare-mobile.mjs`，向生成的 AndroidManifest 补齐 `RECORD_AUDIO` 与 `MODIFY_AUDIO_SETTINGS`。两者缺一不可：wry 处理 WebView 的音频采集时会同时申请这两个权限，并要求全部授予才放行 `getUserMedia`。同一步还会把 `native/android/SpeechPlugin.kt` 复制进生成工程——Tauri 不会自动编译应用自己的 Kotlin 插件，漏复制时语音识别会在运行时报「插件未初始化」。声明不等于用户已经授予权限，录音与识别仍需真机检查，包括第一次点击麦克风时的系统授权弹窗。
+
+语音识别依赖设备的识别服务：多数量产 ROM 自带，部分精简 ROM 没有，此时按钮会提示改用文字输入。系统的 `SpeechRecognizer` 在某些引擎上需要联网才能出结果，因此离线设备可能识别失败——这是引擎限制，不是应用配置问题。
 
 iPhone 在 Mac 上准备 Xcode、Rust iOS targets，设置实际 Apple 团队和签名，再运行：
 

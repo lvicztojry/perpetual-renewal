@@ -1,0 +1,16 @@
+"$schema" = "../../gen/schemas/desktop-schema.json"
+
+[default]
+description = """
+Grants the device speech recognition commands behind the microphone button on
+the native Android client.
+
+Non-Android builds register the same commands but always answer
+`available: false`, so the web client falls back to the browser's own speech
+recognition.
+"""
+permissions = [
+  "allow-is-available",
+  "allow-recognize",
+  "allow-cancel"
+]

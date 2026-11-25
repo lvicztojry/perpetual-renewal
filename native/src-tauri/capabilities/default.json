@@ -3,5 +3,11 @@
   "identifier": "local-main",
   "description": "Local application window; model requests use the native HTTPS transport.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-save", "fs:allow-write-file", { "identifier": "http:default", "allow": [{ "url": "https://**" }] }]
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-file",
+    { "identifier": "http:default", "allow": [{ "url": "https://**" }] },
+    "renewal-speech:default"
+  ]
 }

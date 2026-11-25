@@ -4,6 +4,8 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf, sync::Mutex, time::{SystemTime, UNIX_EPOCH}};
 use tauri::Manager;
 
+mod speech;
+
 const SCHEMA_VERSION: i64 = 1;
 const INITIAL_SCHEMA: &str = include_str!("../../migrations/0001_local_state.sql");
 const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SCHEMA)];
@@ -127,6 +129,7 @@ fn restore_backup(state: tauri::State<LocalDatabase>, name: String, confirmation
 pub fn run() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_http::init());
     let builder = builder.plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_fs::init());
+    let builder = builder.plugin(speech::init());
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
         if let Some(window) = app.get_webview_window("main") { let _ = window.set_focus(); }
