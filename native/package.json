@@ -9,7 +9,7 @@
     "tauri": "tauri",
     "desktop:build": "tauri build",
     "android:init": "tauri android init",
-    "android:build": "tauri android build",
+    "android:build": "node scripts/prepare-mobile.mjs && tauri android build",
     "ios:init": "tauri ios init",
     "ios:build": "tauri ios build"
   },

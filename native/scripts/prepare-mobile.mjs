@@ -7,11 +7,28 @@ if (!existsSync(path)) {
   process.exit(1);
 }
 let manifest = readFileSync(path, "utf8");
-if (!manifest.includes("android.permission.RECORD_AUDIO")) {
-  manifest = manifest.replace(/<application\b/, '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <application');
+
+// wry 处理 WebView 的 AUDIO_CAPTURE 时会同时申请 RECORD_AUDIO 和
+// MODIFY_AUDIO_SETTINGS，并且要求两者全部授予才放行；只声明前者会让
+// getUserMedia 在所有设备上失败。MODIFY_AUDIO_SETTINGS 是 normal 权限，
+// 安装即授予，不会弹窗。
+const requiredPermissions = [
+  "android.permission.RECORD_AUDIO",
+  "android.permission.MODIFY_AUDIO_SETTINGS"
+];
+
+for (const permission of requiredPermissions) {
+  if (manifest.includes(permission)) continue;
+  manifest = manifest.replace(
+    /<application\b/,
+    `<uses-permission android:name="${permission}" />\n    <application`
+  );
   writeFileSync(path, manifest);
 }
-console.log("Android microphone permission is declared. Runtime recording permission still requires device verification.");
+
+console.log(
+  "Android microphone permissions are declared (RECORD_AUDIO, MODIFY_AUDIO_SETTINGS). Runtime recording permission still requires device verification."
+);
 
 // Reapply canonical launcher resources after Tauri staging as well as initialization.
 const iconRoot = fileURLToPath(new URL("../src-tauri/icons/android/", import.meta.url));

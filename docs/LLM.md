@@ -337,3 +337,5 @@ POST /api/voice/synthesize
 浏览器识别需要麦克风权限，页面若走 HTTPS 或 localhost 属于安全上下文；局域网 HTTP 访问在实测的 Edge 上仍可用，但不同浏览器版本可能收紧。浏览器识别失败时会给出「没有听到声音」「没有拿到麦克风权限」等针对性提示，并保留原草稿。
 
 回退链路（服务端转写）需要 `VOICE_PROVIDER=shared-llm`（或 `compatible`）且网关具备 STT 通道；`VOICE_PROVIDER=edge` 只负责朗读合成，转写仍走共享网关。网关没有 STT 通道时接口返回 `voice_transcription_unavailable`，这是配置问题，不是录音问题。
+
+原生客户端（Windows / Android 的 Tauri 壳）里朗读不走上面任何一条服务端路径：WebView 不能给 WebSocket 加自定义头，也连不上 `wss://`（CSP 只放行 `ipc:` 与本地），因此 `synthesizeLatestReply()` 检测到原生 Android 环境后直接调用设备的 `speechSynthesis`（`src/lib/voice/system-speech.ts`）。它免费、可离线、无需 key，代价是音色由系统引擎决定、停顿处理较粗糙，并且不产生可下载的音频文件——「语音详情」不再显示 provider 元数据，只保留播放状态。浏览器端（含手机浏览器）仍使用 Edge TTS。

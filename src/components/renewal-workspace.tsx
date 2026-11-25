@@ -64,6 +64,7 @@ import {
   startBrowserSpeech,
   type BrowserSpeechHandle
 } from "@/lib/voice/browser-speech";
+import { shouldUseSystemSpeech, speakWithSystemVoice, type SystemSpeechHandle } from "@/lib/voice/system-speech";
 
 type InspectorMode =
   | "profile"
@@ -341,6 +342,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const browserSpeechRef = useRef<BrowserSpeechHandle | null>(null);
+  const systemSpeechRef = useRef<SystemSpeechHandle | null>(null);
   const activeConversationRef = useRef<string | null>(null);
   const messageRevisionRef = useRef(0);
   const draftsByConversationRef = useRef(new Map<string, string>());
@@ -425,6 +427,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       browserSpeechRef.current?.abort();
       browserSpeechRef.current = null;
+      systemSpeechRef.current?.stop();
+      systemSpeechRef.current = null;
     };
   }, []);
 
@@ -1696,6 +1700,13 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   async function synthesizeLatestReply() {
     if (!latestAssistantMessage || isSynthesizing) return;
 
+    // 原生安卓壳里 WebView 连不上 Edge TTS（wss + 自定义头 + CSP），
+    // 直接调用设备自带的语音引擎朗读，不走 /api/voice/synthesize。
+    if (shouldUseSystemSpeech()) {
+      playWithSystemVoice(latestAssistantMessage.content);
+      return;
+    }
+
     setIsSynthesizing(true);
     setError(null);
     setVoicePreview(null);
@@ -1741,6 +1752,31 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     } finally {
       setIsSynthesizing(false);
     }
+  }
+
+  /** 设备本地朗读：安卓 WebView 支持 speechSynthesis，不产生可下载音频。 */
+  function playWithSystemVoice(text: string) {
+    systemSpeechRef.current?.stop();
+    const handle = speakWithSystemVoice(text, {
+      lang: "zh-CN",
+      onStart: () => {
+        setIsSynthesizing(true);
+        setStatus("正在用设备语音朗读...");
+      },
+      onEnd: () => setStatus("朗读结束")
+    });
+
+    if (!handle) {
+      setError(voiceReplyUnavailableCopy);
+      setStatus("当前设备不支持朗读，请稍后重试");
+      return;
+    }
+
+    systemSpeechRef.current = handle;
+    void handle.done.then(() => {
+      if (systemSpeechRef.current === handle) systemSpeechRef.current = null;
+      setIsSynthesizing(false);
+    });
   }
 
   async function loadUsageDashboard() {
