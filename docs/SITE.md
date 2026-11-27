@@ -54,6 +54,16 @@ npm run netlify -- status <site-id-or-name>
 
 ## 发布新版本时
 
+版本号按语义化版本递增，从 0.2.0 起执行：
+
+| 变更类型 | 递增位 | 示例 |
+| --- | --- | --- |
+| 新增功能、玩法或能力（如语音、入梦、群聊） | 次版本号 `0.x.0` | 0.2.0 → 0.3.0 |
+| 只修 bug、改文案、调样式、补测试与文档 | 补丁号 `0.x.y` | 0.2.0 → 0.2.1 |
+| 数据格式或兼容性破坏性调整 | 主版本号（当前不启用） | — |
+
+历史说明：0.1.1 至 0.1.3 期间不论功能大小都只递增补丁号；0.2.0 起改用上面的规则。版本号只影响展示与 `versionCode`，不改变数据兼容性——`native/release-policy.json` 的 `dataSchema`、`dataFormat` 与 `applicationId` 才是升级兼容的判断依据。Android `versionCode` 与 iOS `bundleVersion` 每次发布都必须递增，与版本号是哪一位无关。
+
 1. 在 `src/lib/release-notes.json` 顶部新增一条记录，同步 `native/package.json` 的版本号；
 2. 运行 `npm run release:notes`，更新 `docs/DEVELOPMENT_LOG.md`；
 3. 构建安装包，放到 `dist/installers/`（该目录不进 Git），同步更新 `SHA256SUMS.txt`；
