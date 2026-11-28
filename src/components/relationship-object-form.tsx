@@ -272,9 +272,10 @@ export function RelationshipObjectForm({
               全关系
             </span>
           </div>
-          <div className="relationship-type-grid" role="group" aria-label="关系类型">
+          <div className="relationship-type-grid" role="group" aria-label="关系类型" data-guide="person-kind">
             {relationshipKindOrder.map((kind) => (
               <button
+                aria-pressed={form.relationshipKind === kind}
                 className={`relationship-type-card ${form.relationshipKind === kind ? "active" : ""}`}
                 disabled={disabledOrSaving}
                 key={kind}
@@ -294,7 +295,7 @@ export function RelationshipObjectForm({
             <span className="pill">API 保存</span>
           </div>
           <div className="form-grid">
-            <label className="field">
+            <label className="field" data-guide="person-name">
               <span>名字</span>
               <input
                 disabled={disabledOrSaving}
@@ -302,7 +303,7 @@ export function RelationshipObjectForm({
                 value={form.name}
               />
             </label>
-            <label className="field">
+            <label className="field" data-guide="person-addresses">
               <span>具体关系</span>
               <input
                 disabled={disabledOrSaving}
@@ -326,7 +327,7 @@ export function RelationshipObjectForm({
                 value={form.companionAddress}
               />
             </label>
-            <label className="field">
+            <label className="field" data-guide="person-style">
               <span>性格关键词</span>
               <input
                 disabled={disabledOrSaving}
@@ -378,7 +379,7 @@ export function RelationshipObjectForm({
             </div>
             <div className="field">
               <span>主动回响</span>
-              <div className="segmented" role="group" aria-label="主动回响开关">
+              <div className="segmented" role="group" aria-label="主动回响开关" data-guide="person-proactive">
                 <button
                   className={`segment ${form.proactiveMessagesEnabled ? "active" : ""}`}
                   disabled={disabledOrSaving}
@@ -475,7 +476,7 @@ export function RelationshipObjectForm({
                 ? `当前节奏：${formatFrequencyLabel(form)}`
                 : "当前关系不会生成主动回响草稿"}
             </div>
-            <button className="primary-button wide" disabled={disabledOrSaving} type="submit">
+            <button className="primary-button wide" data-guide="person-submit" disabled={disabledOrSaving} type="submit">
               <Check size={17} />
               {isSaving ? savingLabel : saveTitle}
             </button>

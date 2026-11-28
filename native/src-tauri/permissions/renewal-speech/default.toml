@@ -2,7 +2,7 @@
 
 [default]
 description = """
-Grants the device speech recognition commands behind the microphone button on
+Grants device speech recognition, stop/cancel and text-to-speech commands on
 the native Android client.
 
 Non-Android builds register the same commands but always answer
@@ -10,7 +10,11 @@ Non-Android builds register the same commands but always answer
 recognition.
 """
 permissions = [
-  "allow-is-available",
-  "allow-recognize",
-  "allow-cancel"
+  "allow-speech-is-available",
+  "allow-speech-recognize",
+  "allow-speech-cancel",
+  "allow-speech-stop",
+  "allow-speech-speak",
+  "allow-speech-cancel-speech",
+  "allow-speech-is-speech-available"
 ]

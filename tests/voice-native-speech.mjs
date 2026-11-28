@@ -56,28 +56,25 @@ async function testUnavailableOutsideNative() {
 
 async function testResultNormalization() {
   try {
-    const { startNativeSpeech } = await loadModule({
-      invoke: async (command) => {
+    const invoke = async (command) => {
         if (command.endsWith("speech_recognize")) {
           return { ok: true, text: "  明天下午三点在老地方见。 " };
         }
         return { available: true };
-      }
-    });
+      };
+    const { startNativeSpeech } = await loadModule();
 
-    const handle = startNativeSpeech({ lang: "zh-CN" }, scope({ tauri: true, android: true }));
+    const handle = startNativeSpeech({ lang: "zh-CN" }, scope({ tauri: true, android: true, invoke }));
     assert.ok(handle, "native shell should return a handle");
     const result = await handle.done;
     // 沙箱里创建的对象原型不同，deepStrictEqual 会误判，这里逐字段比对。
     assert.equal(result.ok, true, "a successful recognition reports ok");
     assert.equal(result.text, "明天下午三点在老地方见。", "text should be trimmed");
 
-    const { startNativeSpeech: failing } = await loadModule({
-      invoke: async () => {
+    const failingInvoke = async () => {
         throw new Error("[no-speech] - 没有听到声音，可以再说一次，或改用文字输入。");
-      }
-    });
-    const failedHandle = failing({}, scope({ tauri: true, android: true }));
+      };
+    const failedHandle = startNativeSpeech({}, scope({ tauri: true, android: true, invoke: failingInvoke }));
     const failed = await failedHandle.done;
     assert.equal(failed.ok, false, "invoke rejection should surface as a failure");
     assert.equal(failed.errorType, "unknown", "an unstructured rejection is unknown");
@@ -164,9 +161,9 @@ function testPrepareCopiesKotlin() {
   );
 }
 
-function scope({ tauri, android }) {
+function scope({ tauri, android, invoke }) {
   return {
-    __TAURI_INTERNALS__: tauri ? {} : undefined,
+    __TAURI_INTERNALS__: tauri ? { invoke } : undefined,
     navigator: {
       userAgent: android
         ? "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/158.0 Mobile Safari/537.36"
@@ -176,10 +173,9 @@ function scope({ tauri, android }) {
 }
 
 /**
- * 加载模块并在沙箱里把 `@tauri-apps/api/core` 换成交给调用方的 invoke 替身。
- * 源码用动态 import 加载 Tauri API，转成 CommonJS 后就是一次 require。
+ * 加载模块；测试通过 scope.__TAURI_INTERNALS__.invoke 注入替身。
  */
-async function loadModule({ invoke } = {}) {
+async function loadModule() {
   const source = await readFile(PATH, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -193,9 +189,6 @@ async function loadModule({ invoke } = {}) {
   const sandbox = {
     exports: {},
     require(specifier) {
-      if (specifier === "@tauri-apps/api/core") {
-        return { invoke: invoke ?? (async () => ({})) };
-      }
       throw new Error(`Unexpected require: ${specifier}`);
     },
     console,

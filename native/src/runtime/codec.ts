@@ -31,7 +31,10 @@ export function emptyState(newAccountId?: string) {
   return encode({
     renewalStore: { companions: [], conversations: [], messages: [], memories: [], proactiveMessages: [], relationshipStates: [] },
     renewalGroupStore: new Map(), renewalDreamStore: new Map(), renewalMemoryRevisionStore: [],
-    renewalJourneyStore: new Map(newAccountId ? [[newAccountId, { version: 1, step: "awakening", status: "active", companionId: null, revision: 0 }]] : []),
+    renewalJourneyStore: new Map(newAccountId ? [[newAccountId, {
+      version: 2, step: "awakening", status: "active", companionId: null, revision: 0,
+      activeCourse: null, courses: {}, deferredCourses: [], dismissedInvites: {}
+    }]] : []),
     renewalMessageReadReceipts: new Map(), renewalCredentialStore: new Map(), renewalSafetyEventStore: { events: [] },
     renewalUsageStore: { logs: [] }, __perpetualRenewalFallbackProfiles: new Map()
   });

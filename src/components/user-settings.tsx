@@ -17,6 +17,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { reportJourneyEvidence } from "@/lib/journey/events";
 import styles from "./account-theme.module.css";
 
 type UserProfile = {
@@ -297,6 +298,7 @@ export function UserSettings() {
       setProfile(payload.user);
       setForm(toFormState(payload.user));
       setStatus("saved");
+      reportJourneyEvidence({ kind: "settings-saved" });
     } catch (saveError) {
       setError(
         saveError instanceof Error ? redactSettingsError(saveError.message) : "保存用户资料失败"
@@ -638,7 +640,7 @@ export function UserSettings() {
         <Link href="#account-status">配置状态</Link>
       </nav>
       <form className={`settings-grid ${styles.settingsForm}`} onSubmit={saveProfile}>
-        <section className="settings-section" id="account-profile" aria-labelledby="profile-heading">
+        <section className="settings-section" id="account-profile" data-guide="settings-profile" aria-labelledby="profile-heading">
           <div className="panel-title">
             <h2 id="profile-heading">基础资料</h2>
             {profile ? <span className="pill">{profile.email}</span> : null}
@@ -686,7 +688,7 @@ export function UserSettings() {
           )}
         </section>
 
-        <section className="settings-section" id="account-preferences" aria-labelledby="preferences-heading">
+        <section className="settings-section" id="account-preferences" data-guide="settings-preferences" aria-labelledby="preferences-heading">
           <div className="panel-title">
             <h2 id="preferences-heading">沟通偏好</h2>
           </div>
@@ -727,7 +729,7 @@ export function UserSettings() {
           )}
         </section>
 
-        <section className="settings-section" id="account-appearance" aria-labelledby="appearance-heading">
+        <section className="settings-section" id="account-appearance" data-guide="settings-appearance" aria-labelledby="appearance-heading">
           <div className="panel-title">
             <h2 id="appearance-heading">外观</h2>
           </div>
@@ -742,7 +744,7 @@ export function UserSettings() {
           </div>
         </section>
 
-        <section className="settings-section" id="account-provider" aria-labelledby="provider-heading">
+        <section className="settings-section" id="account-provider" data-guide="settings-provider" aria-labelledby="provider-heading">
           <div className="panel-title">
             <h2 id="provider-heading">模型供应商</h2>
             <span className="pill teal">
@@ -793,7 +795,7 @@ export function UserSettings() {
                 value={credentialForm.baseUrl}
               />
             </label>
-            <label className="field">
+            <label className="field" data-guide="settings-model">
               <span>模型</span>
               <input
                 onChange={(event) =>
@@ -843,6 +845,7 @@ export function UserSettings() {
               ) : null}
               <button
                 className="text-button"
+                data-guide="settings-model-test"
                 disabled={connectionTestStatus === "testing"}
                 onClick={testConnection}
                 type="button"
@@ -939,7 +942,7 @@ export function UserSettings() {
           </div>
         </section>
 
-        <section className="settings-section" id="account-privacy" aria-labelledby="privacy-heading">
+        <section className="settings-section" id="account-privacy" data-guide="settings-privacy" aria-labelledby="privacy-heading">
           <div className="panel-title">
             <h2 id="privacy-heading">数据与隐私</h2>
             <span className="pill teal">
@@ -1015,7 +1018,7 @@ export function UserSettings() {
           </div>
         </section>
 
-        <section className="settings-section" id="account-status" aria-labelledby="status-heading">
+        <section className="settings-section" id="account-status" data-guide="settings-status" aria-labelledby="status-heading">
           <div className="panel-title">
             <h2 id="status-heading">配置状态</h2>
             <span className="pill teal">
@@ -1067,7 +1070,7 @@ export function UserSettings() {
             <LogOut size={17} />
             退出
           </button>
-          <button className="primary-button" disabled={!form || !hasChanges || status === "saving"} type="submit">
+          <button className="primary-button" data-guide="settings-save" disabled={!form || !hasChanges || status === "saving"} type="submit">
             <Save size={17} />
             {status === "saving" ? "保存中" : "保存"}
           </button>

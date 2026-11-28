@@ -143,7 +143,7 @@ export async function buildUserExportSnapshot(userId: string): Promise<UserExpor
       llm: toCredentialSummary(credentialStatus)
     },
     companions: companionSnapshots,
-    journey: { version: journey.version, step: journey.step, status: journey.status, companionId: journey.companionId, revision: journey.revision },
+    journey: { version: journey.version, step: journey.step, status: journey.status, companionId: journey.companionId, revision: journey.revision, courses: journey.courses },
     dreamWorkspaces: scrubSensitiveValue(dreamWorkspaces.map((row) => row.state)) as DreamState[],
     groups: scrubSensitiveValue(groups) as typeof groups,
     memoryRevisions: scrubSensitiveValue(memoryRevisions) as UserExportSnapshot["memoryRevisions"],

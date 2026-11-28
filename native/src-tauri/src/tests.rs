@@ -1,4 +1,30 @@
 use super::*;
+
+#[test]
+fn migration_line_endings_preserve_both_released_histories_without_accepting_edits() {
+    let lf = INITIAL_SCHEMA.replace("\r\n", "\n");
+    let crlf = lf.replace('\n', "\r\n");
+    for old_sql in [&lf, &crlf] {
+        let folder = Sandbox::new();
+        let mut connection = Connection::open_in_memory().unwrap();
+        migrate(&mut connection, &folder.0, &[(1, old_sql)]).unwrap();
+        // Reproduce the exact historical algorithm, not the fixed writer.
+        let old_hash = format!("{:x}", Sha256::digest(old_sql.as_bytes()));
+        connection.execute("UPDATE schema_history SET checksum=?1 WHERE version=1", [&old_hash]).unwrap();
+        connection.execute("UPDATE local_document SET body=?1,revision=19", [r#"{"format":1,"accounts":[{"id":"fixture","state":"sealed"}]}"#]).unwrap();
+        let before: String = connection.query_row("SELECT body FROM local_document", [], |r| r.get(0)).unwrap();
+        for new_sql in [&lf, &crlf] {
+            migrate(&mut connection, &folder.0, &[(1, new_sql)]).unwrap();
+            let retained: String = connection.query_row("SELECT checksum FROM schema_history", [], |r| r.get(0)).unwrap();
+            assert_eq!(retained, old_hash);
+            assert!(migrate(&mut connection, &folder.0, &[(1, &format!("{}\n-- edited", new_sql))]).is_err());
+        }
+        let after: String = connection.query_row("SELECT body FROM local_document", [], |r| r.get(0)).unwrap();
+        assert_eq!(before, after);
+    }
+    assert_eq!(migration_checksum(&lf), migration_checksum(&crlf));
+    assert_eq!(migration_checksum(INITIAL_SCHEMA), "057a1d7d2f6c1f68f61ab4f642a5ec322fd0a96a8e39ff8846e5a9943e85d213");
+}
 struct Sandbox(PathBuf);
 impl Sandbox {
     fn new() -> Self {

@@ -1,4 +1,4 @@
-//! 安卓语音识别插件。
+//! 安卓语音识别与系统朗读插件。
 //!
 //! WebView 不实现 Web Speech API 的 SpeechRecognition，安卓上只能调用系统的
 //! SpeechRecognizer。Kotlin 实现在 `native/android/SpeechPlugin.kt`，由
@@ -33,6 +33,30 @@ pub struct RecognizeOptions {
     pub lang: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeakOptions {
+    pub text: String,
+    pub lang: Option<String>,
+    pub rate: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeakOutcome {
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
+}
+
+impl From<RecognizeOutcome> for SpeakOutcome {
+    fn from(outcome: RecognizeOutcome) -> Self {
+        Self { ok: outcome.ok, error: outcome.error, error_type: outcome.error_type }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognizeOutcome {
@@ -60,10 +84,14 @@ impl RecognizeOutcome {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Availability {
     pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
 }
 
 /// 平台后端：Android 走 Kotlin；其它平台恒为不可用，让前端回退到浏览器识别。
@@ -97,7 +125,7 @@ impl SpeechBackend {
                 "没有听到声音，可以再说一次，或改用文字输入。",
                 "no-speech",
             ),
-            Err(error) => classify_error(&error.to_string()),
+            Err(error) => mobile_error(error),
         }
     }
 
@@ -119,6 +147,45 @@ impl SpeechBackend {
             .handle
             .run_mobile_plugin::<serde_json::Value>("cancel", serde_json::json!({}));
     }
+
+    fn stop(&self) -> Result<(), RecognizeOutcome> {
+        self.handle
+            .run_mobile_plugin::<serde_json::Value>("stop", serde_json::json!({}))
+            .map(|_| ())
+            .map_err(mobile_error)
+    }
+
+    fn speak(&self, options: &SpeakOptions) -> SpeakOutcome {
+        let payload = serde_json::json!({
+            "text": options.text.trim(),
+            "lang": options.lang.as_deref().unwrap_or("zh-CN"),
+            "rate": options.rate.filter(|rate| rate.is_finite()).unwrap_or(1.0).clamp(0.5, 2.0)
+        });
+        // Kotlin resolves speak only when playback completes, and rejects on
+        // missing engine, cancellation or playback errors. The success payload
+        // is {ok:true}; accept it without depending on extra native fields.
+        match self.handle.run_mobile_plugin::<serde_json::Value>("speak", payload) {
+            Ok(_) => SpeakOutcome { ok: true, error: None, error_type: None },
+            Err(error) => mobile_error(error).into(),
+        }
+    }
+
+    fn cancel_speech(&self) {
+        let _ = self.handle
+            .run_mobile_plugin::<serde_json::Value>("cancelSpeech", serde_json::json!({}));
+    }
+
+    fn speech_available(&self, options: &RecognizeOptions) -> Availability {
+        match self.handle.run_mobile_plugin::<Availability>("isSpeechAvailable", serde_json::json!({
+            "lang": options.lang.as_deref().unwrap_or("zh-CN")
+        })) {
+            Ok(value) => value,
+            Err(error) => {
+                let failure = mobile_error(error);
+                Availability { available: false, error: failure.error, error_type: failure.error_type }
+            }
+        }
+    }
 }
 
 #[cfg(not(target_os = "android"))]
@@ -135,9 +202,38 @@ impl SpeechBackend {
     }
 
     fn cancel(&self) {}
+
+    fn stop(&self) -> Result<(), RecognizeOutcome> {
+        Err(RecognizeOutcome::failure("当前平台不支持设备语音识别。", "unavailable"))
+    }
+
+    fn speak(&self, _options: &SpeakOptions) -> SpeakOutcome {
+        RecognizeOutcome::failure("当前平台不支持设备朗读。", "unavailable").into()
+    }
+
+    fn cancel_speech(&self) {}
+
+    fn speech_available(&self, _options: &RecognizeOptions) -> Availability {
+        Availability { available: false, error: Some("当前平台不支持设备朗读。".into()), error_type: Some("unavailable".into()) }
+    }
 }
 
-/// Kotlin 侧的拒绝消息形如 `[code] - 文案`，这里还原成稳定的 errorType。
+/// Preserve the Kotlin rejection code instead of classifying its display text.
+#[cfg(target_os = "android")]
+fn mobile_error(error: tauri::plugin::mobile::PluginInvokeError) -> RecognizeOutcome {
+    if let tauri::plugin::mobile::PluginInvokeError::InvokeRejected(response) = &error {
+        if let Some(code) = response.code.as_deref() {
+            let code = if code == "superseded" { "cancelled" } else { code };
+            let message = if code == "cancelled" { "" } else {
+                response.message.as_deref().unwrap_or(FALLBACK_MESSAGE)
+            };
+            return RecognizeOutcome::failure(message, code);
+        }
+    }
+    classify_error(&error.to_string())
+}
+
+/// Fallback for transport errors without a structured Kotlin rejection.
 #[cfg(target_os = "android")]
 fn classify_error(message: &str) -> RecognizeOutcome {
     let text = message.trim();
@@ -147,6 +243,8 @@ fn classify_error(message: &str) -> RecognizeOutcome {
         "cancelled"
     } else if lower.contains("not-allowed") {
         "not-allowed"
+    } else if lower.contains("denied") {
+        "denied"
     } else if lower.contains("no-speech") {
         "no-speech"
     } else if lower.contains("network") {
@@ -155,6 +253,8 @@ fn classify_error(message: &str) -> RecognizeOutcome {
         "unavailable"
     } else if lower.contains("busy") {
         "busy"
+    } else if lower.contains("timeout") {
+        "timeout"
     } else {
         "unknown"
     };
@@ -168,7 +268,7 @@ fn classify_error(message: &str) -> RecognizeOutcome {
 
 #[command]
 async fn speech_is_available(backend: State<'_, SpeechBackend>) -> Result<Availability, String> {
-    Ok(Availability { available: backend.is_available() })
+    Ok(Availability { available: backend.is_available(), error: None, error_type: None })
 }
 
 #[command]
@@ -185,6 +285,29 @@ async fn speech_cancel(backend: State<'_, SpeechBackend>) -> Result<(), String> 
     Ok(())
 }
 
+#[command]
+async fn speech_stop(backend: State<'_, SpeechBackend>) -> Result<(), RecognizeOutcome> {
+    backend.stop()
+}
+
+#[command]
+async fn speech_speak(backend: State<'_, SpeechBackend>, options: SpeakOptions) -> Result<SpeakOutcome, String> {
+    Ok(backend.speak(&options))
+}
+
+#[command]
+async fn speech_cancel_speech(backend: State<'_, SpeechBackend>) -> Result<(), String> {
+    backend.cancel_speech();
+    Ok(())
+}
+
+#[command]
+async fn speech_is_speech_available(
+    backend: State<'_, SpeechBackend>, options: Option<RecognizeOptions>,
+) -> Result<Availability, String> {
+    Ok(backend.speech_available(&options.unwrap_or_default()))
+}
+
 /// 注册语音识别插件。非 Android 平台命令依然存在但报告「不可用」，
 /// 前端据此回退到浏览器识别。
 pub fn init() -> TauriPlugin<Wry> {
@@ -192,7 +315,11 @@ pub fn init() -> TauriPlugin<Wry> {
         .invoke_handler(tauri::generate_handler![
             speech_is_available,
             speech_recognize,
-            speech_cancel
+            speech_cancel,
+            speech_stop,
+            speech_speak,
+            speech_cancel_speech,
+            speech_is_speech_available
         ])
         .setup(|app, api| {
             #[cfg(target_os = "android")]

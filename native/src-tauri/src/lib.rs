@@ -10,6 +10,20 @@ const SCHEMA_VERSION: i64 = 1;
 const INITIAL_SCHEMA: &str = include_str!("../../migrations/0001_local_state.sql");
 const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SCHEMA)];
 
+fn migration_checksum(sql: &str) -> String {
+    format!("{:x}", Sha256::digest(sql.replace("\r\n", "\n").as_bytes()))
+}
+
+fn migration_checksum_matches(stored: &str, sql: &str) -> bool {
+    // Released builds hashed include_str! bytes before line endings were pinned.
+    // Accept only the exact LF/CRLF representations of the same SQL, never
+    // whitespace trimming or a bypass of the migration integrity check.
+    let lf = sql.replace("\r\n", "\n");
+    stored == migration_checksum(&lf)
+        || stored == format!("{:x}", Sha256::digest(lf.replace('\n', "\r\n").as_bytes()))
+        || stored == format!("{:x}", Sha256::digest(sql.as_bytes()))
+}
+
 struct LocalDatabase { connection: Mutex<Connection>, directory: PathBuf }
 #[derive(Serialize)]
 struct Document { revision: i64, body: String }
@@ -35,7 +49,7 @@ fn migrate(connection: &mut Connection, directory: &PathBuf, migrations: &[(i64,
         if *number != index as i64 + 1 { return Err("Migration sequence has a gap.".into()); }
         if *number <= version {
             let stored: String = connection.query_row("SELECT checksum FROM schema_history WHERE version=?1", [number], |row| row.get(0)).map_err(|_| "Missing schema history; do not reset data.")?;
-            if stored != format!("{:x}", Sha256::digest(sql.as_bytes())) { return Err("Previously applied migration was modified; update refused.".into()); }
+            if !migration_checksum_matches(&stored, sql) { return Err("Previously applied migration was modified; update refused.".into()); }
         }
     }
     if version == latest { return Ok(()); }
@@ -44,7 +58,7 @@ fn migrate(connection: &mut Connection, directory: &PathBuf, migrations: &[(i64,
     transaction.execute_batch("CREATE TABLE IF NOT EXISTS schema_history(version INTEGER PRIMARY KEY, checksum TEXT NOT NULL)").map_err(|_| "Cannot create migration history.")?;
     for (number, sql) in migrations.iter().filter(|item| item.0 > version) {
         transaction.execute_batch(sql).map_err(|_| "Schema migration failed; prior data was retained.")?;
-        let checksum = format!("{:x}", Sha256::digest(sql.as_bytes()));
+        let checksum = migration_checksum(sql);
         transaction.execute("INSERT INTO schema_history(version,checksum) VALUES(?1,?2)", params![number, checksum]).map_err(|_| "Cannot save migration history.")?;
     }
     transaction.pragma_update(None, "user_version", latest).map_err(|_| "Cannot save schema version.")?;

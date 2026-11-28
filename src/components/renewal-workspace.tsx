@@ -50,6 +50,7 @@ import styles from "./workspace-theme.module.css";
 import { RenewalEmblem } from "./renewal-emblem";
 import { StarterPackEntry } from "./starter-pack-entry";
 import { JourneyEntry } from "./journey-entry";
+import { reportJourneyEvidence } from "@/lib/journey/events";
 import { MemoryLifecycleControls } from "./memory-lifecycle-controls";
 import { useForegroundPoll } from "./use-foreground-poll";
 import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
@@ -70,6 +71,7 @@ import {
   describeNativeSpeechError,
   isNativeSpeechAvailable,
   startNativeSpeech,
+  speakNativeText,
   type NativeSpeechHandle
 } from "@/lib/voice/native-speech";
 
@@ -325,6 +327,12 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [voiceInputMode, setVoiceInputMode] = useState<"system" | "provider">("system");
+  const [transcriptionModel, setTranscriptionModel] = useState("whisper-1");
+  const [recordingPreviewUrl, setRecordingPreviewUrl] = useState("");
+  const recordingPreviewUrlRef = useRef("");
+  const [isDeviceReading, setIsDeviceReading] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("");
   const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [editingMemoryContent, setEditingMemoryContent] = useState("");
@@ -351,6 +359,14 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   const browserSpeechRef = useRef<BrowserSpeechHandle | null>(null);
   const systemSpeechRef = useRef<SystemSpeechHandle | null>(null);
   const nativeSpeechRef = useRef<NativeSpeechHandle | null>(null);
+  const nativePlaybackRef = useRef<ReturnType<typeof speakNativeText>>(null);
+  const voiceStartPendingRef = useRef(false);
+  function setRecordingPreview(blob: Blob | null) {
+    if (recordingPreviewUrlRef.current) URL.revokeObjectURL(recordingPreviewUrlRef.current);
+    const url = blob ? URL.createObjectURL(blob) : "";
+    recordingPreviewUrlRef.current = url;
+    setRecordingPreviewUrl(url);
+  }
   const activeConversationRef = useRef<string | null>(null);
   const messageRevisionRef = useRef(0);
   const draftsByConversationRef = useRef(new Map<string, string>());
@@ -429,8 +445,13 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
   useEffect(() => {
     return () => {
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.stop();
+      if (recordingPreviewUrlRef.current) URL.revokeObjectURL(recordingPreviewUrlRef.current);
+      const recorder = mediaRecorderRef.current;
+      mediaRecorderRef.current = null;
+      if (recorder) {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        if (recorder.state === "recording") recorder.stop();
       }
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       browserSpeechRef.current?.abort();
@@ -439,6 +460,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       systemSpeechRef.current = null;
       nativeSpeechRef.current?.cancel();
       nativeSpeechRef.current = null;
+      nativePlaybackRef.current?.stop();
+      nativePlaybackRef.current = null;
     };
   }, []);
 
@@ -699,7 +722,17 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     browserSpeechRef.current = null;
     nativeSpeechRef.current?.cancel();
     nativeSpeechRef.current = null;
+    nativePlaybackRef.current?.stop();
+    nativePlaybackRef.current = null;
+    systemSpeechRef.current?.stop();
+    systemSpeechRef.current = null;
+    setIsSynthesizing(false);
+    setIsDeviceReading(false);
     setIsRecording(false);
+    setIsTranscribing(false);
+    cleanupVoiceRecording();
+    setRecordingPreview(null);
+    setVoiceStatus("");
     setMessages(localMessagesByConversationRef.current.get(companion.conversationId) ?? []);
     setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
     setProactiveDrafts([]);
@@ -747,6 +780,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setInspectorMode("profile");
       setIsInspectorOpen(false);
       setStatus("关系设定已通过 API 保存");
+      reportJourneyEvidence({ kind: "companion-updated", companionId: payload.companion.id, resourceId: payload.companion.id, userId });
     } catch (saveError) {
       const message = toSafeWorkspaceError(saveError, "关系设定保存失败。");
       setFormError(message);
@@ -826,6 +860,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setIsInspectorOpen(false);
       playAbilityIntro({ kind: "renewal", companionName: payload.companion.name, autoPlay: true });
       window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "companion-created", companionId: payload.companion.id, userId } }));
+      reportJourneyEvidence({ kind: "companion-created", companionId: payload.companion.id, resourceId: payload.companion.id, userId });
     } catch (createError) {
       const message = toSafeWorkspaceError(createError, "新建关系失败。");
       setFormError(message);
@@ -938,7 +973,11 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         )
       );
       const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
-      if (payload.userMessage?.id) window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "message-sent", companionId: activeCompanion.id, userId } }));
+      if (payload.userMessage?.id) {
+        window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "message-sent", companionId: activeCompanion.id, userId } }));
+        reportJourneyEvidence({ kind: "message-sent", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
+      }
+      if (payload.assistantMessage?.id) reportJourneyEvidence({ kind: "assistant-replied", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
       if (activeConversationRef.current === conversationId) messageRevisionRef.current++;
       const remainingLocal = (localMessagesByConversationRef.current.get(conversationId) ?? []).filter((message) =>
         message.id !== localId && message.metadata?.clientMessageId !== clientMessageId);
@@ -1165,6 +1204,9 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
       mergeMemory(payload.memory);
       setStatus("记忆状态已更新");
+      if (payload.memory.status === "active" && activeCompanion) {
+        reportJourneyEvidence({ kind: "memory-confirmed", companionId: activeCompanion.id, resourceId: payload.memory.id, userId });
+      }
     } catch (memoryError) {
       setError(toSafeWorkspaceError(memoryError, "记忆更新失败。"));
     } finally {
@@ -1365,6 +1407,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       setStatus(
         `已导入 ${payload.importSummary?.createdCount ?? payload.memories.length} 条候选记忆`
       );
+      reportJourneyEvidence({ kind: "companion-updated", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
     } catch (importFailure) {
       const message = toSafeWorkspaceError(importFailure, "导入失败。");
       setImportError(message);
@@ -1483,13 +1526,18 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     );
   }
 
+  function reportVoiceStatus(message: string) {
+    setStatus(message);
+    setVoiceStatus(message);
+  }
+
   async function toggleVoiceRecording() {
     if (isRecording) {
       stopVoiceRecording();
       return;
     }
 
-    await startVoiceRecording();
+    await startVoiceRecording(voiceInputMode === "provider");
   }
 
   /**
@@ -1498,22 +1546,34 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
    * 2. 浏览器 → Web Speech API（免费、无需服务端 STT）
    * 3. 兜底 → 录音上传 + /api/voice/transcribe
    */
-  async function startVoiceRecording() {
-    if (!activeCompanion || isTranscribing) return;
+  async function startVoiceRecording(forceUpload = false) {
+    if (!activeCompanion || isTranscribing || voiceStartPendingRef.current) return;
+    if (forceUpload && !transcriptionModel.trim()) {
+      setError("请先在语音输入设置中填写供应商支持的转写模型。");
+      return;
+    }
+    const conversationId = activeConversationRef.current;
+    voiceStartPendingRef.current = true;
+    try {
 
     setError(null);
     setVoicePreview(null);
     setVoiceFailure(null);
+    setRecordingPreview(null);
+    if (isSynthesizing) stopReading();
 
-    if (canUseNativeSpeech()) {
+    if (!forceUpload && canUseNativeSpeech()) {
       const available = await isNativeSpeechAvailable();
+      if (conversationId !== activeConversationRef.current) return;
       if (available) {
         startNativeVoiceTranscript();
         return;
       }
+      showVoiceUnavailable("手机系统识别服务不可用。可在“语音输入设置”将话筒改为“供应商转写（上传录音）”，并填写供应商支持的转写模型。");
+      return;
     }
 
-    if (isBrowserSpeechSupported()) {
+    if (!forceUpload && isBrowserSpeechSupported()) {
       startBrowserVoiceTranscript();
       return;
     }
@@ -1523,61 +1583,65 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       return;
     }
 
-    setStatus("正在请求麦克风权限...");
+    reportVoiceStatus("正在请求麦克风权限...");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (conversationId !== activeConversationRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
       const mimeType = readSupportedAudioMimeType();
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
 
-      audioChunksRef.current = [];
+      const chunks: BlobPart[] = [];
+      audioChunksRef.current = chunks;
       mediaStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+          chunks.push(event.data);
         }
       };
       recorder.onerror = () => {
         cleanupVoiceRecording();
         setError("录音失败，请稍后重试。");
-        setStatus("录音失败，请稍后重试");
+        reportVoiceStatus("录音失败，请稍后重试");
       };
       recorder.onstop = () => {
-        const chunks = audioChunksRef.current;
         const audioBlob = new Blob(chunks, {
           type: recorder.mimeType || mimeType || "audio/webm"
         });
+        if (mediaRecorderRef.current !== recorder || conversationId !== activeConversationRef.current) return;
         cleanupVoiceRecording();
 
         if (!audioBlob.size) {
           setError("没有录到可转写的语音。");
-          setStatus("没有录到可转写的语音");
+          reportVoiceStatus("没有录到可转写的语音");
           return;
         }
 
-        void transcribeAudioBlob(audioBlob);
+        setRecordingPreview(audioBlob);
+        void transcribeAudioBlob(audioBlob, conversationId);
       };
 
       recorder.start();
       setIsRecording(true);
-      setStatus("正在录音，再点一次麦克风结束");
+      reportVoiceStatus("正在录音，再点一次麦克风结束");
     } catch {
       cleanupVoiceRecording();
       showVoiceUnavailable("麦克风不可用，请改用文字输入");
     }
+    } finally { voiceStartPendingRef.current = false; }
   }
 
   function stopVoiceRecording() {
     if (nativeSpeechRef.current) {
-      setStatus("正在整理识别结果...");
-      nativeSpeechRef.current.cancel();
+      reportVoiceStatus("正在整理识别结果...");
+      nativeSpeechRef.current.stop();
       return;
     }
 
     if (browserSpeechRef.current) {
-      setStatus("正在整理识别结果...");
+      reportVoiceStatus("正在整理识别结果...");
       browserSpeechRef.current.stop();
       return;
     }
@@ -1585,7 +1649,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     const recorder = mediaRecorderRef.current;
 
     if (recorder && recorder.state === "recording") {
-      setStatus("正在处理录音...");
+      reportVoiceStatus("正在处理录音...");
       recorder.stop();
       return;
     }
@@ -1595,9 +1659,6 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
   /** 原生安卓识别：一次性返回整段文字，结果同样追加在既有草稿之后。 */
   function startNativeVoiceTranscript() {
-    const draftBefore = draft;
-    const base = draftBefore.trim() ? draftBefore.trimEnd() : "";
-
     const handle = startNativeSpeech({ lang: "zh-CN" });
     if (!handle) {
       showVoiceUnavailable("当前设备不支持语音识别，请改用文字输入");
@@ -1606,29 +1667,30 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
     nativeSpeechRef.current = handle;
     setIsRecording(true);
-    setStatus("正在听，再点一次麦克风结束");
+    reportVoiceStatus("正在听，再点一次麦克风结束");
 
     void handle.done.then((result) => {
-      if (nativeSpeechRef.current === handle) nativeSpeechRef.current = null;
+      if (nativeSpeechRef.current !== handle) return;
+      nativeSpeechRef.current = null;
       setIsRecording(false);
 
       if (result.ok) {
-        setDraft(joinTranscript(base, result.text, ""));
-        setStatus("语音已识别，可继续编辑");
+        setDraft(current => joinTranscript(current, result.text, ""));
+        reportVoiceStatus("语音已识别，可继续编辑");
         return;
       }
 
       const message = describeNativeSpeechError(result);
       if (!message) {
-        // 用户主动取消：恢复原草稿，不显示错误。
-        setDraft(draftBefore);
-        setStatus("已取消语音输入");
+        // Switching conversations invalidates the handle above. A remaining
+        // cancellation came from the system, so do not silently hide it.
+        setError("录音被系统中断。请保持应用在前台并检查麦克风权限，也可在语音输入设置中改用供应商转写。");
+        reportVoiceStatus("语音输入已中断");
         return;
       }
 
-      setDraft(draftBefore);
       setError(message);
-      setStatus("语音识别失败，请稍后重试");
+      reportVoiceStatus("语音识别失败，请稍后重试");
     });
   }
 
@@ -1648,7 +1710,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
       onFinal: (text) => {
         latestFinal = latestFinal ? `${latestFinal}${text}` : text;
         setDraft(joinTranscript(base, latestFinal, ""));
-        setStatus("语音已识别，可继续编辑");
+        reportVoiceStatus("语音已识别，可继续编辑");
       },
       onError: (code) => {
         hadError = true;
@@ -1657,11 +1719,11 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         setIsRecording(false);
         if (!message) {
           setDraft(draftBefore);
-          setStatus("已取消语音输入");
+          reportVoiceStatus("已取消语音输入");
           return;
         }
         setError(message);
-        setStatus("语音识别失败，请稍后重试");
+        reportVoiceStatus("语音识别失败，请稍后重试");
       },
       onEnd: () => {
         browserSpeechRef.current = null;
@@ -1669,10 +1731,10 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         if (hadError) return;
         if (latestFinal.trim()) {
           setDraft(joinTranscript(base, latestFinal, ""));
-          setStatus("语音已识别，可继续编辑");
+          reportVoiceStatus("语音已识别，可继续编辑");
         } else {
           setDraft(draftBefore);
-          setStatus("没有识别到内容，可以再说一次");
+          reportVoiceStatus("没有识别到内容，可以再说一次");
         }
       }
     });
@@ -1684,7 +1746,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
     browserSpeechRef.current = handle;
     setIsRecording(true);
-    setStatus("正在听，再点一次麦克风结束");
+    reportVoiceStatus("正在听，再点一次麦克风结束");
   }
 
   /**
@@ -1692,14 +1754,14 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
    * 直接告诉用户改用文字输入，并保留原有草稿。
    */
   function showVoiceUnavailable(hint: string) {
-    setError(voiceTranscriptionUnavailableCopy);
-    setStatus(hint);
+    setError(hint);
+    reportVoiceStatus(hint);
   }
 
-  async function transcribeAudioBlob(audioBlob: Blob) {
+  async function transcribeAudioBlob(audioBlob: Blob, conversationId = activeConversationRef.current) {
     if (audioBlob.size > maxVoiceUploadBytes) {
       setError("录音太长，请控制在更短的一段话内。");
-      setStatus("录音太长，未发送转写");
+      reportVoiceStatus("录音太长，未发送转写");
       return;
     }
 
@@ -1707,7 +1769,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setError(null);
     setVoicePreview(null);
     setVoiceFailure(null);
-    setStatus("正在转写录音...");
+    reportVoiceStatus("正在转写录音...");
 
     try {
       const audioBase64 = await blobToBase64(audioBlob);
@@ -1719,7 +1781,8 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
           audioBase64,
           mimeType,
           fileName: `voice-input.${audioExtensionFromMimeType(mimeType)}`,
-          language: "zh-CN"
+          language: "zh-CN",
+          sttModel: transcriptionModel.trim()
         })
       });
       const payload = (await response.json()) as {
@@ -1734,17 +1797,20 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         error?: string;
       };
 
-      if (!response.ok || !payload.text) {
+      if (conversationId !== activeConversationRef.current) return;
+      if (!response.ok || !payload.text?.trim()) {
+        setVoiceFailure(payload);
         throw new Error(payload.error ?? voiceTranscriptionUnavailableCopy);
       }
 
-      setDraft(payload.text);
-      setStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
+      setDraft(current => joinTranscript(current, payload.text!.trim(), ""));
+      reportVoiceStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
     } catch (voiceError) {
+      if (conversationId !== activeConversationRef.current) return;
       setError(toSafeWorkspaceError(voiceError, voiceTranscriptionUnavailableCopy));
-      setStatus("语音转写失败，请稍后重试");
+      reportVoiceStatus("语音转写失败，请稍后重试");
     } finally {
-      setIsTranscribing(false);
+      if (conversationId === activeConversationRef.current) setIsTranscribing(false);
     }
   }
 
@@ -1767,6 +1833,11 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
   async function synthesizeLatestReply() {
     if (!latestAssistantMessage || isSynthesizing) return;
 
+    if (canUseNativeSpeech()) {
+      playWithNativeVoice(latestAssistantMessage.content);
+      return;
+    }
+
     // 原生安卓壳里 WebView 连不上 Edge TTS（wss + 自定义头 + CSP），
     // 直接调用设备自带的语音引擎朗读，不走 /api/voice/synthesize。
     if (shouldUseSystemSpeech()) {
@@ -1778,7 +1849,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     setError(null);
     setVoicePreview(null);
     setVoiceFailure(null);
-    setStatus("正在生成语音回复...");
+    reportVoiceStatus("正在生成语音回复...");
 
     try {
       const response = await fetch("/api/voice/synthesize", {
@@ -1807,18 +1878,50 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
           fallbackReason: payload.fallbackReason
         });
         setError(toSafeWorkspaceError(payload.error, voiceReplyUnavailableCopy));
-        setStatus("语音回复生成失败，请稍后重试");
+        reportVoiceStatus("语音回复生成失败，请稍后重试");
         return;
       }
 
       setVoicePreview(payload);
-      setStatus("语音已准备好。");
+      reportVoiceStatus("语音已准备好。");
     } catch (voiceError) {
       setError(toSafeWorkspaceError(voiceError, voiceReplyUnavailableCopy));
-      setStatus("语音回复生成失败，请稍后重试");
+      reportVoiceStatus("语音回复生成失败，请稍后重试");
     } finally {
       setIsSynthesizing(false);
     }
+  }
+
+  function playWithNativeVoice(text: string) {
+    nativePlaybackRef.current?.stop();
+    const handle = speakNativeText(text, { lang: "zh-CN" });
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    if (!handle) { setError("设备朗读未能启动，请检查系统文字转语音服务。"); return; }
+    nativePlaybackRef.current = handle;
+    setIsDeviceReading(true);
+    setIsSynthesizing(true);
+    reportVoiceStatus("正在启动设备朗读…");
+    void handle.done.then(result => {
+      if (nativePlaybackRef.current !== handle) return;
+      nativePlaybackRef.current = null;
+      setIsDeviceReading(false);
+      setIsSynthesizing(false);
+      if (result.ok) reportVoiceStatus("朗读结束");
+      else if (result.errorType === "cancelled") reportVoiceStatus("朗读已停止");
+      else { setError(result.error || "设备朗读失败，请检查系统文字转语音服务和中文语音包。"); reportVoiceStatus("朗读未完成"); }
+    });
+  }
+
+  function stopReading() {
+    setIsDeviceReading(false);
+    nativePlaybackRef.current?.stop();
+    nativePlaybackRef.current = null;
+    systemSpeechRef.current?.stop();
+    systemSpeechRef.current = null;
+    setIsSynthesizing(false);
+    reportVoiceStatus("朗读已停止");
   }
 
   /** 设备本地朗读：安卓 WebView 支持 speechSynthesis，不产生可下载音频。 */
@@ -1827,20 +1930,22 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
     const handle = speakWithSystemVoice(text, {
       lang: "zh-CN",
       onStart: () => {
+        setIsDeviceReading(true);
         setIsSynthesizing(true);
-        setStatus("正在用设备语音朗读...");
+        reportVoiceStatus("正在用设备语音朗读...");
       },
-      onEnd: () => setStatus("朗读结束")
+      onEnd: () => reportVoiceStatus("朗读结束")
     });
 
     if (!handle) {
       setError(voiceReplyUnavailableCopy);
-      setStatus("当前设备不支持朗读，请稍后重试");
+      reportVoiceStatus("当前设备不支持朗读，请稍后重试");
       return;
     }
 
     systemSpeechRef.current = handle;
     void handle.done.then(() => {
+      setIsDeviceReading(false);
       if (systemSpeechRef.current === handle) systemSpeechRef.current = null;
       setIsSynthesizing(false);
     });
@@ -1922,7 +2027,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             <p className="section-label">想见的人</p>
             <span>{String(companions.length).padStart(2, "0")}</span>
           </div>
-          <div className="relationship-list">
+          <div className="relationship-list" data-guide="people-list">
             {companions.map((companion) => (
               <button
                 className={`relationship-button ${companion.id === activeId ? "active" : ""}`}
@@ -1949,16 +2054,16 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
 
         <div className="quick-actions">
           <JourneyEntry />
-          <StarterPackEntry />
-          <button aria-label="创建关系对象" className="text-button primary-action" onClick={startCreateCompanion} type="button">
+          <StarterPackEntry guideAnchor="lanterns-entry" />
+          <button aria-label="创建关系对象" className="text-button primary-action" data-guide="create-person" onClick={startCreateCompanion} type="button">
             <Plus size={17} />
             想见谁
           </button>
-          <Link className="text-button" href="/create-from-chat" title="从聊天记录创建人物">
+          <Link className="text-button" data-guide="open-chat-import" href="/create-from-chat" title="从聊天记录创建人物">
             <Upload size={17} />
             从聊天记录创建
           </Link>
-          <Link className="text-button" href="/groups" title="进入群聊">
+          <Link className="text-button" data-guide="open-groups" href="/groups" title="进入群聊">
             <MessageCircle size={17} />
             围坐 · 群聊
             <UnreadBadge count={inbox.total("group")} />
@@ -1981,13 +2086,13 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         </div>
       </aside>
 
-      <section className="main" aria-label="聊天">
+      <section className="main" aria-label="聊天" data-guide="chat-region">
         <header className="topbar">
           <button aria-label="返回联系人" className={`icon-button ${styles.mobileBack}`} onClick={() => setIsMobileConversation(false)} type="button">
             <ArrowLeft size={22} />
           </button>
           {activeCompanion ? (
-            <div className="companion-heading">
+            <div className="companion-heading" data-guide="active-person">
               <div className="avatar">{activeCompanion.name.slice(0, 1)}</div>
               <div>
                 <div className="title-row">
@@ -2003,14 +2108,15 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               <p className="muted">选择一位想见的人，或开始新的相遇</p>
             </div>
           )}
-          <div className={`topbar-actions ${styles.conversationActions}`} aria-label="当前人物的聊天工具">
-            {activeCompanion ? <Link aria-label="入梦" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></Link> : null}
-            <button aria-label="关系资料" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
+          <div className={`topbar-actions ${styles.conversationActions}`} aria-label="当前人物的聊天工具" data-guide="chat-tools">
+            {activeCompanion ? <Link aria-label="入梦" data-guide="open-dream" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></Link> : null}
+            <button aria-label="关系资料" data-guide="open-profile" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
               <UserRound size={20} />
               <span className={styles.actionLabel}>人物资料</span>
             </button>
             <button
               aria-label="编辑关系设定"
+              data-guide="open-edit"
               className="icon-button"
               disabled={!activeCompanion}
               onClick={startEditCompanion}
@@ -2022,6 +2128,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             </button>
             <button
               aria-label="重新生成最近一条回复"
+              data-guide="chat-regenerate"
               className="icon-button"
               disabled={!latestAssistantMessage || !!busyMessageId}
               onClick={() => regenerateMessage(latestAssistantMessage?.id)}
@@ -2033,6 +2140,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             </button>
             <button
               aria-label="记忆"
+              data-guide="open-memory"
               className="icon-button"
               disabled={!activeCompanion}
               onClick={() => openInspector("memories")}
@@ -2044,6 +2152,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             </button>
             <button
               aria-label="导入素材"
+              data-guide="open-import"
               className="icon-button"
               disabled={!activeCompanion || isImporting}
               onClick={() => openInspector("import")}
@@ -2089,7 +2198,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               {index === 0 || formatChatDate(message.createdAt) !== formatChatDate(messages[index - 1].createdAt) ? (
                 <div className="day-divider">{formatChatDate(message.createdAt)}</div>
               ) : null}
-            <article className={`message ${message.role}`}>
+            <article className={`message ${message.role}`} {...(message.id === latestAssistantMessage?.id ? { "data-guide": "chat-last-reply" } : {})}>
               {message.role === "assistant" ? <div className={`avatar ${styles.messageAvatar}`} aria-hidden="true">{activeCompanion?.name.slice(0, 1)}</div> : null}
               <div
                 className={`message-bubble ${
@@ -2159,11 +2268,23 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
           ) : null}
         </div>
 
-        <form className="composer" onSubmit={sendMessage}>
+        <form className="composer" data-guide="chat-composer-form" onSubmit={sendMessage}>
           <div className="composer-inner">
             <div className={styles.writingCaption}><span>{activeCompanion ? `说给${activeCompanion.name}听` : "留一句想说的话"}</span><span>Enter 发送</span></div>
+            <div className={styles.voiceTools}>
+              <button type="button" className="text-button" disabled={!latestAssistantMessage || (isSynthesizing && !isDeviceReading)} onClick={isSynthesizing ? stopReading : synthesizeLatestReply}>{isSynthesizing ? "停止朗读" : "朗读最近回复"}</button>
+              <button type="button" className="text-button" disabled={!activeCompanion || isRecording || isTranscribing || isSending} onClick={() => void startVoiceRecording(true)} title="录音结束后发送给已配置的语音供应商，需支持语音转写模型">供应商转写（上传录音）</button>
+            </div>
             {error && !isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
-            {isRecording || isTranscribing || isSynthesizing ? <div role="status" className="muted">{isRecording ? "正在录音，点击麦克风结束" : isTranscribing ? "正在将语音转为文字…" : "正在准备语音回复…"}</div> : null}
+            <details className={styles.voiceOptions}>
+              <summary>语音输入设置</summary>
+              <label>话筒使用<select aria-label="话筒识别方式" value={voiceInputMode} disabled={isRecording || isTranscribing} onChange={event => setVoiceInputMode(event.target.value as "system" | "provider")}><option value="system">系统识别</option><option value="provider">供应商转写（上传录音）</option></select></label>
+              <label>转写模型<input aria-label="语音转写模型" value={transcriptionModel} disabled={isRecording || isTranscribing} onChange={event => setTranscriptionModel(event.target.value)} placeholder="例如 whisper-1" /></label>
+              <p className="muted">系统识别依赖手机的识别服务。供应商转写共用你的 API 配置，需要单独支持音频转写的模型；聊天模型通常不能转写。whisper-1 仅为示例，请填写供应商实际支持的模型。</p>
+            </details>
+            {recordingPreviewUrl ? <div className="voice-preview"><span>录音预听（仅本机预览）</span><audio aria-label="录音预听" controls src={recordingPreviewUrl} /><button type="button" className="text-button" onClick={() => setRecordingPreview(null)}>清除预听</button></div> : null}
+            {isRecording || isTranscribing || isSynthesizing ? <div role="status" className="muted">{isRecording ? "正在录音，点击麦克风结束" : isTranscribing ? "正在将语音转为文字…" : isDeviceReading ? "设备朗读中，可点击停止朗读结束" : "正在准备语音回复…"}</div> : null}
+            {!isRecording && !isTranscribing && !isSynthesizing && voiceStatus ? <div role="status" className="muted">{voiceStatus}</div> : null}
             {voicePreview ? (
               <div className="voice-preview">
                 <span className="voice-ready" role="status">语音回复已生成</span>
@@ -2189,9 +2310,10 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                 </details>
               </div>
             ) : null}
-            <div className="input-row">
+            <div className="input-row" data-guide="chat-composer">
               <button
                 aria-label={isRecording ? "停止录音" : "语音输入"}
+                data-guide="voice-input"
                 className={`icon-button composer-icon ${isRecording ? "recording" : ""}`}
                 disabled={!activeCompanion || isSending || (isTranscribing && !isRecording)}
                 onClick={toggleVoiceRecording}
@@ -2202,6 +2324,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               </button>
               <input
                 className="chat-input"
+                data-guide="chat-input"
                 aria-label="把想说的话放在这里"
                 disabled={!activeCompanion || isAbilityPlaying}
                 onChange={(event) => setDraft(event.target.value)}
@@ -2209,16 +2332,17 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                 value={draft}
               />
               <button
-                aria-label="朗读最近回复"
+                aria-label={isSynthesizing ? "停止播放最近回复" : "播放最近回复"}
+                data-guide="voice-read"
                 className="icon-button composer-icon"
-                disabled={!latestAssistantMessage || isSynthesizing}
-                onClick={synthesizeLatestReply}
+                disabled={!latestAssistantMessage || (isSynthesizing && !isDeviceReading)}
+                onClick={isSynthesizing ? stopReading : synthesizeLatestReply}
                 title="朗读最近回复"
                 type="button"
               >
                 <Volume2 size={18} />
               </button>
-              <button className="primary-button" disabled={!activeCompanion || isSending || isAbilityPlaying} type="submit">
+              <button className="primary-button" data-guide="chat-send" disabled={!activeCompanion || isSending || isAbilityPlaying} type="submit">
                 <Send size={17} />
                 {isSending ? "等待回复" : "发送"}
               </button>
@@ -2227,7 +2351,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         </form>
       </section>
 
-      <dialog className={`inspector ${styles.drawer}`} aria-label="关系资料" ref={inspectorRef}
+      <dialog className={`inspector ${styles.drawer}`} aria-label="关系资料" data-guide-expected ref={inspectorRef}
         onCancel={(event) => { event.preventDefault(); closeInspector(); }}
         onClick={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -2295,7 +2419,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                   <h2>候选与长期记忆</h2>
                   <span className="pill">{activeMemories.length} 条</span>
                 </div>
-                <div className="memory-list">
+                <div className="memory-list" data-guide="memory-list">
                   {activeMemories.length ? (
                     activeMemories.map((memory) => (
                       <article className="memory-item" key={memory.id}>
@@ -2436,7 +2560,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               </div>
             </header>
             <div className="inspector-scroll">
-              <form className="panel" onSubmit={importTextMaterials}>
+              <form className="panel" data-guide="import-form" onSubmit={importTextMaterials}>
                 <div className="panel-title">
                   <h2>粘贴导入</h2>
                   <span className="pill teal">{importModeLabels[importMode]}</span>
@@ -2589,6 +2713,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                 ) : null}
                 <button
                   className="primary-button wide"
+                  data-guide="import-submit"
                   disabled={!activeCompanion || isImporting || !importText.trim()}
                   type="submit"
                 >
@@ -2677,7 +2802,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                     </button>
                   ))}
                 </div>
-                <div className="memory-list">
+                <div className="memory-list" data-guide="memory-list-proactive">
                   {isLoadingDrafts ? <div className="empty">正在生成主动回响</div> : null}
                   {!isLoadingDrafts && visibleProactiveDrafts.length ? (
                     visibleProactiveDrafts.map((draft) => (
@@ -2845,7 +2970,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                   <h2>模型分布</h2>
                   <span className="pill">估算</span>
                 </div>
-                <div className="memory-list">
+                <div className="memory-list" data-guide="memory-list-usage-provider">
                   {usageDashboard?.byProviderModel.length ? (
                     usageDashboard.byProviderModel.map((item) => (
                       <article className="memory-item" key={`${item.provider}/${item.model}`}>
@@ -2871,7 +2996,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
                   <h2>最近记录</h2>
                   <span className="pill">脱敏</span>
                 </div>
-                <div className="memory-list">
+                <div className="memory-list" data-guide="memory-list-usage-recent">
                   {usageDashboard?.recent.length ? (
                     usageDashboard.recent.map((log) => (
                       <article className="memory-item" key={log.id}>
@@ -3023,7 +3148,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
             {activeCompanion?.relationshipState.explanation ? (
               <div className="status-box">{activeCompanion.relationshipState.explanation}</div>
             ) : null}
-            <div className="memory-list">
+            <div className="memory-list" data-guide="memory-list-events">
               {activeCompanion?.relationshipState.importantEvents.length ? (
                 activeCompanion.relationshipState.importantEvents.slice(0, 4).map((event, index) => (
                   <article className="memory-item" key={`${event}-${index}`}>
@@ -3045,7 +3170,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
               <h2>记忆</h2>
               <span className="pill">用户可控</span>
             </div>
-            <div className="memory-list">
+            <div className="memory-list" data-guide="memory-list-summary">
               {activeMemories.length ? (
                 activeMemories.map((memory) => (
                   <article className="memory-item" key={memory.id}>
@@ -3067,7 +3192,7 @@ export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: bool
         </div>
         <div className={styles.drawerStatus}>
           {error && isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
-          <div className="status-line" role="status">{status}</div>
+          <div className="status-line" data-guide="chat-status" role="status">{status}</div>
           {persistenceNotice ? <details><summary><Database size={14} aria-hidden="true" /> 存储状态</summary><p>{persistenceNotice.description} {persistenceNotice.nextStep}</p><Link className="text-button" href="/settings">配置状态</Link></details> : null}
         </div>
       </dialog>

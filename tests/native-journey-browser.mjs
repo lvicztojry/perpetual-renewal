@@ -11,7 +11,18 @@ await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
 const port = probe.address().port;
 await new Promise(resolve => probe.close(resolve));
 const base = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port)], {
+// Release optimized deps without waiting for the first crawl to finish; a late dynamic
+// import otherwise holds bootstrap behind the optimizer gate. Test-only setting.
+const viteBootstrap = `
+  import { createServer } from "vite";
+  const server = await createServer({
+    optimizeDeps: { holdUntilCrawlEnd: false },
+    server: { host: "127.0.0.1", port: ${port}, strictPort: true }
+  });
+  await server.listen();
+  server.printUrls();
+`;
+const server = spawn(process.execPath, ["--input-type=module", "--eval", viteBootstrap], {
   cwd: fileURLToPath(new URL("../native/", import.meta.url)),
   env: { ...process.env, NATIVE_BROWSER_TEST: "1" }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true
 });
@@ -46,7 +57,7 @@ async function register(page, email) {
   await expect(recovery).toBeVisible();
   assert((await recovery.inputValue()).length > 40);
   // No onboarding may obscure the only copy of the recovery code.
-  await expect(page.locator("[data-journey-dialog][open]")).toHaveCount(0);
+  await expect(page.locator("[data-journey-card]")).toHaveCount(0);
   await page.getByRole("button", { name: "我已保存，进入应用", exact: true }).click();
   await page.getByRole("button", { name: "锁定", exact: true }).waitFor();
   await expect(page.locator(".local-content")).toHaveCount(1);
@@ -70,10 +81,15 @@ async function lock(page) {
 try {
   let ready = false;
   for (let i = 0; i < 120; i++) {
-    try { if ((await fetch(base)).ok) { ready = true; break; } } catch { /* Our own isolated server. */ }
+    try { if ((await fetch(base, { signal: AbortSignal.timeout(1000) })).ok) { ready = true; break; } } catch { /* Our own isolated server. */ }
     await delay(250);
   }
   assert(ready, "isolated native Vite server must start");
+  // The HTML response alone is not readiness: the entry module transforms on demand.
+  for (const path of ["/src/main.tsx", "/src/start.tsx"]) {
+    const response = await fetch(base + path, { signal: AbortSignal.timeout(30000) });
+    assert.equal(response.status, 200, `${path} must transform successfully`);
+  }
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const external = [];
@@ -93,47 +109,77 @@ try {
   await page.getByRole("dialog", { name: "更新公告", exact: true }).waitFor();
   await page.getByRole("button", { name: "我知道了", exact: true }).click();
   const a = await register(page, "journey-a@example.test");
-  assert.deepEqual(a.journey, { version: 1, status: "active", step: "awakening", companionId: null, revision: 0 });
+  assert.deepEqual(a.journey, {
+    version: 2, status: "active", step: "awakening", companionId: null, revision: 0,
+    activeCourse: null, courses: {}, deferredCourses: [], dismissedInvites: {}
+  });
 
-  // UI assertions below use the shared guide's semantic controls.
-  const guide = page.locator("[data-journey-dialog]");
-  await expect(guide).toBeVisible();
-  await expect(guide.getByRole("heading")).toHaveText("初醒 · 有人等你");
-  await guide.getByRole("button", { name: "暂时不想说", exact: true }).click();
-  await guide.getByRole("button", { name: "随她走进旧城", exact: true }).click();
-  await expect(guide.getByRole("heading")).toHaveText("旧城 · 久别重逢");
-  await guide.getByRole("button", { name: "暂歇片刻", exact: true }).click();
-  await expect(guide).toBeHidden();
+  // A new local account is invited in once; the card is a dialog-free overlay so the
+  // recovery-code page above was never obscured.
+  const card = page.locator("[data-journey-dialog]");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("初醒 · 有人等你");
+  await expect(card).toHaveAttribute("data-step-id", "awakening-greet");
+  const started = await journey(page);
+  assert.equal(started.journey.activeCourse?.id, "main");
+  assert.equal(started.journey.activeCourse?.stepId, "awakening-greet");
+
+  await card.getByRole("button", { name: "继续", exact: true }).click();
+  await expect(card).toHaveAttribute("data-step-id", "awakening-answer");
+  await card.getByRole("button", { name: "暂时不想说", exact: true }).click();
+  await expect(card).toContainText("名字和往事，都可以留在你心里");
+  await card.getByRole("button", { name: "继续", exact: true }).click();
+  await expect(card).toHaveAttribute("data-step-id", "awakening-walk");
+  await card.getByRole("button", { name: "继续", exact: true }).click();
+  await expect(card).toHaveAttribute("data-step-id", "arrival-people");
+  assert.equal((await journey(page)).journey.step, "arrival");
+
+  // Pausing keeps the checkpoint and never leaks the overlay.
+  await card.getByRole("button", { name: "暂歇", exact: true }).click();
+  await expect(card).toBeHidden();
   const paused = await journey(page);
-  assert.equal(paused.journey.status, "paused");
-  assert.equal(paused.journey.step, "arrival");
+  assert.equal(paused.journey.activeCourse, null);
+  assert.equal(paused.journey.courses.main.result, "deferred");
+  assert.equal(paused.journey.courses.main.checkpoint, "arrival-people");
+  const pausedAside = page.getByRole("complementary", { name: "引导已暂停", exact: true });
+  await expect(pausedAside).toBeVisible();
+
+  // Reload + unlock must restore the same checkpoint, not restart or double-write.
   await page.reload();
   await unlock(page, "journey-a@example.test");
-  assert.deepEqual(await journey(page), paused);
-  await expect(guide).toBeHidden();
-  await page.getByRole("button", { name: "找余念安", exact: true }).first().click();
-  await guide.getByRole("button", { name: "接着走", exact: true }).click();
-  await expect(guide.getByRole("heading")).toHaveText("旧城 · 久别重逢");
-  assert.equal((await journey(page)).journey.status, "active");
-  await guide.getByRole("button", { name: "暂歇片刻", exact: true }).click();
-  await expect(guide).toBeHidden();
+  const afterReload = await journey(page);
+  assert.equal(afterReload.journey.activeCourse, null);
+  assert.equal(afterReload.journey.courses.main.checkpoint, "arrival-people");
+  await expect(card).toBeHidden();
+  await page.getByRole("button", { name: "继续", exact: true }).click();
+  const directory = page.getByRole("dialog", { name: /主线与支线/ });
+  await expect(directory).toBeVisible();
+  await expect(directory).toContainText("稍后继续");
+  await directory.getByRole("button", { name: "继续主线", exact: true }).click();
+  await expect(card).toHaveAttribute("data-step-id", "arrival-people");
+  assert.equal((await journey(page)).journey.activeCourse?.stepId, "arrival-people");
+  await card.getByRole("button", { name: "暂歇", exact: true }).click();
+  await expect(card).toBeHidden();
   const savedA = await journey(page);
   await lock(page);
 
+  // A second local account gets its own invitation and its own progress.
   const b = await register(page, "journey-b@example.test");
   assert.notEqual(b.userId, a.userId);
-  assert.equal(b.journey.step, "awakening");
-  assert.equal(b.journey.revision, 0);
-  await expect(guide.getByRole("heading")).toHaveText("初醒 · 有人等你");
-  await guide.getByRole("button", { name: "我想自行走走", exact: true }).click();
-  await expect(guide).toBeHidden();
-  assert.equal((await journey(page)).journey.status, "skipped");
+  assert.equal(b.journey.activeCourse?.id, "main");
+  assert.equal(b.journey.revision, 1);
+  await expect(card).toHaveAttribute("data-step-id", "awakening-greet");
+  await card.getByRole("button", { name: "离开本段", exact: true }).click();
+  await expect(card).toBeHidden();
+  const skipped = await journey(page);
+  assert.equal(skipped.journey.activeCourse, null);
+  assert.equal(skipped.journey.courses.main.result, "skipped");
   await lock(page);
   await unlock(page, "journey-a@example.test");
   assert.deepEqual(await journey(page), savedA);
-  await expect(guide).toBeHidden();
+  await expect(card).toBeHidden();
 
-  // Emulate a pre-journey encrypted snapshot by omitting only its new field.
+  // Emulate a pre-journey encrypted snapshot by omitting only the journey store.
   // Persist through the real account encryption path, then unlock from disk.
   const created = await api(page, "/api/companions", "POST", {
     name: "旧快照人物", relationshipKind: "FRIEND", speakingStyle: "简短自然", proactiveMessagesEnabled: false
@@ -155,17 +201,20 @@ try {
   const legacy = await journey(page);
   assert.equal(legacy.journey.status, "legacy");
   assert.equal(legacy.journey.revision, 0);
-  await expect(guide).toBeHidden();
+  assert.equal(legacy.journey.activeCourse, null);
+  await expect(card).toBeHidden();
   assert.deepEqual(await api(page, "/api/companions"), originalPeople);
   await page.getByRole("button", { name: "找余念安", exact: true }).first().click();
-  await expect(guide).toBeVisible();
-  await guide.getByRole("button", { name: "重返初醒", exact: true }).click();
-  await guide.getByRole("button", { name: "我想自行走走", exact: true }).click();
-  await expect(guide).toBeHidden();
+  await expect(page.getByRole("dialog", { name: /主线与支线/ })).toBeVisible();
+  await page.getByRole("dialog", { name: /主线与支线/ }).getByRole("button", { name: "开始主线", exact: true }).click();
+  await expect(card).toHaveAttribute("data-step-id", "awakening-greet");
+  await card.getByRole("button", { name: "离开本段", exact: true }).click();
+  await expect(card).toBeHidden();
+  // Opening the course never rewrote business resources.
   assert.deepEqual(await api(page, "/api/companions"), originalPeople);
   assert.deepEqual(external, [], "onboarding must never contact a model or mail service");
   assert.deepEqual(errors, [], "native browser must have no uncaught page errors");
-  console.log("Native journey browser QA passed: recovery acknowledgement, new registration, pause/reload/unlock, resume, account isolation, old encrypted snapshot and non-destructive replay. Native platform validation is separate.");
+  console.log("Native journey browser QA passed: recovery acknowledgement, new registration, invite-in, pause/reload/unlock, directory resume, account isolation, old encrypted snapshot and non-destructive replay. Native platform validation is separate.");
 } catch (error) {
   console.error("Isolated Native Journey Vite diagnostics:\n" + serverLog);
   console.error("Browser diagnostics:", { errors, text: await page?.locator("body").innerText({ timeout: 2000 }).catch(() => "unavailable") });

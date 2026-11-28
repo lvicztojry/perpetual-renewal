@@ -4,6 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { createServer } from "node:http";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 const portProbe = createServer();
 await new Promise(resolve => portProbe.listen(0, "127.0.0.1", resolve));
@@ -18,33 +19,82 @@ const modelServer = createServer(async (request, response) => {
   assert.equal(request.headers.authorization, "Bearer " + "fixture-local-personal-key");
   modelRequests++;
   response.setHeader("content-type", "application/json");
+  if (request.url.endsWith("/audio/transcriptions")) {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = Buffer.concat(chunks).toString("latin1");
+    assert(body.includes("fixture-stt"), "recorded audio uses a dedicated transcription model");
+    assert(body.includes('name="file"; filename='), "recorded audio file must be forwarded");
+    response.end(JSON.stringify({ text: "这是录音转写的文字" }));
+    return;
+  }
   response.end(JSON.stringify(request.url.endsWith("/models") ? { data: [{ id: "fixture-model" }] } : { choices: [{ message: { role: "assistant", content: "本机假供应商连接成功。" } }], usage: { prompt_tokens: 3, completion_tokens: 5 } }));
 });
 await new Promise(resolve => modelServer.listen(0, "127.0.0.1", resolve));
 const modelBase = `http://127.0.0.1:${modelServer.address().port}/v1`;
-const server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(qaPort)], {
+let serverLog = "";
+// The HTML response alone is not readiness: main.tsx dynamically imports start.tsx.
+// Release optimized dependencies without waiting for the first browser crawl to
+// end, so a late import cannot hold bootstrap behind the optimizer's crawl gate.
+// Keep this test-specific setting out of native dev/build configuration.
+const viteBootstrap = `
+  import { createServer } from "vite";
+  const server = await createServer({
+    optimizeDeps: { holdUntilCrawlEnd: false },
+    server: { host: "127.0.0.1", port: ${qaPort}, strictPort: true }
+  });
+  await server.listen();
+  server.printUrls();
+`;
+const server = spawn(process.execPath, ["--input-type=module", "--eval", viteBootstrap], {
   cwd: fileURLToPath(new URL("../native/", import.meta.url)),
-  env: { ...process.env, NATIVE_BROWSER_TEST: "1" }, stdio: "ignore", windowsHide: true
+  env: { ...process.env, NATIVE_BROWSER_TEST: "1" }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true
 });
+for (const stream of [server.stdout, server.stderr]) stream.on("data", chunk => { serverLog = (serverLog + chunk).slice(-64000); });
+let spawnError;
+server.on("error", error => { spawnError = error; });
+const serverExited = new Promise(resolve => server.once("exit", resolve));
 let browser;
+let diagnosticPage;
+const bootstrapFailures = [];
+const pendingRequests = new Set();
+const errors = [];
+let phase = "dev-server startup";
 try {
   let ready = false;
+  const deadline = Date.now() + 30000;
   for (let i = 0; i < 80; i++) {
-    try { if ((await fetch(base)).ok) { ready = true; break; } } catch { /* Wait for this QA server. */ }
+    if (spawnError) throw spawnError;
+    assert.equal(server.exitCode, null, `native Vite exited during startup:\n${serverLog}`);
+    try { if ((await fetch(base, { signal: AbortSignal.timeout(1000) })).ok) { ready = true; break; } } catch { /* Wait for this QA server. */ }
+    if (Date.now() >= deadline) break;
     await delay(250);
   }
-  assert(ready, "native browser QA server must start");
-  browser = await chromium.launch({ channel: "msedge", headless: true });
+  assert(ready, `native browser QA server must start:\n${serverLog}`);
+  phase = "bootstrap module transforms";
+  for (const path of ["/src/main.tsx", "/src/start.tsx"]) {
+    const response = await fetch(base + path, { signal: AbortSignal.timeout(30000) });
+    assert.equal(response.status, 200, `${path} must transform successfully: ${await response.text()}`);
+  }
+  phase = "browser bootstrap";
+  browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  diagnosticPage = page;
+  page.on("request", request => pendingRequests.add(new URL(request.url()).pathname));
+  page.on("requestfinished", request => pendingRequests.delete(new URL(request.url()).pathname));
+  page.on("requestfailed", request => {
+    const url = new URL(request.url());
+    if (url.origin === base) bootstrapFailures.push({ path: url.pathname, error: request.failure()?.errorText });
+  });
   await context.addInitScript(() => sessionStorage.setItem("renewal:journey-suppress:v1", "1"));
   page.setDefaultTimeout(90000);
   await page.addLocatorHandler(page.getByRole("button", { name: "跳过开场动画", exact: true }), async button => { await button.click(); });
-  const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 120000 });
   const announcement = page.getByRole("dialog", { name: "更新公告", exact: true });
   await announcement.waitFor();
+  phase = "local account and persistence checks";
   await page.getByRole("button", { name: "我知道了", exact: true }).click();
   await page.reload();
   await page.getByLabel("邮箱标识").waitFor();
@@ -116,8 +166,30 @@ try {
       assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 38 && bounds.y + bounds.height < 740, `${name} must fit on a ${width}px phone screen`);
       assert(await control.locator("span").isVisible(), `${name} needs a visible text label`);
     }
+    for (const name of ["朗读最近回复", "供应商转写（上传录音）"]) {
+      const button = page.getByRole("button", { name, exact: true });
+      assert(await button.isVisible(), name + " needs a visible text button in the mobile conversation");
+      const bounds = await button.boundingBox();
+      assert(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 38 && bounds.y + bounds.height <= 740, name + " must fit on the phone");
+    }
   }
   await page.screenshot({ path: fileURLToPath(new URL("../.tmp-native-qa/native-private-tools.png", import.meta.url)) });
+  await page.getByText("语音输入设置", { exact: true }).click();
+  phase = "MediaRecorder provider transcription and preview";
+  await page.getByLabel("话筒识别方式").selectOption("provider");
+  await page.getByLabel("语音转写模型").fill("fixture-stt");
+  await page.getByText("语音输入设置", { exact: true }).click();
+  await page.getByRole("textbox", { name: "把想说的话放在这里" }).fill("保留原草稿");
+  await page.getByRole("button", { name: "语音输入", exact: true }).click();
+  await page.getByRole("button", { name: "停止录音", exact: true }).waitFor();
+  await delay(1100);
+  await page.getByRole("button", { name: "停止录音", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('input[aria-label="把想说的话放在这里"]')?.value === "保留原草稿 这是录音转写的文字");
+  assert(await page.getByLabel("录音预听").isVisible(), "recorded clip remains available for local playback");
+  await page.getByRole("button", { name: "清除预听", exact: true }).click();
+  assert(!await page.getByLabel("录音预听").count());
+  console.log("Native recording UI passed: MediaRecorder upload, dedicated STT model, draft append, local preview and preview cleanup.");
+  phase = "recovery and account isolation checks";
   await page.getByRole("button", { name: "主动回响", exact: true }).click();
   await page.getByRole("button", { name: "设置此人物的主动回响开关与频率" }).click();
   await page.getByRole("group", { name: "主动回响开关", exact: true }).scrollIntoViewIfNeeded();
@@ -176,8 +248,15 @@ try {
   await page.screenshot({ path: fileURLToPath(new URL("../.tmp-native-qa/native-local-desktop.png", import.meta.url)) });
   assert.equal(errors.length, 0, errors.join("\n"));
   console.log("Native browser QA passed: original UI, local password/recovery, encrypted restart persistence, private chat, groups, dream, vault preservation and account isolation. Native devices/SQLite bridge are separate checks.");
+} catch (error) {
+  const directory = fileURLToPath(new URL("../.tmp-native-qa/", import.meta.url));
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(directory + "/browser-failure.json", JSON.stringify({ phase, error: String(error), bootstrapFailures, pendingRequests: [...pendingRequests], errors, serverLog }, null, 2));
+  await diagnosticPage?.screenshot({ path: directory + "/browser-failure.png", timeout: 5000 }).catch(() => undefined);
+  throw error;
 } finally {
   await browser?.close();
-  server.kill();
+  if (server.exitCode === null) server.kill();
+  await serverExited;
   await new Promise(resolve => modelServer.close(resolve));
 }

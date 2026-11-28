@@ -29,7 +29,7 @@ npm run e2e 默认由托管服务启动 mock/memory；E2E_BASE_URL 复用服务�
 | 素材导入/人物提炼 | npm run qa:imports；npm run qa:character-import；tests/e2e/chat-character-import.spec.ts |
 | 入梦 | npm run qa:dream；tests/e2e/dream-flow.spec.ts |
 | 群聊/留灯会/复读 | npm run qa:groups；tests/e2e/group-flow.spec.ts、group-reply-quality.spec.ts |
-| 初醒/进度/演出 | npm run qa:journey；npm run qa:abilities；tests/e2e/journey-flow.spec.ts、bell-intro.spec.ts |
+| 初醒/进度/演出 | npm run qa:journey；JOURNEY_DATABASE_QA=1 npm run qa:journey:postgres；npm run qa:abilities；tests/e2e/journey-flow.spec.ts、bell-intro.spec.ts |
 | 认证/访问/凭据 | npm run qa:auth；npm run qa:auth-access；npm run qa:vault；tests/e2e/password-auth.spec.ts、settings-privacy.spec.ts |
 | 供应商/语音 | npm run qa:providers；npm run qa:voice；npm run qa:voice-language；npm run qa:real-provider:fake |
 | 主动回响 | npm run qa:proactive-scheduler；npm run qa:proactive-cron；npm run qa:proactive-availability |
@@ -38,6 +38,14 @@ npm run e2e 默认由托管服务启动 mock/memory；E2E_BASE_URL 复用服务�
 | 原生本地 | npm run qa:native；npm run qa:journey:native；实际安装、SQLite、恢复与生命周期另验 |
 
 供应商接口规范与 BYOK 说明见 [LLM.md](LLM.md)，数据范围见 [PRIVACY.md](PRIVACY.md)。测试配置向导应检查 session 签名 secret 及 session_cookie_secret 状态，日志和导出不能出现原始凭据。
+
+## Android 语音复验
+
+先覆盖安装本地修复包，不卸载或清除账号。私聊中测试“朗读最近回复”，观察播放、停止和结束状态；有声音不代表结束回调已通过。
+
+“语音输入设置”可选择系统识别或供应商转写。系统识别依赖设备已启用的识别服务；供应商转写会上传录音到用户所配网关，应填写其支持的音频转写模型，不能用聊天连接成功推断 STT 可用。whisper-1 仅为示例。点击话筒开始，再点停止；用“录音预听”区分无声录音与接口失败，检查转写追加草稿、具体错误提示及切换人物后的隔离。预听不写入聊天存储，离开页面会释放。
+
+npm run qa:voice 包含独立模型与 multipart 路由、生产桥接及 Kotlin 回调/权限时序；npm run qa:native 使用浏览器假麦克风和本机假网关。二者均不代替实体设备、真实供应商或中文识别质量验收。
 
 ## PostgreSQL 专项
 

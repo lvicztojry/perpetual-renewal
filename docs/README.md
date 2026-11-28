@@ -23,4 +23,6 @@
 | [TASKBOOK_HISTORY.md](TASKBOOK_HISTORY.md) / [QA_HISTORY.md](QA_HISTORY.md) / [RELEASE_HANDOFF_HISTORY.md](RELEASE_HANDOFF_HISTORY.md) | 整理前的任务定义、详细用例和交接原文；编号与历史证据保留 |
 | [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | 从 [release-notes.json](../src/lib/release-notes.json) 生成的版本日志，不手工编辑 |
 
+新手教程专项施工定义见 [余念安陪伴式新手教程施工任务书](JOURNEY_GUIDE_TASKBOOK.md)，包含页面光圈指引、剧情与课程、状态兼容、任务依赖和验收标准；实际进度仍以 MVP_STATUS 为准。
+
 隐私、安全与文案约束见 [PRIVACY.md](PRIVACY.md)、[SAFETY.md](SAFETY.md)、[ERROR_COPY.md](ERROR_COPY.md)。

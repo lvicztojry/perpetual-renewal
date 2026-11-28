@@ -1,7 +1,7 @@
 import { readDecryptedLlmCredential } from "@/lib/credentials";
 import { createVoiceProvider } from "./provider";
 
-export async function createUserVoiceProvider(userId: string) {
+export async function createUserVoiceProvider(userId: string, options: { sttModel?: string } = {}) {
   const credential = await readDecryptedLlmCredential(userId);
   const requestedProvider = process.env.VOICE_PROVIDER?.trim();
 
@@ -15,10 +15,10 @@ export async function createUserVoiceProvider(userId: string) {
       credentialSource: "user-vault",
       apiKey: credential.apiKey,
       baseUrl: credential.baseUrl,
-      sttModel: process.env.VOICE_STT_MODEL?.trim() || credential.model,
+      sttModel: options.sttModel?.trim() || process.env.VOICE_STT_MODEL?.trim() || credential.model,
       ttsModel: process.env.VOICE_TTS_MODEL?.trim() || credential.model
     });
   }
 
-  return createVoiceProvider();
+  return createVoiceProvider(options.sttModel ? { sttModel: options.sttModel.trim() } : {});
 }

@@ -23,11 +23,30 @@ for (const permission of requiredPermissions) {
     /<application\b/,
     `<uses-permission android:name="${permission}" />\n    <application`
   );
-  writeFileSync(path, manifest);
 }
 
+// Android 11+ package visibility filters both probes and service discovery unless
+// these actions appear under <queries>. A device may still have neither engine.
+const requiredSpeechServices = [
+  "android.speech.RecognitionService",
+  "android.intent.action.TTS_SERVICE"
+];
+for (const action of requiredSpeechServices) {
+  const queryBlocks = manifest.match(/<queries\b[^>]*>[\s\S]*?<\/queries\s*>/g) ?? [];
+  if (queryBlocks.some((block) => new RegExp(`<action\\b[^>]*android:name\\s*=\\s*["']${action.replaceAll(".", "\\.")}["']`).test(block))) continue;
+  const intent = `<intent><action android:name="${action}" /></intent>`;
+  if (/<\/queries\s*>/.test(manifest)) {
+    manifest = manifest.replace(/<\/queries\s*>/, `    ${intent}\n    </queries>`);
+  } else if (/<queries\b[^>]*\/\s*>/.test(manifest)) {
+    manifest = manifest.replace(/<queries\b[^>]*\/\s*>/, `<queries>\n        ${intent}\n    </queries>`);
+  } else {
+    manifest = manifest.replace(/<application\b/, `<queries>\n        ${intent}\n    </queries>\n    <application`);
+  }
+}
+writeFileSync(path, manifest);
+
 console.log(
-  "Android microphone permissions are declared (RECORD_AUDIO, MODIFY_AUDIO_SETTINGS). Runtime recording permission still requires device verification."
+  "Android microphone permissions and recognition/TTS service queries are declared. Engine availability and runtime permission still require device verification."
 );
 
 // 原生语音识别插件：Tauri 不会自动把应用自己的 Kotlin 插件编进工程，
@@ -42,7 +61,7 @@ if (existsSync(speechSource)) {
   );
   mkdirSync(appPackageDir, { recursive: true });
   copyFileSync(speechSource, join(appPackageDir, "SpeechPlugin.kt"));
-  console.log("Android speech recognition plugin staged.");
+  console.log("Android speech recognition and TextToSpeech plugin staged.");
 }
 
 // Reapply canonical launcher resources after Tauri staging as well as initialization.

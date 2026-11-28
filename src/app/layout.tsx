@@ -3,7 +3,7 @@ import "./globals.css";
 import "./renewal-theme.css";
 import { PwaRegister } from "@/components/pwa-register";
 import { BellIntro } from "@/components/bell-intro";
-import { JourneyGuide } from "@/components/journey-guide";
+import { JourneyShell } from "@/components/journey/journey-shell";
 
 export const metadata: Metadata = {
   title: "生生不息",
@@ -32,7 +32,7 @@ export default function RootLayout({
         {children}
         <PwaRegister />
         <BellIntro />
-        <JourneyGuide />
+        <JourneyShell />
       </body>
     </html>
   );

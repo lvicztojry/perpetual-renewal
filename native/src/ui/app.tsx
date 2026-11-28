@@ -13,7 +13,7 @@ import { getUserProfile, type UserProfile } from "@/lib/users/profile";
 import { clearLocalSession, consumePendingPath, exclusive, localSession, loginLocalAccount, recoverLocalAccount, registerLocalAccount } from "../runtime/account";
 import { createBackup, listBackups, restoreBackup } from "../runtime/database";
 import { ReleaseNotice } from "./release-notice";
-import { JourneyGuide } from "@/components/journey-guide";
+import { JourneyShell } from "@/components/journey/journey-shell";
 
 function LocalLogin({ onUnlock }: { onUnlock: (path: string) => void }) {
   const [mode, setMode] = useState("login");
@@ -121,6 +121,6 @@ export function App() {
       <label>输入“恢复备份”确认<input value={confirmation} onChange={event => setConfirmation(event.target.value)}/></label>
       <button disabled={!backupName || confirmation !== "恢复备份"} onClick={async () => { try { await exclusive(() => restoreBackup(backupName, confirmation)); window.location.reload(); } catch { setNotice("备份未能恢复，当前数据与恢复前备份仍需保留。"); } }}>恢复并重新登录</button>
       <button onClick={() => setBackups(null)}>取消</button></div></div>}
-    <div className="local-content" key={session.userId}>{content}</div><BellIntro/><JourneyGuide key={"journey:" + session.userId} userId={session.userId}/>
+    <div className="local-content" key={session.userId}>{content}</div><BellIntro/><JourneyShell key={"journey:" + session.userId} userId={session.userId}/>
   </>;
 }

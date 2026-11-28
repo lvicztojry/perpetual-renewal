@@ -14,6 +14,7 @@ import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
 import { useInboxSync, useReadMessages } from "./use-inbox-sync";
 import { SyncAccessNotice, UnreadBadge } from "./sync-access-notice";
 import { createClientId } from "@/lib/client-sync/id";
+import { reportJourneyEvidence } from "@/lib/journey/events";
 import styles from "./group-workspace.module.css";
 
 type Delivery = { message: GroupMessage; mentionIds: string[]; status: "sending" | "failed" | "sent"; error?: string };
@@ -300,6 +301,7 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
       accept(result.group);
       const lastUser = result.group.messages.findLast((message) => message.speakerId === null);
       if (lastUser?.clientId === delivery.message.clientId) {
+        reportJourneyEvidence({ kind: "group-message-sent", groupId: result.group.id, resourceId: result.group.id });
         const start = result.group.messages.findIndex((message) => message.clientId === delivery.message.clientId);
         const replied = new Set(result.group.messages.slice(start + 1).map((message) => message.speakerId));
         const speakers = (result.speakers ?? []).filter((id) => !replied.has(id));
@@ -341,7 +343,8 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
     try {
       const result = await enqueue(() => post(build(current.current!)));
       if (!live.current) return false;
-      accept(result.group); setNotice("已保存。"); return true;
+      accept(result.group); setNotice("已保存。");
+      return true;
     } catch (failure) { if (live.current) setError(failureText(failure)); return false; }
     finally { editLock.current = false; if (live.current) setBusy(false); }
   }
@@ -351,7 +354,10 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
     editLock.current = true; setBusy(true); setError("");
     try {
       const result = await request<{ group: GroupState }>("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), background: background.trim(), companionIds }) });
-      if (live.current) router.push(`/groups/${encodeURIComponent(result.group.id)}`);
+      if (live.current) {
+        reportJourneyEvidence({ kind: "group-created", groupId: result.group.id, resourceId: result.group.id });
+        router.push(`/groups/${encodeURIComponent(result.group.id)}`);
+      }
     } catch (failure) { if (live.current) setError(failureText(failure)); }
     finally { editLock.current = false; if (live.current) setBusy(false); }
   }
@@ -374,11 +380,11 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
 
   return <main ref={viewportRef} className={`${styles.page} ${groupId ? styles.detailPage : ""}`}>
     <aside className={`${styles.rail} ${groupId ? styles.detailRail : ""}`} aria-label="群聊列表">
-      <Link className={styles.back} href="/"><ArrowLeft size={16} /> 返回私聊<UnreadBadge count={inbox.total("private")} /></Link>
+      <Link className={styles.back} data-guide="group-to-create" href="/"><ArrowLeft size={16} /> 返回私聊<UnreadBadge count={inbox.total("private")} /></Link>
       <div className={styles.brand}><RenewalEmblem width={38} height={44} /><div><h1>围坐</h1><p>旧城灯下，故人同席</p></div></div>
-      <div className={styles.row}><span className={styles.eyebrow}>相聚的地方 · {groups.length}</span><button className={styles.icon} aria-label="创建群聊" onClick={() => { setCreating(true); setError(""); }}><Plus size={19} /></button></div>
+      <div className={styles.row}><span className={styles.eyebrow}>相聚的地方 · {groups.length}</span><button className={styles.icon} data-guide="group-create" aria-label="创建群聊" onClick={() => { setCreating(true); setError(""); }}><Plus size={19} /></button></div>
       <JourneyEntry className={styles.secondary} />
-      <StarterPackEntry />
+      <StarterPackEntry guideAnchor="lanterns-pack" />
       <nav className={styles.groupList}>{groups.map((item) => <Link key={item.id} href={`/groups/${encodeURIComponent(item.id)}`} className={styles.groupLink} aria-current={item.id === groupId ? "page" : undefined}><span className={styles.avatar}><Users size={20} /></span><span><strong>{item.name}<UnreadBadge count={inbox.count("group", item.id)} /></strong><small>{item.lastMessage?.content ?? `${item.members.length} 位成员 · 等你开口`}</small></span></Link>)}</nav>
       {!loading && !groups.length && !loadError && <p className={styles.hint}>还没有群聊。邀几位想见的人，在这里围坐。</p>}
       <p className={styles.railNote}>一盏灯，一张桌。<br />把想说的话，留给同席的人。</p>
@@ -387,7 +393,7 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
     <section className={styles.main} aria-label="群聊工作区">
       <header className={styles.header}><div><Link className={styles.back} href="/groups"><ArrowLeft size={15} /> 全部群聊</Link><h2 title={group?.name}>{group?.name ?? "故人同席"}</h2>{!group && <p>让不同的声音，在同一盏灯下相遇。</p>}
         {group && <details className={styles.groupDetails}><summary>{group.members.length} 位成员 · 群简介</summary><div><p>{group.members.map(member => person(member.companionId)).join("、")}</p>{group.background && <p>{group.background}</p>}</div></details>}</div>
-        <div className={styles.actions}>{group ? <><button className={styles.secondary} aria-label="群记忆" title="群记忆" aria-pressed={panel === "memories"} aria-expanded={panel === "memories"} aria-controls="group-inspector" onClick={(event) => { if (panel === "memories") closePanel(); else { panelReturnFocus.current = event.currentTarget; setPanel("memories"); } }}><BookHeart size={16} /><span className={styles.actionText}>群记忆</span></button><button className={styles.secondary} aria-label="成员与设置" title="成员与设置" aria-pressed={panel === "settings"} aria-expanded={panel === "settings"} aria-controls="group-inspector" onClick={(event) => { if (panel === "settings") closePanel(); else { panelReturnFocus.current = event.currentTarget; setDraft(structuredClone(group)); setConfirmDelete(false); setPanel("settings"); } }}><Settings size={16} /><span className={styles.actionText}>成员与设置</span></button></> : <button className={styles.primary} onClick={() => setCreating(true)}><Plus size={16} /> 创建群聊</button>}</div>
+        <div className={styles.actions}>{group ? <><button className={styles.secondary} data-guide="group-memory" aria-label="群记忆" title="群记忆" aria-pressed={panel === "memories"} aria-expanded={panel === "memories"} aria-controls="group-inspector" onClick={(event) => { if (panel === "memories") closePanel(); else { panelReturnFocus.current = event.currentTarget; setPanel("memories"); } }}><BookHeart size={16} /><span className={styles.actionText}>群记忆</span></button><button className={styles.secondary} data-guide="group-settings" aria-label="成员与设置" title="成员与设置" aria-pressed={panel === "settings"} aria-expanded={panel === "settings"} aria-controls="group-inspector" onClick={(event) => { if (panel === "settings") closePanel(); else { panelReturnFocus.current = event.currentTarget; setDraft(structuredClone(group)); setConfirmDelete(false); setPanel("settings"); } }}><Settings size={16} /><span className={styles.actionText}>成员与设置</span></button></> : <button className={styles.primary} data-guide="group-create-empty" onClick={() => setCreating(true)}><Plus size={16} /> 创建群聊</button>}</div>
       </header>
       {loadError && <div className={styles.error} role="alert">{loadError} <button className={styles.secondary} onClick={() => setReload((value) => value + 1)}>重新读取</button></div>}
       {error && <div className={styles.error} role="alert">{error} <button className={styles.secondary} onClick={() => { stopPlan(); setReload((value) => value + 1); }}>读取最新群聊</button></div>}
@@ -395,7 +401,7 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
       {syncError && <p className={styles.error} role="status">{syncError} 页面会继续尝试刷新。</p>}
       {inbox.state === "offline" && <p className={styles.notice} role="status">未读状态暂时未能同步，恢复连接后会继续。</p>}
       {group ? <>
-        <div className={styles.conversation} aria-label="群聊天记录" ref={log} onScroll={() => { const node = log.current; if (node) { const latest = node.scrollHeight - node.scrollTop - node.clientHeight < 100; follow.current = latest; setAtLatest(latest); } }}>
+        <div className={styles.conversation} aria-label="群聊天记录" data-guide="group-log" ref={log} onScroll={() => { const node = log.current; if (node) { const latest = node.scrollHeight - node.scrollTop - node.clientHeight < 100; follow.current = latest; setAtLatest(latest); } }}>
           {!messages.length && <div className={styles.empty}><MessageCircle size={32} /><h3>人已到齐，话从这里开始</h3><p>说声你好，或 @ 一位成员。</p></div>}
           <ol className={styles.messages}>{messages.map((message, index) => {
             const delivery = deliveries.find((item) => item.message.clientId === message.clientId && item.status !== "sent");
@@ -413,20 +419,20 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
           {replyFailure && <button className={styles.secondary} disabled={busy} onClick={() => { const plan = replyFailure; setReplyFailure(null); setError(""); void runPlan(plan); }}>重试剩余回复</button>}
         </div>
         <form className={styles.composer} onSubmit={submitMessage}>
-          <div className={`${styles.row} ${styles.composerActions}`}><button ref={mentionButton} type="button" className={styles.secondary} aria-expanded={mentionOpen} aria-controls="group-mention-members" onClick={() => setMentionOpen(!mentionOpen)}>＠ 选择成员</button><button type="button" className={styles.secondary} disabled={busy || Boolean(typing)} onClick={() => void proactive(true)}>邀请主动发言</button></div>
+          <div className={`${styles.row} ${styles.composerActions}`}><button ref={mentionButton} data-guide="group-mention" type="button" className={styles.secondary} aria-expanded={mentionOpen} aria-controls="group-mention-members" onClick={() => setMentionOpen(!mentionOpen)}>＠ 选择成员</button><button type="button" data-guide="group-invite" className={styles.secondary} disabled={busy || Boolean(typing)} onClick={() => void proactive(true)}>邀请主动发言</button></div>
           {mentionOpen && <fieldset ref={mentionChoices} id="group-mention-members" className={styles.mentions} onKeyDown={(event) => {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMentionOpen(false); mentionButton.current?.focus(); }
             else if (event.key === "Enter" && event.target instanceof HTMLInputElement && event.target.type === "checkbox") { event.preventDefault(); event.target.click(); }
           }}><legend>本条消息邀请谁回应</legend>{group.members.map((member) => <label key={member.companionId} className={styles.check}><input type="checkbox" checked={mentions.includes(member.companionId)} onChange={() => setMentions(toggle(mentions, member.companionId))} />@{person(member.companionId)}</label>)}<button type="button" className={styles.secondary} onClick={() => { setMentionOpen(false); composer.current?.focus(); }}>完成选择</button></fieldset>}
           {mentions.length > 0 && <p className={styles.hint}>邀请：{mentions.map((id) => `@${person(id)}`).join(" ")}</p>}
-          <label className={styles.srOnly} htmlFor="group-message">群聊消息</label><textarea ref={composer} id="group-message" value={text} maxLength={8000} rows={2} placeholder="说点什么，让灯下热闹起来…" onChange={(event) => setText(event.target.value)} disabled={busy} />
-          <div className={`${styles.row} ${styles.sendRow}`}><small>新消息会打断尚未开始的旧回复。</small><button type="submit" className={styles.primary} disabled={busy || !text.trim()}><Send size={16} /> 发送</button></div>
+          <label className={styles.srOnly} htmlFor="group-message">群聊消息</label><textarea ref={composer} data-guide="group-input" id="group-message" value={text} maxLength={8000} rows={2} placeholder="说点什么，让灯下热闹起来…" onChange={(event) => setText(event.target.value)} disabled={busy} />
+          <div className={`${styles.row} ${styles.sendRow}`}><small>新消息会打断尚未开始的旧回复。</small><button type="submit" data-guide="group-send" className={styles.primary} disabled={busy || !text.trim()}><Send size={16} /> 发送</button></div>
         </form>
       </> : !loading && <div className={styles.empty}><Users size={44} /><h3>{groupId ? "暂时无法进入这场相聚" : "空一张桌，等故人来"}</h3><p>{groupId ? "请重新读取，或从列表选择其他群聊。" : "选择已有群聊，或邀请人物创建新的群聊。"}</p></div>}
     </section>
 
     {group && panel && <button type="button" className={styles.panelBackdrop} tabIndex={-1} aria-label="关闭群聊侧栏" onClick={closePanel} />}
-    {group && panel && <aside ref={inspector} id="group-inspector" tabIndex={-1} className={styles.inspector} aria-label={panel === "settings" ? "成员与群设置" : "群记忆"} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closePanel(); } }}>
+    {group && panel && <aside ref={inspector} id="group-inspector" tabIndex={-1} className={styles.inspector} data-guide="group-memory-panel" aria-label={panel === "settings" ? "成员与群设置" : "群记忆"} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closePanel(); } }}>
       <div className={styles.row}><h2>{panel === "settings" ? "同席的人与约定" : "共同记得的事"}</h2><button className={styles.icon} aria-label="关闭面板" onClick={closePanel}><X size={19} /></button></div>
       {panel === "settings" && draft && <form onSubmit={async (event) => { event.preventDefault(); if (await mutate(() => ({ action: "update", revision: draft.revision, name: draft.name.trim(), background: draft.background.trim(), members: draft.members, settings: draft.settings }))) closePanel(); }}>
         {draft.revision !== group.revision && <div className={styles.hint}>群聊已有更新，当前填写内容已保留。<button type="button" className={styles.secondary} disabled={busy} onClick={() => setDraft(structuredClone(group))}>用最新资料替换表单</button></div>}
@@ -448,18 +454,18 @@ export function GroupWorkspace({ groupId, userId }: { groupId?: string; userId?:
       </form>}
       {panel === "memories" && <>
         <p className={styles.hint}>从消息旁勾选来源，再确认内容与知情成员。</p>
-        <form onSubmit={async (event) => { event.preventDefault(); if (await mutate((latest) => ({ action: "remember", revision: latest.revision, content: memoryText.trim(), sourceMessageIds: selected, knownBy }))) { setSelected([]); setMemoryText(""); setKnownBy([]); } }}>
+        <form onSubmit={async (event) => { event.preventDefault(); if (await mutate((latest) => ({ action: "remember", revision: latest.revision, content: memoryText.trim(), sourceMessageIds: selected, knownBy }))) { setSelected([]); setMemoryText(""); setKnownBy([]); reportJourneyEvidence({ kind: "memory-confirmed", groupId: groupId ?? undefined, resourceId: groupId ?? undefined }); } }}>
           <fieldset disabled={busy} className={styles.fieldset}><p className={styles.hint}>已选 {selected.length} / 30 条消息 <button type="button" className={styles.secondary} onClick={() => { setSelected([]); setMemoryText(""); }}>清空</button></p>
           {selected.length > 0 && <><blockquote className={styles.source}>{group.messages.filter((message) => selected.includes(message.id)).map((message) => <p key={message.id}>{message.speakerId ? person(message.speakerId) : "我"}：{message.content}</p>)}</blockquote><button type="button" className={styles.secondary} onClick={() => setMemoryText(group.messages.filter((message) => selected.includes(message.id)).map((message) => message.content).join("\n"))}>将所选消息填入记忆</button></>}
           <label className={styles.field}>确认要记住的内容<textarea value={memoryText} required maxLength={2000} rows={4} onChange={(event) => setMemoryText(event.target.value)} /></label>
           <fieldset className={styles.mentions}><legend>哪些成员知情</legend>{group.members.map((member) => <label className={styles.check} key={member.companionId}><input type="checkbox" checked={knownBy.includes(member.companionId)} onChange={() => setKnownBy(toggle(knownBy, member.companionId))} />{person(member.companionId)}</label>)}</fieldset>
-          <button type="submit" className={styles.primary} disabled={!memoryText.trim() || !selected.length || selected.length > 30 || !knownBy.length}>确认群记忆</button></fieldset>
+          <button type="submit" data-guide="group-memory-submit" className={styles.primary} disabled={!memoryText.trim() || !selected.length || selected.length > 30 || !knownBy.length}>确认群记忆</button></fieldset>
         </form>
         <h3>已保存 · {group.memories.length}</h3>{!group.memories.length && <p className={styles.hint}>共同的记忆，会从这里慢慢积累。</p>}{group.memories.map((memory) => <article className={styles.memory} key={memory.id}><p>{memory.content}</p><small>知情：{memory.knownBy.map(person).join("、") || "未指定"} · {memory.sourceMessageIds.length} 条来源</small><button type="button" disabled={busy} className={styles.danger} onClick={() => void mutate((latest) => ({ action: "forget", revision: latest.revision, memoryId: memory.id }))}>忘记这条记忆</button></article>)}
       </>}
     </aside>}
 
-    <dialog ref={createDialog} className={styles.modal} aria-labelledby="create-group-title" onCancel={(event) => { event.preventDefault(); if (!busy) setCreating(false); }}><div className={styles.row}><h2 id="create-group-title">邀故人围坐</h2><button className={styles.icon} disabled={busy} aria-label="关闭创建群聊" onClick={() => setCreating(false)}><X size={20} /></button></div>
+    <dialog ref={createDialog} data-guide-expected className={styles.modal} aria-labelledby="create-group-title" onCancel={(event) => { event.preventDefault(); if (!busy) setCreating(false); }}><div className={styles.row}><h2 id="create-group-title">邀故人围坐</h2><button className={styles.icon} disabled={busy} aria-label="关闭创建群聊" onClick={() => setCreating(false)}><X size={20} /></button></div>
       <form onSubmit={create}><fieldset disabled={busy} className={styles.fieldset}><label className={styles.field}>群名称<input autoFocus required value={name} maxLength={80} placeholder="例如：旧城茶馆" onChange={(event) => setName(event.target.value)} /></label><label className={styles.field}>群背景<textarea value={background} rows={3} maxLength={4000} placeholder="大家为何相聚，有哪些共同的故事？" onChange={(event) => setBackground(event.target.value)} /></label><fieldset className={styles.mentions}><legend>邀请人物 · 已选 {companionIds.length} / 12 位</legend>{companions.map((item) => <label key={item.id} className={styles.check}><input type="checkbox" checked={companionIds.includes(item.id)} onChange={() => setCompanionIds(toggle(companionIds, item.id))} />{item.name}</label>)}{!companions.length && <p className={styles.hint}>尚无可邀请人物。<Link href="/">前往私聊创建人物</Link></p>}</fieldset>{error && <p className={styles.error} role="alert">{error}</p>}<button type="submit" className={styles.primary} disabled={loading || !name.trim() || !companionIds.length || companionIds.length > 12}>{busy ? "正在创建…" : "创建群聊"}</button></fieldset></form>
     </dialog>
   </main>;

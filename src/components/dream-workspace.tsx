@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, Moon, RotateCcw } from "lucide-react";
 import { RenewalEmblem } from "./renewal-emblem";
+import { JourneyEntry } from "./journey-entry";
 import { playAbilityIntro } from "@/lib/ability-events";
+import { reportJourneyEvidence } from "@/lib/journey/events";
 import { redactSensitiveResponseText } from "@/lib/http/response-safety";
 import type { CompanionProfile } from "@/lib/renewal/types";
 import type { DreamAction, DreamFragment, DreamGetResponse, DreamPostResponse, DreamProfile, DreamScope, DreamState, DreamVersion } from "@/lib/dream/types";
@@ -134,7 +136,13 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
       if (!data.state || data.state.companionId !== companionId) throw new DreamUiError("未能确认保存结果，请重新读取后核对，避免重复操作。");
       if (!mounted.current || controller.signal.aborted) return null;
       accept(data.state); if (data.companion) setCompanion(data.companion);
-      if (action.action === "start") window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "dream-started", companionId } }));
+      if (action.action === "start") {
+        window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "dream-started", companionId } }));
+        reportJourneyEvidence({ kind: "dream-started", companionId, resourceId: companionId });
+      }
+      if (action.action === "generate") reportJourneyEvidence({ kind: "dream-generated", companionId, resourceId: companionId });
+      if (action.action === "feedback") reportJourneyEvidence({ kind: "dream-feedback-recorded", companionId, resourceId: companionId });
+      if (action.action === "apply") reportJourneyEvidence({ kind: "dream-applied", companionId, resourceId: companionId });
       setNotice(success); setConflict(false);
       return data;
     } catch (failure) {
@@ -217,8 +225,9 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
     <header className={styles.header}>
       <div className={styles.brand}><RenewalEmblem /><div><p className={styles.eyebrow}>生生不息 / 入梦</p><h1>入梦</h1><small>{companion ? `${companion.name}的意识空间` : "沿着回响，走近那个想念的人。"}</small></div></div>
       <div className={styles.headerActions}>
+        <JourneyEntry className={styles.secondary} />
         <a className={styles.back} href={`/?companion=${encodeURIComponent(companionId)}`} onClick={(event) => { if ((dirty || unsent) && !window.confirm("还有未提交的梦境内容，确定离开吗？")) event.preventDefault(); }}><ArrowLeft size={15} />返回聊天</a>
-        {active ? <button type="button" className={styles.primary} disabled={paused || needsRebase} onClick={() => void prepareApply()}>结束入梦</button> : null}
+        {active ? <button type="button" data-guide="dream-review" className={styles.primary} disabled={paused || needsRebase} onClick={() => void prepareApply()}>结束入梦</button> : null}
       </div>
     </header>
     <div className={styles.shell}>
@@ -226,7 +235,7 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
         <div className={styles.scene} data-settled={fragments.some((fragment) => fragment.confirmed)}>
           <div className={styles.door} aria-hidden="true"><div className={styles.silhouette} /></div>
           <div className={styles.sceneText}><h2>{active ? "形已生，念未全。" : "沿着回声，走入梦中。"}</h2><p>{active ? "一句话，一个细节，让模糊的身影渐渐清晰。" : "在交谈与纠正中，拾起属于 TA 的语气和性情。"}</p>
-            {active ? <p className={styles.hint}>梦境进行中 · 每轮记录后可继续，准备好时点击“结束入梦”</p> : <button type="button" className={styles.secondary} disabled={paused || !companion} onClick={enterDream}><Moon size={16} />进入梦境</button>}
+            {active ? <p className={styles.hint}>梦境进行中 · 每轮记录后可继续，准备好时点击“结束入梦”</p> : <button type="button" data-guide="dream-start" className={styles.secondary} disabled={paused || !companion} onClick={enterDream}><Moon size={16} />进入梦境</button>}
           </div>
         </div>
         <div className={styles.status} role="status" aria-live="polite">{busy === "load" ? "正在寻找梦境…" : busy === "generate" ? "正在听取梦中的回声…" : busy === "feedback" ? "正在整理这次纠正…" : busy ? "正在保存，请稍候…" : notice}</div>
@@ -244,20 +253,19 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
             <label className={styles.field}>纠正这句回响<textarea aria-label="纠正这句回响" rows={3} maxLength={500} disabled={paused} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder="例如：他会先让我吃饭，关心很直接，不会连续追问。也可以直接写出 TA 会说的话。" /></label>
             <label className={styles.field}>适用范围<select aria-label="适用范围" value={scope} disabled={paused} onChange={(event) => setScope(event.target.value as DreamScope)}>{Object.entries(scopes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             {!feedback.choiceId ? <p>说说哪里不像，或直接改一句，再记录这次反馈。</p> : <p>可直接记录选择；补充原因能让人物的表达规律更清晰。</p>}
-            <div className={styles.actions}><button type="button" className={styles.secondary} disabled={paused} onClick={() => { setFeedback(null); setCorrection(""); }}>取消</button><button className={styles.primary} disabled={paused || (!feedback.choiceId && !correction.trim())}>记录反馈</button></div>
+            <div className={styles.actions}><button type="button" className={styles.secondary} disabled={paused} onClick={() => { setFeedback(null); setCorrection(""); }}>取消</button><button className={styles.primary} data-guide="dream-feedback-submit" disabled={paused || (!feedback.choiceId && !correction.trim())}>记录反馈</button></div>
           </form> : null}
         </article>)}</div> : <div className={styles.empty}><strong>先从一句熟悉的话开始。</strong>这里的练习与正式聊天分开；只有确认应用，才会更新人物。</div>}
         {active ? <form onSubmit={generate}>
           <div className={styles.modeRow}><div className={styles.modes} aria-label="入梦模式"><button type="button" aria-pressed={mode === "compare"} disabled={paused} onClick={() => setMode("compare")}>对比选择</button><button type="button" aria-pressed={mode === "free"} disabled={paused} onClick={() => setMode("free")}>自由试聊</button></div><span className={styles.hint}>{dream.rounds.length} / {maxRounds} 轮 · 本次入梦容量</span></div>
           <p className={styles.hint}>{dream.rounds.length >= maxRounds ? "本次已达到 20 轮上限，无法再听取新回响，梦境不会自动结束。仍可补录已有回响的反馈、整理片段；点击“结束入梦”预览并确认应用后，可再次进入新的梦境。" : "每次入梦最多 20 轮。记录后可继续填写情境；只有点击“听听回响”才会生成下一轮。"}</p>
           <div className={styles.questions}>{questions.map((question) => <button className={styles.question} key={question} type="button" disabled={paused} onClick={() => setMessage(question)}>{question}</button>)}</div>
-          <label className={styles.field}>梦中情境<textarea ref={situationInput} aria-label="梦中情境" rows={3} value={message} maxLength={2000} disabled={paused} onChange={(event) => setMessage(event.target.value)} placeholder="说一句话，看看 TA 会如何回应。" /></label>
-          <div className={styles.actions}><button className={styles.primary} disabled={paused || Boolean(feedback) || Boolean(correction.trim()) || !message.trim() || dream.rounds.length >= maxRounds}>听听回响</button></div>
+          <label className={styles.field} data-guide="dream-situation">梦中情境<textarea ref={situationInput} aria-label="梦中情境" rows={3} value={message} maxLength={2000} disabled={paused} onChange={(event) => setMessage(event.target.value)} placeholder="说一句话，看看 TA 会如何回应。" /></label>
+          <div className={styles.actions}><button className={styles.primary} data-guide="dream-generate" disabled={paused || Boolean(feedback) || Boolean(correction.trim()) || !message.trim() || dream.rounds.length >= maxRounds}>听听回响</button></div>
         </form> : dream ? <div className={styles.actions}><a className={styles.primary} href={`/?companion=${encodeURIComponent(companionId)}`}>返回聊天，见见 TA</a></div> : null}
       </section>
       <aside className={styles.aside} aria-label="梦境设定">
-        <section className={styles.asideSection}>
-          <h2>拾起的片段</h2><p className={styles.hint}>这些是表达习惯的草稿。核对并勾选后，才会随本次应用带回人物。</p>
+        <section className={styles.asideSection} data-guide="dream-fragments"><h2>拾起的片段</h2><p className={styles.hint}>这些是表达习惯的草稿。核对并勾选后，才会随本次应用带回人物。</p>
           {!fragments.length ? <p className={styles.hint}>还没有确认的片段。在梦中选择或纠正一句回复，开始了解 TA。</p> : null}
           {fragments.map((fragment, index) => <div className={styles.fragment} key={fragment.id}>
             <label className={styles.field}>片段内容 {index + 1}<textarea aria-label={`片段内容 ${index + 1}`} rows={3} maxLength={500} disabled={paused || !active} value={fragment.text} onChange={(event) => updateFragment(fragment.id, { text: event.target.value })} /></label>
@@ -273,16 +281,16 @@ export function DreamWorkspace({ companionId }: { companionId: string }) {
           <p className={styles.hint}>{dirty ? "页面中有未保存修改" : dream ? "已保存至梦境草稿" : "进入梦境后可以编辑"}</p>
           {active ? <button type="button" className={styles.danger} disabled={paused} onClick={() => setReview({ kind: "discard", state: dream })}>舍弃本次梦境</button> : null}
         </section>
-        <section><h2>醒来的痕迹</h2><p className={styles.hint}>应用前后保留设定版本，可核对并恢复。</p>
+        <section data-guide="dream-history"><h2>醒来的痕迹</h2><p className={styles.hint}>应用前后保留设定版本，可核对并恢复。</p>
           {dream?.versions.length ? [...dream.versions].reverse().map((version) => <div className={styles.version} key={version.id}><time dateTime={version.createdAt}>{new Date(version.createdAt).toLocaleString("zh-CN", { hour12: false })}</time><p>{version.kind === "initial" ? "最初的设定" : version.kind === "restore" ? "恢复后的设定" : "一次醒来"}</p><details><summary className={styles.hint}>查看这一版</summary><p>{version.profile.personality.join("、")}</p><p>{version.profile.speakingStyle}</p></details><button type="button" className={styles.secondary} disabled={paused || dirty || needsRebase} onClick={() => setReview({ kind: "restore", state: dream, version })}>恢复这一版</button></div>) : <p className={styles.hint}>第一次结束入梦并确认应用后，版本会留在这里。</p>}
         </section>
       </aside>
     </div>
-    <dialog className={styles.dialog} ref={dialog} aria-label={review?.kind === "rebase" ? "确认最新人物基准" : review?.kind === "restore" ? "确认恢复版本" : review?.kind === "discard" ? "确认舍弃梦境" : "确认人物变化"} onCancel={(event) => { event.preventDefault(); if (!busy) setReview(null); }}>
+    <dialog className={styles.dialog} ref={dialog} data-guide-expected data-guide="dream-review" aria-label={review?.kind === "rebase" ? "确认最新人物基准" : review?.kind === "restore" ? "确认恢复版本" : review?.kind === "discard" ? "确认舍弃梦境" : "确认人物变化"} onCancel={(event) => { event.preventDefault(); if (!busy) setReview(null); }}>
       <h2>{review?.kind === "rebase" ? "核对梦境与最新的 TA" : review?.kind === "restore" ? "回到这一刻的 TA" : review?.kind === "discard" ? "舍弃这次梦境？" : "将这些细节带回人物"}</h2>
       {review?.kind === "discard" ? <p>本次未应用的练习、片段与草稿会被清空。正式人物和已保存的历史版本保留。</p> : <><p>{review?.kind === "rebase" ? "确认以最新人物资料继续，现有梦境草稿保留。本次不会修改正式人物；之后应用时仍需核对变化。" : "本次将更新人物的性格和说话方式。"}</p><div className={styles.diff}><section><h3>当前设定</h3><p>{companion?.personality.join("、") || "未填写性格"}</p><p>{companion?.speakingStyle}</p></section><section><h3>{review?.kind === "rebase" ? "保留的梦境草稿" : review?.kind === "restore" ? "恢复后的设定" : "确认后的设定"}</h3><p>{reviewProfile?.personality.join("、") || "未填写性格"}</p><p>{reviewProfile?.speakingStyle}</p></section></div>{review?.kind === "apply" ? <p>{review.state.fragments.filter((fragment) => fragment.confirmed).length} 条确认片段将被应用；未确认片段不参与本次人物更新。</p> : null}<p className={styles.hint}>聊天记录、背景、主动回响频率与长期记忆保留。</p></>}
       {unsent && review?.kind !== "rebase" ? <p className={styles.hint}>尚未提交的情境或反馈不会随本次操作保存，可以继续核对并先提交。</p> : null}
-      <div className={styles.actions}><button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={() => setReview(null)}>继续核对</button><button type="button" className={review?.kind === "discard" ? styles.danger : styles.primary} disabled={Boolean(busy)} onClick={() => void confirmReview()}>{busy ? "正在保存…" : review?.kind === "rebase" ? "确认最新基准" : review?.kind === "restore" ? "确认恢复" : review?.kind === "discard" ? "确认舍弃" : "确认应用并醒来"}</button></div>
+      <div className={styles.actions}><button type="button" className={styles.secondary} disabled={Boolean(busy)} onClick={() => setReview(null)}>继续核对</button><button type="button" data-guide="dream-apply-confirm" className={review?.kind === "discard" ? styles.danger : styles.primary} disabled={Boolean(busy)} onClick={() => void confirmReview()}>{busy ? "正在保存…" : review?.kind === "rebase" ? "确认最新基准" : review?.kind === "restore" ? "确认恢复" : review?.kind === "discard" ? "确认舍弃" : "确认应用并醒来"}</button></div>
     </dialog>
   </main>;
 }

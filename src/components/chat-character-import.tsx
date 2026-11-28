@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { parseTranscript } from "@/lib/import/transcript";
 import type { CharacterDraft, CharacterImportAnalysis, CharacterPreviewMessage } from "@/lib/import/character-types";
 import { relationshipKindLabels, type CompanionProfile } from "@/lib/renewal/types";
+import { reportJourneyEvidence } from "@/lib/journey/events";
 import styles from "./chat-character-import.module.css";
 
 const MAX_BYTES = 1024 * 1024;
@@ -218,7 +219,10 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
       // A successful create stays locked while the parent navigates away.
       if (!companion) end();
     }
-    if (companion) onCreated(companion);
+    if (companion) {
+      reportJourneyEvidence({ kind: "companion-created", companionId: companion.id, resourceId: companion.id });
+      onCreated(companion);
+    }
   }
 
   function go(next: number) {
@@ -249,7 +253,7 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
         <ol className={styles.steps} aria-label="创建进度">{steps.map((label, index) => <li key={label} className={index === step ? styles.currentStep : index < step ? styles.doneStep : ""} aria-current={index === step ? "step" : undefined}><span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>{label}</li>)}</ol>
         <div className={styles.status} role="status" aria-live="polite">{busy ? ({ file: "正在本地读取记录…", analyze: "正在提炼人物设定…", preview: "正在生成临时试聊回复…", create: created ? "人物已创建，正在返回聊天…" : "正在创建人物，请勿重复操作…" }[busy]) : status}</div>
         {error && <div className={styles.error} role="alert">{error}</div>}
-        <section className={styles.panel}>
+        <section className={styles.panel} data-guide="cc-form">
           <h2 ref={heading} tabIndex={-1}>{steps[step]}</h2>
           <fieldset className={styles.fields} disabled={Boolean(busy)}>
             <legend className={styles.srOnly}>{steps[step]}</legend>
@@ -314,7 +318,7 @@ export function ChatCharacterImport({ onCreated, onCancel }: {
               {draftSummary()}
               <aside className={styles.notice}>{history.some((turn) => turn.source === "model") ? "已完成模型试聊。" : "已完成本地模拟预览，尚未验证真实模型的回复效果。"} 人物是基于记录整理的模拟设定，不代表原人物本人；提炼内容可能包含推断。</aside>
               <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /><span>我已核对设定和试聊结果，确认保存当前人物设定。原始文件和临时试聊不保存。</span></label>
-              <div className={styles.actions}><button className={styles.secondary} type="button" onClick={() => go(2)}>← 返回试聊</button><button className={styles.primary} type="button" disabled={!verified || !confirmed || !draftReady} onClick={() => void create()}>确认创建人物</button></div>
+              <div className={styles.actions}><button className={styles.secondary} type="button" onClick={() => go(2)}>← 返回试聊</button><button className={styles.primary} type="button" disabled={!verified || !confirmed || !draftReady} onClick={() => void create()} data-guide="cc-submit">确认创建人物</button></div>
             </>}
           </fieldset>
         </section>

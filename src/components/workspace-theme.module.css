@@ -198,3 +198,11 @@
 @media (hover: none) {
   .workspace :global(.message .topbar-actions) { opacity: .7; }
 }
+
+.voiceTools { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-block: 4px 8px; }
+.voiceTools :global(button) { min-height: 32px; font-size: 12px; padding: 3px 0; }
+.voiceOptions { font-size: 12px; margin-bottom: 8px; }
+.voiceOptions[open] { max-height: 180px; overflow-y: auto; }
+.voiceOptions summary { cursor: pointer; min-height: 28px; }
+.voiceOptions label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 6px; }
+.voiceOptions input, .voiceOptions select { flex: 1; width: 100%; min-width: 0; max-width: 280px; }

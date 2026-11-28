@@ -1,6 +1,6 @@
 # 项目当前状态
 
-更新：2026-11-26。本文件是唯一的当前能力、任务状态、部署和验收入口。历史原文见 [MVP_STATUS_HISTORY.md](MVP_STATUS_HISTORY.md)；任务定义见 [TASKBOOK.md](TASKBOOK.md)，验证方法见 [QA.md](QA.md)。本轮仅整理文件、文档及其校验规则，没有重新验收全部应用功能。
+更新：2026-11-28。本文件是唯一的当前能力、任务状态、部署和验收入口。历史原文见 [MVP_STATUS_HISTORY.md](MVP_STATUS_HISTORY.md)；任务定义见 [TASKBOOK.md](TASKBOOK.md)，验证方法见 [QA.md](QA.md)。本轮补齐陪伴式新手教程 v2 的验收缺口（用现有人物、首次到页邀请、自由浏览步骤、竖版立绘、44px 触控与视口矩阵），没有重新验收全部应用功能。
 
 ## 当前结论
 
@@ -11,16 +11,17 @@
 | 介绍站 | 已部署 Netlify：[公开介绍站](https://perpetual-renewal.netlify.app/) | 只展示项目、更新记录和下载入口，不运行聊天 API、账号或数据库 |
 | 应用 Web | 可本机及同 Wi-Fi 试用 | 未部署为公网聊天服务；手机通过电脑的局域网地址访问，电脑须开机运行 |
 | Windows | 已公开发布 x64 测试安装包 | GitHub Release 为预发布；未做 Authenticode 签名，不能视为正式生产验收 |
-| Android | 已公开发布 ARM64 测试 APK | 有模拟器覆盖更新和续接证据；实体手机仍待验证 |
+| Android | 用户确认启动修复后可打开；语音修复已生成独立本地试用包 | 原包未替换；一加 Ace 3 / ColorOS 16 语音待实机复验，系统识别/朗读依赖设备引擎与语言包 |
 | 账号互通 | 同一 Web 服务的浏览器间共用服务端账号数据 | 原生客户端账号和加密数据各自保存在设备，尚无自动跨设备同步 |
 
-发布下载及字节数、SHA-256 的配置唯一来源是 [site/site.json](../site/site.json)，当前对应 [公开测试 Release](https://github.com/lvicztojry/perpetual-renewal/releases/tag/v0.1.3)。版本日志唯一来源是 [release-notes.json](../src/lib/release-notes.json)，[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) 为生成文件。文档不重复维护附件哈希。
+发布下载及字节数、SHA-256 的配置唯一来源是 [site/site.json](../site/site.json)，当前对应 [公开测试 Release](https://github.com/lvicztojry/perpetual-renewal/releases/tag/v0.2.0)。版本日志唯一来源是 [release-notes.json](../src/lib/release-notes.json)，[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) 为生成文件。文档不重复维护附件哈希；本地 startup-fix、voice-fix 试用包不在公开下载配置内。
 
 ## 已集成能力
 
 | 模块 | 已有功能 | 仍有限制 |
 | --- | --- | --- |
 | 初醒与二创叙事 | 余念安接引、暂停续接/跳过/重放、实际操作推进、留灯会入口 | 采用用户指定的二创世界观；新账号自动进入，旧账号自愿开启 |
+| 陪伴式新手教程 v2（JG） | 真实控件光圈与余念安对白、细步骤推进、业务证据推进、v2 进度与 v1 兼容、主线与支线目录（主线 + 13 条支线） | Web 与本地浏览器共用内核并已回归；实体 Android/Windows 设备未验；部分支线为阅读/说明路径 |
 | 人物与私聊 | 全关系/自定义、设定编辑、即时消息、输入状态、日期、失败恢复、跨浏览器已读 | 真实自然度取决于所选模型；普通聊天不新增校准评价入口 |
 | 聊天记录创建人物 | 本地解析、选择双方样本、提炼/预览、试聊、确认创建 | 不解密微信/QQ 数据库；只将用户选中样本送往提炼接口 |
 | 入梦 | 候选选择/自由试聊、纠正、独立草稿、预览应用、版本恢复 | 确认应用才改人物设定，练习不进入正式消息或长期记忆 |
@@ -42,9 +43,61 @@
 | DOC-1 当前进度核对 | completed | 变更部署或发布时重新核实实际目标 |
 | DOC-2 文件和文档归位 | completed | 后续变更沿用职责表，历史材料只用于追溯 |
 | DOC-3 防漂移校验 | completed | 后续提交前运行 docs:check、release:check 与文件/密钥门禁 |
+| BUG-A1 Android 0.2.0 升级启动崩溃 | completed | 用户已反馈可以打开；不代表已发布热修复 |
+| BUG-A2 Android 语音桥接与朗读入口 | completed | 本地修复、构建与限定回归完成，实体手机中文语音待复验；未公开发布 |
+| BUG-A3 语音状态与转写模型 | completed | 本地代码、签名包和限定回归完成；实体手机 STT 待复验，测试服务器冷启动仍有间歇超时 |
+| JG 陪伴式新手教程 | active | 代码与本机自动化已通过（20 项隔离 + PostgreSQL 隔离库 + 本地浏览器 + 5 种视口 E2E）；三端实机与长期截图证据待补齐，见下方验收记录 |
 | 后续新功能 | planned | 待用户指定工作包；保留 Taskbook 中原有队列 |
 
 ## 验收记录
+
+### 陪伴式新手教程 v2 缺口补齐（2026-11-28，本机）
+
+- 「创建人物」这一步可以在任何前端用现有人物继续：新增 `reuse-companion` 动作，只有停在 `companion-created` 证据步骤时才接受，写入 `companionId` 与 run 上下文，课程记为 `reused`；最终结果优先记成 `reused`，不会被之后的暂歇或重看降级。无人物时卡片给出「暂无可以对话的人物」的可恢复说明，不再指错位置。
+- 首次到页邀请：在新页面（群聊、入梦、设置、聊天记录创建）静默提示一次该页支线，接受即开跑，稍后则按课程与内容版本记入 `dismissedInvites`；已完成的课程和新账号主线不重复打扰。
+- 浏览类步骤标为 `policy: "free"`：只提示看哪里，不做 `inert` 围栏、遮罩更淡，用户仍可自由操作。
+- 桌面端在气泡旁显示余念安竖版立绘，位置按气泡几何避让目标；资源缺失时退化为同尺寸文字牌，不出现破图或布局跳动。
+- 步骤标题、进度与计数来自课程图，不靠路由推断；主线 31 步 + 13 条支线，目录同时给出「前提：…」与「这条支线先到这里」等结束语。
+- 本机通过：`qa:journey`（20 项隔离检查，新增复用与拒绝复用）、`qa:journey:postgres`（隔离随机 schema：v1 行只读升级、两客户端 CAS、跨账户证据 404、伪造与过期证据 409、真实持久化证据跑完一次 `reused` 主线、跳过不计里程碑、账户级联）、`qa:journey:native`（本地浏览器全流程）、`e2e journey-flow.spec.ts`（3 项；卡片在 1365×900、682×450（200% 缩放后的 CSS 视口）、390×844、320×568、844×390 五种视口都完整落在可视区内，按钮均 ≥44×44，旋转往返不保留旧坐标）、`typecheck`、`lint`、`docs:check`、`build`，以及 abilities/dream/groups/memory-lifecycle/imports/character-import/chat-delivery/sync 专项。
+- 截图见 `design/previews/2026-11-28/journey-v2/journey-{desktop,desktop-200pct,mobile,mobile-landscape,narrow}.png`（纳入版本控制）。未验收：实体 Android/Windows 设备的软键盘、返回键与重启恢复；真实语音/模型路径下的语音支线；无头浏览器无法模拟真实浏览器 200% 缩放，仅以等价 CSS 视口替代。
+
+### 陪伴式新手教程 v2（2026-11-27，本机）
+
+- 教程状态升级到 v2：新增进行中的主线/支线（run）、步骤检查点、完成结果与里程碑、稍后继续、邀请拒绝记录；v1 行与旧加密快照在读取时内存归一化，首个合法写入才持久化 v2，GET 不写业务记录。未知版本按 legacy 处理，不覆盖未知结构。
+- 业务证据在服务端复核：创建人物、更新人物、用户消息、助手回复、开启/生成/反馈/应用梦境、群创建与群消息、记忆确认、设置保存，均要求资源属于当前账户且产生于本次 run 的 startedAt 之后；不匹配返回 409 且不改状态。伪造 ID、跨账户资源与错误证据类型被拒绝。
+- 旧 `dream-started` 不再直接完成新主线；只有开启梦境会推进开启节点，生成、反馈、预览与应用分别记录。
+- 前端拆分为 `src/components/journey/`（协调器、目标定位、指引气泡、主线与支线目录、受限交互）与 `src/lib/journey/courses/`（主线 31 步 + 13 条支线，附图校验）。光圈直接指向真实 `data-guide` 锚点，点击真实控件即以到达路径或业务事件推进；她预期要打开的弹窗（人物表单、群创建、入梦预览）经 `data-guide-expected` 在原生 dialog 内承载教程卡片，避免 top layer 覆盖。
+- 本机通过：`qa:journey`（18 项隔离检查）、`qa:journey:native`（本地浏览器：注册、邀请进入、暂停/重载/解锁、目录续接、账户隔离、旧快照、非破坏重看）、`e2e journey-flow.spec.ts`（3 项，含真实创建到收到回复、入梦生成与反馈）、`typecheck`、`lint`、`docs:check`、`build`，以及 abilities/dream/groups/memory-lifecycle/imports/character-import/chat-delivery/sync 专项。
+- 截图见 `logs/current/journey-{desktop,mobile,narrow}.png`（未纳入版本控制）。未验收：实体 Android/Windows 设备键盘、返回键与重启恢复；真实语音/模型路径下的语音支线；截图与录屏的长期证据目录尚未整理。
+
+### Android 语音跟进（2026-11-27）
+
+- 用户反馈上一修复包可朗读，但状态停留在准备；系统话筒无提示退出，供应商录音无文字。只确认实机有朗读声音，不推定录音已验收。
+- 前端区分设备朗读与生成状态，将语音结果放在输入框附近；系统识别非主动中断显示原因。Android 保留等待权限及返回前台两个阶段，真实生命周期中断返回 interrupted；朗读仅在观察到开始后，连续空闲 1.25 秒才作为漏回调的结束补偿，保留原完成/错误回调和超时。
+- 供应商转写不再只能沿用聊天模型。语音输入设置可选择话筒识别方式并填写独立 STT 模型，共用原网关和 Key；whisper-1 是可编辑示例，不保证网关支持。录音结束保留仅内存中的预听，可清除，离开人物或页面会释放；转写追加到草稿，切换人物不接收旧请求结果。
+- 新增七项隔离测试，覆盖实际 Tauri multipart 序列化后的音频、独立模型、共享 vault、非法输入、模型不支持、鉴权/限流、空结果与 mock 不冒充成功。16 项语言转换测试通过；生产 Kotlin 行为测试覆盖缺失完成回调、持续空闲、取消/错误清理及权限/前台时序，Kotlin 编译通过。
+- 真实 Chromium MediaRecorder 假麦克风到假网关的界面回归完整通过（session 9747 与最终集成 session 15108，均退出 0），覆盖专用 STT 模型、追加草稿、预听与释放，以及已有账号/恢复、群聊、入梦和隔离流程。另有多轮在 Vite 扫描/打包依赖或动态启动模块前超时，不能称为稳定全绿；增加启动预热和阶段诊断，隔离缓存/关闭监听试验也有通过和失败，未证明改善因而撤回，不修改生产 Vite 配置。
+- 新包 dist/installers/renewal-0.2.0-arm64-voice-fix2.apk 已完成 ARM64 release 构建、既有签名验证、API36 模拟器覆盖安装和启动，安装内原生英文朗读实际返回完成。类型、lint、语音专项、文档及密钥/文件边界检查通过；证据清单在本地 VALIDATION-0.2.0-voice-fix2.json。包仍为 0.2.0/versionCode 5，不替换远端 Release 或公开下载配置。
+- 不使用真实用户音频或付费 API。供应商真实 STT 兼容性及一加实机录音仍待验证；不把假麦克风或假网关成功写成真实识别成功。Windows 安装包未重打。
+
+### Android 0.2.0 语音修复（2026-11-26）
+
+- 原因：生产包中的动态裸模块导入无法加载 Tauri 语音桥接；Rust 命令名与插件 ACL 不一致；Android 服务查询声明不全。朗读原先依赖 WebView 的浏览器语音能力，缺少原生 TextToSpeech 路径。
+- 改为生产可用的原生 IPC，统一七条命令与授权，补充识别/朗读服务可见性、麦克风授权生命周期、超时和迟到回调隔离。结束录音改为停止采集并等待最终转写，取消才丢弃；切换人物不再接收旧识别结果覆盖草稿。
+- 私聊输入框上方新增“朗读最近回复”和明确标注上传行为的“供应商转写（上传录音）”文字入口。Android 朗读调用系统 TextToSpeech，显示实际完成或具体失败原因；系统识别不可用时不自动上传录音，用户可显式选择供应商转写，该路径需要支持 STT 的供应商和模型。
+- Android API 36 模拟器覆盖安装原签名 release 后，实际 IPC 探测识别服务、朗读服务成功，英文朗读收到引擎完成回调；中文朗读及静音录音的开始/停止测试返回系统引擎网络错误，错误被正确回传，未当作成功。没有据此宣称中文朗读、真实录音转写或 ColorOS 实机全面通过。
+- Kotlin 编译、Android ARM64 正式构建与签名校验通过；qa:voice 包含生产 Vite 桥接、停止/取消竞态与超时、ACL、Android 暂存清单反例及原有供应商语音检查。TypeScript、lint、文档、密钥及文件边界检查通过。
+- 最新 qa:native 通过本地账号/恢复、加密持久化、私聊/群聊/入梦、vault 保留与账号隔离，以及 320/360/390 像素宽度聊天内两个语音入口的可见性与边界检查。过程中出现过更新公告冷加载超时，另一次按钮断言错误放在人物列表页，修正断言位置并增加失败诊断后本轮最终通过；不掩盖重试，不把浏览器模拟当作 Android 语音端到端验收。
+- 本地包：dist/installers/renewal-0.2.0-arm64-voice-fix.apk，包含启动修复，沿用原签名与 0.2.0/versionCode 5。没有替换远端 Release、公开下载哈希或站点配置；Windows 安装包未重打。实体手机中文识别、朗读与上传转写仍待实测。
+
+### Android 0.2.0 启动修复（2026-11-26）
+
+- 用户设备：一加 Ace 3 / ColorOS 16。Android API 36 模拟器运行原 ARM64 release 已复现 SIGABRT；日志为 `Previously applied migration was modified; update refused`，随后 Tauri setup panic。
+- 旧数据库保存的首条迁移 SHA-256 为 LF 版本 `057a1d7d2f6c1f68f61ab4f642a5ec322fd0a96a8e39ff8846e5a9943e85d213`；Windows 工作区同一 SQL 为 CRLF，原算法按字节校验而误判修改。
+- 共用 Rust 数据库层只兼容相同 SQL 的 LF/CRLF 字节形式，新迁移采用 LF 哈希；不重写旧校验值，不跳过完整性检查，不清库。新增 .gitattributes 固定迁移文件 LF。
+- Rust 四项测试通过，包括两种历史校验、双向换行升级、账号正文保留及真正编辑的拒绝。Android 原签名修复包覆盖旧数据后正常进入版本公告，两个原有加密账号与升级前自动备份逐字段一致。JSON 字段排序随版本元数据写入改变，不把文本序列化顺序变化误报为账户内容变化。
+- 两次 force-stop 后冷启动均保持进程运行，后续界面树确认登录页/密码输入可见、没有数据库失败提示。文档、密钥检查通过；Next 类型生成规范化后文件边界检查通过。
+- 本地包：dist/installers/renewal-0.2.0-arm64-startup-fix.apk；日志与隔离核验在 .tmp-native-build/。修复包仍使用 0.2.0/versionCode 5，仅供覆盖复验，不替换原 APK、站点下载配置或远端 Release；Windows 共用源码已修正，Windows 安装包未重打。实体手机启动、真实语音功能仍待验证。
 
 ### 本轮：部署事实与资料核对（2026-11-23）
 
