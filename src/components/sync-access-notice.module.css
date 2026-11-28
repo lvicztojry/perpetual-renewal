@@ -1,0 +1,1 @@
+.badge { display: inline-flex; align-items: center; justify-content: center; float: right; flex-shrink: 0; min-width: 21px; height: 21px; margin-inline-start: 8px; padding: 0 6px; border: 1px solid #c4a66b80; border-radius: 20px; background: #a58c5c; color: #171912; font: 11px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; }

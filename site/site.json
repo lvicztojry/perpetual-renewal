@@ -1,0 +1,42 @@
+{
+  "url": "https://perpetual-renewal.netlify.app",
+  "repo": "https://github.com/lvicztojry/perpetual-renewal",
+  "version": "0.2.0",
+  "downloadNotice": "测试安装包公开提供，所有人都可以下载。当前仍是测试版本，升级前建议先创建客户端内部备份，并另行导出需要保留的资料。内部备份仍保存在本设备，不等于完整账号的外部备份或跨设备迁移。",
+  "downloads": {
+    "windows": {
+      "label": "Windows",
+      "requirement": "Windows 10 及以上 · x64",
+      "file": "renewal-0.2.0-windows-x64-setup.exe",
+      "url": "https://github.com/lvicztojry/perpetual-renewal/releases/download/v0.2.0/renewal-0.2.0-windows-x64-setup.exe",
+      "size": 12742712,
+      "sha256": "d19b865f43d66962b5e10038cd4d4680d027292b2d804ef4ee8f07e63a001b91"
+    },
+    "android": {
+      "label": "Android",
+      "requirement": "Android 8 及以上 · ARM64",
+      "file": "renewal-0.2.0-arm64.apk",
+      "url": "https://github.com/lvicztojry/perpetual-renewal/releases/download/v0.2.0/renewal-0.2.0-arm64.apk",
+      "size": 31186423,
+      "sha256": "c1dd63b22b2bdea3d55738924674c846c79d52bc30702eb0d2b93b5b620f1416"
+    },
+    "web": {
+      "label": "网页版",
+      "requirement": "电脑运行应用，手机连同一 Wi-Fi 后访问电脑的局域网地址，两端登录同一个账号",
+      "note": "暂时未部署到公网，仅支持局域网内试用。",
+      "offlineLabel": "仅局域网",
+      "file": "",
+      "url": "",
+      "size": null,
+      "sha256": ""
+    }
+  },
+  "people": [
+    { "name": "林晚", "age": 25, "tagline": "会关心人，也会吐槽的姐姐型朋友" },
+    { "name": "唐小满", "age": 19, "tagline": "总能发现点想分享的东西" },
+    { "name": "许闻", "age": 24, "tagline": "聊到兴趣会话多的研究生" },
+    { "name": "叶岑", "age": 22, "tagline": "有主见，愿意认真和你商量" },
+    { "name": "赵川", "age": 21, "tagline": "接得住梗，认真起来也靠得住" },
+    { "name": "陈序", "age": 20, "tagline": "慢热，熟悉后有点冷幽默" }
+  ]
+}

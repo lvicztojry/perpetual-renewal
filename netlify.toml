@@ -1,0 +1,26 @@
+# 项目介绍站：纯静态站点，发布目录为 site/dist。
+[build]
+  publish = "site/dist"
+  command = "npm run site:build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # 本仓库根目录有 Next.js 依赖，Netlify 会自动装 Next.js 运行时插件，
+  # 而这里只发布纯静态的 site/dist，插件会直接报错。显式跳过。
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

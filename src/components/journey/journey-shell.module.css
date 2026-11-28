@@ -1,0 +1,24 @@
+.hiddenAsset { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.pause {
+  position: fixed;
+  z-index: 45;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: min(340px, calc(100vw - 28px));
+  padding: 10px 12px;
+  color: #eee1c5;
+  background: #1b2c25f5;
+  border: 1px solid #b69c6566;
+  border-radius: 7px;
+  box-shadow: 0 6px 24px #0004;
+  font-family: var(--font-literary, "Noto Serif SC"), "Songti SC", serif;
+}
+.pause span { flex: 1 1 120px; font-size: 12px; }
+.pause button {
+  font: inherit; font-size: 12px; cursor: pointer; min-height: 36px; padding: 6px 11px;
+  color: #eddab0; border: 1px solid #b49a6055; background: #97834b20; border-radius: 3px;
+}

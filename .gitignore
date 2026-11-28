@@ -1,0 +1,53 @@
+.next/
+node_modules/
+.npm-cache/
+dist/
+coverage/
+test-results/
+.tmp-secret-scan/
+.env
+.env.local
+.env.*.local
+*.log
+.tmp-group-worker.lock
+.tmp-lan-address.txt
+miniprogram/utils/local-server.generated.js
+.tmp-mobile-qa/
+*.tsbuildinfo
+prisma/dev.db
+miniprogram/project.private.config.json
+.tmp-miniprogram-qa/
+deploy/cloud.env
+deploy/scheduler.env
+deploy/site.env
+deploy/.secrets/
+.tmp-cloud-build/
+native/node_modules/
+native/dist/
+native/src-tauri/target/
+native/src-tauri/gen/
+.tmp-native-qa/
+.release-keys/
+
+.build-tools/
+.tmp-native-build/
+logs/
+/.claude/settings.local.json
+/ic_launcher.png
+/ic_launcher.xml
+/ic_launcher_background.xml
+/ic_launcher_foreground.png
+/ic_launcher_round.png
+
+# 介绍站构建产物
+site/dist/
+
+# 查图用的临时缩略图
+.tmp-site-thumbs/
+
+# Netlify 个人访问令牌（本地运维用，不进仓库）
+.netlify-token
+.netlify/
+
+# Android 安装包解包检查临时目录
+.tmp-apkcheck/

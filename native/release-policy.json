@@ -1,0 +1,10 @@
+{
+  "applicationId": "com.perpetualrenewal.localtest",
+  "dataSchema": 1,
+  "dataFormat": 1,
+  "keyDistribution": "per-tester-limited",
+  "delivery": "manual-platform-signed-update",
+  "productName": "生生不息",
+  "androidVersionCode": 5,
+  "iosBuildNumber": 5
+}

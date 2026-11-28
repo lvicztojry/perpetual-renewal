@@ -1,0 +1,6 @@
+const field = (key, label, type = 'text', options) => ({ key, label, type, ...(options ? { options } : {}) });
+const options = rows => rows.map(([value, label]) => ({ value, label }));
+const relationships = options([['REAL_PERSON_SUBSTITUTE','现实人物替代'],['MEMORIAL','逝者纪念'],['EX_PARTNER','前任'],['LOVER','恋人'],['FRIEND','朋友'],['FAMILY','家人'],['MENTOR','师友'],['PUBLIC_FIGURE_IMAGINED','公众人物想象'],['FICTIONAL_CHARACTER','虚构角色'],['ORIGINAL_CHARACTER','原创角色'],['CUSTOM','自定义']]);
+const companion = [field('name','名字'),field('relationshipKind','关系类型','select',relationships),field('customKind','自定义关系'),field('userAddress','对方怎样称呼我'),field('companionAddress','我怎样称呼对方'),field('personality','性格（用逗号分隔）'),field('speakingStyle','说话习惯','long'),field('background','背景','long'),field('boundaries','边界与禁区','long'),field('immersionEnabled','沉浸表达','boolean'),field('proactiveMessagesEnabled','允许主动回响','boolean'),field('proactiveFrequencyPreset','主动频率','select',options([['1m','每分钟'],['6h','每6小时'],['12h','每12小时'],['24h','每天'],['72h','每3天'],['custom','自定义']])),field('proactiveFrequencyMinutes','自定义间隔（分钟）','number')];
+companion.push(field('initialMemoriesText','创建时的共同经历（每行一条，最多12条）','long'));
+module.exports = { field, options, relationships, companion };

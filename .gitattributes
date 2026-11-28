@@ -1,0 +1,2 @@
+# Keep embedded SQLite migration bytes stable across Windows and Unix checkouts.
+native/migrations/*.sql text eol=lf

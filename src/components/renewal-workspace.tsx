@@ -1,0 +1,3807 @@
+"use client";
+
+import Link from "next/link";
+import {
+  ArrowLeft,
+  BarChart3,
+  Bell,
+  BookHeart,
+  Check,
+  Database,
+  Edit3,
+  LogIn,
+  MessageCircle,
+  Mic,
+  Moon,
+  Plus,
+  RotateCcw,
+  Send,
+  Settings,
+  Star,
+  Trash2,
+  Upload,
+  UserRound,
+  X,
+  Volume2
+} from "lucide-react";
+import { ChangeEvent, FormEvent, Fragment, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import {
+  applyRelationshipKindDefaults,
+  createRelationshipObjectDraft,
+  RelationshipObjectForm,
+  type RelationshipObjectFormState
+} from "./relationship-object-form";
+import {
+  relationshipKindLabels,
+  type CompanionProfile,
+  type MemoryRecord,
+  type MessageRecord
+} from "@/lib/renewal/types";
+import { inferCustomFrequencyValue } from "@/lib/relationship/proactive-frequency";
+import {
+  createContactFileImportPlan,
+  createMediaFileImportPlan,
+  createStructuredTextImportPlan,
+  structuredImportLimits,
+  type StructuredImportKind,
+  type StructuredImportPlan
+} from "@/lib/import/structured-client-import";
+import styles from "./workspace-theme.module.css";
+import { RenewalEmblem } from "./renewal-emblem";
+import { StarterPackEntry } from "./starter-pack-entry";
+import { JourneyEntry } from "./journey-entry";
+import { reportJourneyEvidence } from "@/lib/journey/events";
+import { MemoryLifecycleControls } from "./memory-lifecycle-controls";
+import { useForegroundPoll } from "./use-foreground-poll";
+import { useChatViewport, useFollowLatestOnResize } from "./use-chat-viewport";
+import { useInboxSync, useReadMessages } from "./use-inbox-sync";
+import { SyncAccessNotice, UnreadBadge } from "./sync-access-notice";
+import { reconcileMessageSnapshot } from "@/lib/client-sync/messages";
+import { createClientId } from "@/lib/client-sync/id";
+import { ABILITY_INTRO_STATE_EVENT, playAbilityIntro } from "@/lib/ability-events";
+import {
+  describeBrowserSpeechError,
+  isBrowserSpeechSupported,
+  startBrowserSpeech,
+  type BrowserSpeechHandle
+} from "@/lib/voice/browser-speech";
+import { shouldUseSystemSpeech, speakWithSystemVoice, type SystemSpeechHandle } from "@/lib/voice/system-speech";
+import {
+  canUseNativeSpeech,
+  describeNativeSpeechError,
+  isNativeSpeechAvailable,
+  startNativeSpeech,
+  speakNativeText,
+  type NativeSpeechHandle
+} from "@/lib/voice/native-speech";
+
+type InspectorMode =
+  | "profile"
+  | "create"
+  | "edit"
+  | "memories"
+  | "proactive"
+  | "import"
+  | "usage";
+
+type ImportSourceKind = "material" | "tone_sample" | "memory_candidate";
+type ImportMode = "single" | "batch" | "jsonl";
+
+type ImportSummary = {
+  mode: ImportMode;
+  sourceKind: ImportSourceKind;
+  createdCount: number;
+  redactionCount: number;
+  skippedCount: number;
+  duplicateCount?: number;
+  existingDuplicateCount?: number;
+  inputCount?: number;
+  acceptedCount?: number;
+  truncatedCount?: number;
+  parseSkippedCount?: number;
+  limit?: {
+    maxItems: number;
+    maxItemChars: number;
+    maxCandidates: number;
+  };
+  lifecycle: string[];
+};
+
+type DraftSafety = {
+  ok?: boolean;
+  type?: string;
+  action?: string;
+  stage?: string;
+  severity?: string;
+  reason?: string;
+};
+
+type ProactiveDraft = {
+  id: string;
+  companionId?: string;
+  kind: string;
+  content: string;
+  reason: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  scheduledAt?: string;
+  nextCandidateAt?: string | null;
+  frequency?: {
+    preset?: string;
+    everyMinutes?: number;
+    label?: string;
+  } | null;
+  safety?: DraftSafety;
+  preflightSafety?: DraftSafety;
+  postflightSafety?: DraftSafety;
+  generator?: string | null;
+  generation?: { length?: string; memoryIds?: string[]; attempts?: number; actualChars?: number } | null;
+};
+
+type ProactiveSchedule = {
+  due?: boolean;
+  candidateAt?: string;
+  nextCandidateAt?: string;
+  elapsedMinutes?: number | null;
+  reason?: string;
+};
+
+type ProactiveAvailability = {
+  accountEnabled: boolean;
+  companionEnabled: boolean;
+  effectiveEnabled: boolean;
+  frequencyMinutes: number;
+  mode: "foreground";
+};
+
+type ProactiveAutoCheck = {
+  checkedAt: string;
+  nextCheckAt: string;
+  result: string;
+  candidateAt?: string | null;
+  nextCandidateAt?: string | null;
+  elapsedMinutes?: number | null;
+};
+
+type ProactiveDraftStatus = "draft" | "sent" | "dismissed" | "blocked";
+type ProactiveDraftFilter = "all" | ProactiveDraftStatus;
+
+type VoicePreview = {
+  audioDataUrl?: string;
+  provider: string;
+  model: string;
+  voice?: string;
+  requestedProvider?: string;
+  credentialSource?: "server-env" | "user-vault";
+  fallback?: boolean;
+  fallbackKind?: string;
+  fallbackReason?: string;
+};
+
+/** 语音生成失败时保留的脱敏诊断信息，供"语音详情"展开查看。 */
+type VoiceFailure = {
+  provider?: string;
+  requestedProvider?: string;
+  credentialSource?: "server-env" | "user-vault";
+  model?: string;
+  fallback?: boolean;
+  fallbackKind?: string;
+  fallbackReason?: string;
+};
+
+type UsageDashboard = {
+  persistence: "prisma" | "memory";
+  rangeDays: number;
+  summary: {
+    calls: number;
+    successfulCalls: number;
+    failedCalls: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    averageLatencyMs: number | null;
+  };
+  byProviderModel: Array<{
+    provider: string;
+    model: string;
+    calls: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+  }>;
+  recent: Array<{
+    id: string;
+    purpose: string;
+    provider: string;
+    model: string;
+    status: string;
+    totalTokens: number | null;
+    estimatedCostUsd: number;
+    latencyMs: number | null;
+    errorKind: string | null;
+    createdAt: string;
+  }>;
+};
+
+type ConfigReadinessItem = {
+  id: string;
+  label: string;
+  status: "ready" | "warning" | "missing";
+  description: string;
+  nextStep: string;
+};
+
+type ConfigReadinessSnapshot = {
+  items: ConfigReadinessItem[];
+};
+
+const memoryTypeLabels: Record<MemoryRecord["type"], string> = {
+  user_fact: "用户事实",
+  relationship_event: "关系事件",
+  companion_profile: "角色设定",
+  emotional_preference: "情绪偏好"
+};
+
+const importSourceLabels: Record<ImportSourceKind, string> = {
+  material: "素材",
+  tone_sample: "语气样例",
+  memory_candidate: "记忆候选"
+};
+
+const importModeLabels: Record<ImportMode, string> = {
+  single: "单段",
+  batch: "多段",
+  jsonl: "JSONL"
+};
+
+const proactiveDraftFilterOptions: Array<{
+  value: ProactiveDraftFilter;
+  label: string;
+}> = [
+  { value: "draft", label: "草稿" },
+  { value: "sent", label: "已发送" },
+  { value: "dismissed", label: "已忽略" },
+  { value: "blocked", label: "已拦截" },
+  { value: "all", label: "全部" }
+];
+
+const maxVoiceUploadBytes = 4 * 1024 * 1024;
+const maxImportFileBytes = 512 * 1024;
+const proactiveAutoCheckIntervalMs = 60000;
+const allowedImportFileExtensions = [".txt", ".jsonl", ".json"] as const;
+const structuredImportKindLabels: Record<StructuredImportKind, string> = {
+  media: "媒体素材",
+  contact: "通讯录"
+};
+
+export function RenewalWorkspace({ signedIn = false, userId }: { signedIn?: boolean; userId?: string }) {
+  const [companions, setCompanionsState] = useState<CompanionProfile[]>([]);
+  const companionRevision = useRef(0);
+  function setCompanions(value: SetStateAction<CompanionProfile[]>) { companionRevision.current++; setCompanionsState(value); }
+  const inbox = useInboxSync(userId);
+  const [messageSyncError, setMessageSyncError] = useState("");
+  const [atLatest, setAtLatest] = useState(true);
+  const viewportRef = useChatViewport();
+  const followLatest = useRef(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [draft, setDraft] = useState("");
+  const [form, setForm] = useState<RelationshipObjectFormState | null>(null);
+  const [createForm, setCreateForm] = useState<RelationshipObjectFormState>(
+    createRelationshipObjectDraft()
+  );
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>("profile");
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isMobileConversation, setIsMobileConversation] = useState(false);
+  const [conversationPreviews, setConversationPreviews] = useState<Record<string, string>>({});
+  const inspectorRef = useRef<HTMLDialogElement | null>(null);
+  const inspectorTriggerRef = useRef<HTMLElement | null>(null);
+  const streamRef = useRef<HTMLDivElement | null>(null);
+  const [proactiveDrafts, setProactiveDrafts] = useState<ProactiveDraft[]>([]);
+  const [proactiveDraftFilter, setProactiveDraftFilter] =
+    useState<ProactiveDraftFilter>("draft");
+  const [usageDashboard, setUsageDashboard] = useState<UsageDashboard | null>(null);
+  const [persistenceNotice, setPersistenceNotice] = useState<ConfigReadinessItem | null>(null);
+  const [importText, setImportText] = useState("");
+  const [importMode, setImportMode] = useState<ImportMode>("single");
+  const [importSourceKind, setImportSourceKind] = useState<ImportSourceKind>("memory_candidate");
+  const [structuredImportKind, setStructuredImportKind] =
+    useState<StructuredImportKind>("media");
+  const [structuredImportText, setStructuredImportText] = useState("");
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importFileName, setImportFileName] = useState<string | null>(null);
+  const [isBooting, setIsBooting] = useState(true);
+  const [sendingConversations, setSendingConversations] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAbilityPlaying, setIsAbilityPlaying] = useState(false);
+
+  useEffect(() => {
+    const receive = (event: Event) => setIsAbilityPlaying((event as CustomEvent<{ active: boolean }>).detail.active === true);
+    window.addEventListener(ABILITY_INTRO_STATE_EVENT, receive);
+    return () => window.removeEventListener(ABILITY_INTRO_STATE_EVENT, receive);
+  }, []);
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [voiceInputMode, setVoiceInputMode] = useState<"system" | "provider">("system");
+  const [transcriptionModel, setTranscriptionModel] = useState("whisper-1");
+  const [recordingPreviewUrl, setRecordingPreviewUrl] = useState("");
+  const recordingPreviewUrlRef = useRef("");
+  const [isDeviceReading, setIsDeviceReading] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("");
+  const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editingMemoryContent, setEditingMemoryContent] = useState("");
+  const [editingMemoryUpdatedAt, setEditingMemoryUpdatedAt] = useState("");
+  const [editingMemoryType, setEditingMemoryType] = useState<MemoryRecord["type"]>("user_fact");
+  const [status, setStatus] = useState("正在连接关系工作台...");
+  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [proactiveError, setProactiveError] = useState<string | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
+  const [proactivePersistence, setProactivePersistence] = useState<string | null>(null);
+  const [proactiveSafety, setProactiveSafety] = useState<DraftSafety | null>(null);
+  const [proactiveAutoCheck, setProactiveAutoCheck] = useState<ProactiveAutoCheck | null>(null);
+  const [proactiveAvailability, setProactiveAvailability] = useState<ProactiveAvailability | null>(null);
+  const [isEnablingProactive, setIsEnablingProactive] = useState(false);
+  const [proactiveRefresh, setProactiveRefresh] = useState(0);
+  const enablingProactiveRef = useRef(false);
+  const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
+  const [voiceFailure, setVoiceFailure] = useState<VoiceFailure | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const browserSpeechRef = useRef<BrowserSpeechHandle | null>(null);
+  const systemSpeechRef = useRef<SystemSpeechHandle | null>(null);
+  const nativeSpeechRef = useRef<NativeSpeechHandle | null>(null);
+  const nativePlaybackRef = useRef<ReturnType<typeof speakNativeText>>(null);
+  const voiceStartPendingRef = useRef(false);
+  function setRecordingPreview(blob: Blob | null) {
+    if (recordingPreviewUrlRef.current) URL.revokeObjectURL(recordingPreviewUrlRef.current);
+    const url = blob ? URL.createObjectURL(blob) : "";
+    recordingPreviewUrlRef.current = url;
+    setRecordingPreviewUrl(url);
+  }
+  const activeConversationRef = useRef<string | null>(null);
+  const messageRevisionRef = useRef(0);
+  const draftsByConversationRef = useRef(new Map<string, string>());
+  const inFlightConversationsRef = useRef(new Set<string>());
+  const localMessagesByConversationRef = useRef(new Map<string, MessageRecord[]>());
+
+  const activeCompanion = useMemo(
+    () => companions.find((companion) => companion.id === activeId) ?? companions[0],
+    [activeId, companions]
+  );
+  const latestAssistantMessage = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant"),
+    [messages]
+  );
+  const activeConversationId = activeCompanion?.conversationId;
+  useFollowLatestOnResize(streamRef, followLatest, activeConversationId);
+  const isSending = !!activeConversationId && !!sendingConversations[activeConversationId];
+  useReadMessages(userId, "private", activeConversationId,
+    messages.filter(message => message.conversationId === activeConversationId && message.role === "assistant" && !message.metadata?.localStatus).map(message => message.id),
+    inbox.state === "ready" && atLatest && !isInspectorOpen && !isAbilityPlaying,
+    () => Boolean(streamRef.current?.getClientRects().length), isMobileConversation ? "conversation" : "contacts");
+  const proactiveAccountPaused = proactiveAvailability?.accountEnabled === false;
+
+  function openInspector(mode: InspectorMode) {
+    inspectorTriggerRef.current = document.activeElement as HTMLElement | null;
+    setInspectorMode(mode);
+    setIsInspectorOpen(true);
+  }
+
+  function closeInspector() {
+    setIsInspectorOpen(false);
+    inspectorTriggerRef.current?.focus();
+  }
+
+  useEffect(() => {
+    const dialog = inspectorRef.current;
+    if (!dialog) return;
+    if (isInspectorOpen) {
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+      inspectorTriggerRef.current?.focus();
+    }
+  }, [isInspectorOpen]);
+
+  useEffect(() => {
+    if (followLatest.current) streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
+  }, [messages, activeConversationId]);
+  const proactiveDraftStats = useMemo(
+    () =>
+      proactiveDrafts.reduce<Record<ProactiveDraftFilter, number>>(
+        (stats, draft) => {
+          stats.all += 1;
+          stats[normalizeDraftStatus(draft.status)] += 1;
+          return stats;
+        },
+        {
+          all: 0,
+          draft: 0,
+          sent: 0,
+          dismissed: 0,
+          blocked: 0
+        }
+      ),
+    [proactiveDrafts]
+  );
+  const visibleProactiveDrafts = useMemo(
+    () =>
+      proactiveDraftFilter === "all"
+        ? proactiveDrafts
+        : proactiveDrafts.filter(
+            (draft) => normalizeDraftStatus(draft.status) === proactiveDraftFilter
+          ),
+    [proactiveDraftFilter, proactiveDrafts]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (recordingPreviewUrlRef.current) URL.revokeObjectURL(recordingPreviewUrlRef.current);
+      const recorder = mediaRecorderRef.current;
+      mediaRecorderRef.current = null;
+      if (recorder) {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        if (recorder.state === "recording") recorder.stop();
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      browserSpeechRef.current?.abort();
+      browserSpeechRef.current = null;
+      systemSpeechRef.current?.stop();
+      systemSpeechRef.current = null;
+      nativeSpeechRef.current?.cancel();
+      nativeSpeechRef.current = null;
+      nativePlaybackRef.current?.stop();
+      nativePlaybackRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCompanions() {
+      try {
+        const response = await fetch("/api/companions", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(await readResponseError(response, "关系对象加载失败。"));
+        }
+        const payload = (await response.json()) as { userId?: string; companions: CompanionProfile[] };
+        if (userId && payload.userId && payload.userId !== userId) return;
+        if (userId && payload.companions.some(person => person.userId !== userId)) return;
+        const databaseStatus = await loadDatabaseConfigStatus();
+        if (!mounted) return;
+        setCompanions(payload.companions);
+        setPersistenceNotice(databaseStatus?.status === "missing" ? databaseStatus : null);
+        const requestedCompanion = new URLSearchParams(window.location.search || window.location.hash.split("?")[1] || "").get("companion");
+        const first = payload.companions.find((companion) => companion.id === requestedCompanion) ?? payload.companions[0];
+        if (requestedCompanion && first?.id === requestedCompanion) setIsMobileConversation(true);
+        activeConversationRef.current = first?.conversationId ?? null;
+        setActiveId(first?.id ?? null);
+        setForm(first ? toForm(first) : null);
+        setStatus(
+          first
+            ? databaseStatus?.status === "missing"
+              ? "已连接到临时内存服务层"
+              : "已连接到关系服务层"
+            : "还没有关系对象"
+        );
+      } catch (loadError) {
+        if (!mounted) return;
+        setError(toSafeWorkspaceError(loadError, "关系对象加载失败。"));
+      } finally {
+        if (mounted) setIsBooting(false);
+      }
+    }
+
+    loadCompanions();
+    return () => {
+      mounted = false;
+    };
+  }, [userId]);
+
+  useForegroundPoll(activeConversationId ?? null, async signal => {
+    if (!activeConversationId || inbox.state === "account-changed" || inbox.state === "signed-out") return;
+    const conversationId = activeConversationId;
+    const revision = messageRevisionRef.current;
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+          cache: "no-store", signal
+        });
+        if (!response.ok) {
+          throw new Error(await readResponseError(response, "消息加载失败。"));
+        }
+        const payload = (await response.json()) as { messages: MessageRecord[] };
+        if (!signal.aborted && activeConversationRef.current === conversationId && revision === messageRevisionRef.current) {
+          const local = localMessagesByConversationRef.current.get(conversationId) ?? [];
+          const overlays = local.filter(message => message.metadata?.localStatus || inFlightConversationsRef.current.has(conversationId));
+          setMessages(reconcileMessageSnapshot(payload.messages, overlays, conversationId));
+          setMessageSyncError("");
+          // Persisted response overlays only bridge switching while POST is pending.
+          // Local unconfirmed bubbles remain until reconciled by clientMessageId.
+          const persistedKeys = new Set(payload.messages.map((message) => message.metadata?.clientMessageId).filter(Boolean));
+          const retainedLocal = local.filter((message) =>
+            message.metadata?.localStatus && !persistedKeys.has(message.metadata?.clientMessageId)
+          );
+          const trackedKeys = new Set(local.map((message) => message.metadata?.clientMessageId).filter(Boolean));
+          const confirmedPending = inFlightConversationsRef.current.has(conversationId)
+            ? payload.messages.filter((message) => trackedKeys.has(message.metadata?.clientMessageId)) : [];
+          localMessagesByConversationRef.current.set(conversationId, [...retainedLocal, ...confirmedPending]);
+        }
+      } catch (loadError) {
+        if (!signal.aborted && activeConversationRef.current === conversationId && revision === messageRevisionRef.current) {
+          setMessageSyncError(toSafeWorkspaceError(loadError, "消息暂时未能同步，恢复连接后会继续。"));
+        }
+      }
+  });
+
+  useForegroundPoll(signedIn ? `contacts:${userId ?? ""}` : null, async signal => {
+    if (isBooting || isSaving || isImporting || inbox.state === "account-changed" || inbox.state === "signed-out") return;
+    const revision = companionRevision.current;
+    try {
+      const response = await fetch("/api/companions", { cache: "no-store", signal });
+      if (!response.ok) return;
+      const payload = await response.json() as { userId?: string; companions: CompanionProfile[] };
+      if (userId && payload.userId && payload.userId !== userId) return;
+      if (signal.aborted || revision !== companionRevision.current || !Array.isArray(payload.companions) || payload.companions.some(person => userId && person.userId !== userId)) return;
+      const selected = payload.companions.find(person => person.conversationId === activeConversationRef.current);
+      if (!selected && inFlightConversationsRef.current.size) return;
+      setCompanions(payload.companions);
+      if (!selected) {
+        const next = payload.companions[0];
+        followLatest.current = true; setAtLatest(true);
+        activeConversationRef.current = next?.conversationId ?? null;
+        messageRevisionRef.current++;
+        setActiveId(next?.id ?? null); setMessages([]); setDraft(""); setForm(next ? toForm(next) : null);
+      }
+    } catch { /* Message and inbox status own connection feedback; never reset drafts on a failed list read. */ }
+  }, 30000);
+
+  useEffect(() => {
+    const companionId = activeCompanion?.id;
+    if (!companionId) return;
+    let disposed = false;
+    async function readProactiveState() {
+      try {
+        const response = await fetch(`/api/companions/${companionId}/proactive-drafts`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load_failed");
+        const payload = await response.json() as { data?: ProactiveDraft[]; availability?: ProactiveAvailability; persistence?: string };
+        if (disposed) return;
+        setProactiveAvailability(payload.availability ?? null);
+        setProactiveError(null);
+        setProactiveDrafts(payload.data ?? []);
+        setProactivePersistence(payload.persistence ?? null);
+      } catch {
+        if (!disposed) setProactiveError("暂时无法读取主动回响状态，请重新打开面板重试。");
+      }
+    }
+    void readProactiveState();
+    return () => { disposed = true; };
+  }, [activeCompanion?.id, proactiveRefresh]);
+
+  useEffect(() => {
+    const companionId = activeCompanion?.id;
+    const conversationId = activeCompanion?.conversationId;
+    const proactiveEnabled = activeCompanion?.proactiveMessagesEnabled;
+    if (
+      !companionId ||
+      !conversationId ||
+      !proactiveEnabled ||
+      proactiveAccountPaused ||
+      isBooting ||
+      isSending ||
+      isSaving ||
+      isImporting ||
+      isLoadingDrafts
+    ) {
+      return;
+    }
+
+    let disposed = false;
+    let running = false;
+
+    async function checkDueProactiveDrafts() {
+      if (running) return;
+      running = true;
+
+      try {
+        const response = await fetch(`/api/companions/${companionId}/proactive-drafts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proactiveMessagesEnabled: true,
+            force: false,
+            maxDrafts: 1
+          })
+        });
+        const payload = (await response.json()) as {
+          data?: ProactiveDraft[];
+          error?: string;
+          persistence?: string;
+          safety?: DraftSafety;
+          schedule?: ProactiveSchedule;
+          draftLimitReached?: boolean;
+          deliveredCount?: number;
+          availability?: ProactiveAvailability;
+          skippedReason?: string | null;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "主动回响自动检查失败。");
+        }
+
+        if (disposed) return;
+
+        if (payload.availability) setProactiveAvailability(payload.availability);
+
+        setProactiveAutoCheck(
+          createProactiveAutoCheckStatus(
+            payload.data?.length
+              ? payload.deliveredCount
+                ? `自动回响已送达 ${payload.deliveredCount} 条`
+                : `自动检查生成 ${payload.data.length} 条草稿`
+              : `自动检查完成，${payload.skippedReason ?? payload.schedule?.reason ?? "暂未到候选时间"}`,
+            payload.schedule
+          )
+        );
+
+        const revision = messageRevisionRef.current;
+        const historyResponse = await fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" });
+        if (!historyResponse.ok) throw new Error(await readResponseError(historyResponse, "主动消息同步失败。"));
+        const historyPayload = (await historyResponse.json()) as { messages: MessageRecord[] };
+        if (disposed) return;
+        if (revision === messageRevisionRef.current) {
+          setMessages((current) => mergeConversationMessages(current, historyPayload.messages));
+        }
+
+        if (!payload.data?.length) return;
+
+        setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
+        setProactiveDraftFilter(payload.deliveredCount ? "sent" : "draft");
+        setProactivePersistence(payload.persistence ?? "persisted");
+        setProactiveSafety(payload.safety ?? null);
+        setStatus(payload.deliveredCount ? "收到新的主动回响" : "有新的主动回响草稿");
+      } catch (autoError) {
+        if (!disposed) {
+          const message = toSafeWorkspaceError(autoError, "主动回响自动检查失败。");
+          setProactiveAutoCheck(createProactiveAutoCheckStatus(`自动检查失败：${message}`));
+          setProactiveError(message);
+        }
+      } finally {
+        running = false;
+      }
+    }
+
+    const timer = window.setInterval(
+      () => void checkDueProactiveDrafts(),
+      proactiveAutoCheckIntervalMs
+    );
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    activeCompanion?.id,
+    activeCompanion?.conversationId,
+    activeCompanion?.proactiveMessagesEnabled,
+    proactiveAccountPaused,
+    isBooting,
+    isImporting,
+    isLoadingDrafts,
+    isSaving,
+    isSending
+  ]);
+
+  function selectCompanion(companion: CompanionProfile) {
+    followLatest.current = true; setAtLatest(true); setMessageSyncError("");
+    setIsMobileConversation(true);
+    setIsInspectorOpen(false);
+    if (activeConversationRef.current === companion.conversationId) return;
+    if (activeConversationRef.current) {
+      const preview = messages.at(-1)?.content;
+      setConversationPreviews((current) => ({
+        ...current,
+        [activeConversationRef.current!]: preview ?? "还没有消息，先打声招呼吧"
+      }));
+    }
+    if (activeConversationRef.current) {
+      draftsByConversationRef.current.set(activeConversationRef.current, draft);
+    }
+    activeConversationRef.current = companion.conversationId;
+    messageRevisionRef.current += 1;
+    // 切换会话时放弃进行中的识别，避免结果写进新会话的草稿。
+    browserSpeechRef.current?.abort();
+    browserSpeechRef.current = null;
+    nativeSpeechRef.current?.cancel();
+    nativeSpeechRef.current = null;
+    nativePlaybackRef.current?.stop();
+    nativePlaybackRef.current = null;
+    systemSpeechRef.current?.stop();
+    systemSpeechRef.current = null;
+    setIsSynthesizing(false);
+    setIsDeviceReading(false);
+    setIsRecording(false);
+    setIsTranscribing(false);
+    cleanupVoiceRecording();
+    setRecordingPreview(null);
+    setVoiceStatus("");
+    setMessages(localMessagesByConversationRef.current.get(companion.conversationId) ?? []);
+    setDraft(draftsByConversationRef.current.get(companion.conversationId) ?? "");
+    setProactiveDrafts([]);
+    setProactiveSafety(null);
+    setProactivePersistence(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    setActiveId(companion.id);
+    setForm(toForm(companion));
+    setInspectorMode("profile");
+    setError(null);
+    setFormError(null);
+    setImportError(null);
+    setImportSummary(null);
+    setProactiveError(null);
+    setProactiveDraftFilter("draft");
+    setProactiveAutoCheck(null);
+    setProactiveAvailability(null);
+    setUsageError(null);
+  }
+
+  async function saveCompanion() {
+    if (!form?.id) return;
+    setError(null);
+    setFormError(null);
+    setIsSaving(true);
+    setStatus("正在保存关系设定...");
+
+    try {
+      const response = await fetch(`/api/companions/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toCompanionPayload(form))
+      });
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "关系设定保存失败。"));
+      }
+      const payload = (await response.json()) as { companion: CompanionProfile };
+      setCompanions((current) =>
+        current.map((companion) =>
+          companion.id === payload.companion.id ? payload.companion : companion
+        )
+      );
+      setForm(toForm(payload.companion));
+      setInspectorMode("profile");
+      setIsInspectorOpen(false);
+      setStatus("关系设定已通过 API 保存");
+      reportJourneyEvidence({ kind: "companion-updated", companionId: payload.companion.id, resourceId: payload.companion.id, userId });
+    } catch (saveError) {
+      const message = toSafeWorkspaceError(saveError, "关系设定保存失败。");
+      setFormError(message);
+      setStatus("关系设定保存失败，请检查后重试");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function startCreateCompanion() {
+    setCreateForm(createRelationshipObjectDraft("CUSTOM"));
+    setError(null);
+    setFormError(null);
+    openInspector("create");
+    setStatus("正在创建一段新的关系回响");
+  }
+
+  useEffect(() => {
+    const open = () => startCreateCompanion();
+    window.addEventListener("renewal:journey-create", open);
+    const url = new URL(window.location.href);
+    const hashQuery = url.hash.includes("?") ? new URLSearchParams(url.hash.split("?")[1]) : null;
+    if (url.searchParams.get("journey") === "create" || hashQuery?.get("journey") === "create") {
+      open();
+      url.searchParams.delete("journey");
+      if (hashQuery) { hashQuery.delete("journey"); url.hash = url.hash.split("?")[0] + (hashQuery.size ? `?${hashQuery}` : ""); }
+      history.replaceState(history.state, "", url);
+    }
+    return () => window.removeEventListener("renewal:journey-create", open);
+    // Creation only initializes an empty form; it never writes a character.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startEditCompanion() {
+    if (!activeCompanion) return;
+    setForm(toForm(activeCompanion));
+    setError(null);
+    setFormError(null);
+    openInspector("edit");
+    setStatus("正在编辑当前关系设定");
+  }
+
+  async function createCompanion() {
+    setError(null);
+    setFormError(null);
+    setIsSaving(true);
+    setStatus("正在创建关系对象...");
+
+    try {
+      const response = await fetch("/api/companions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toCompanionPayload(createForm))
+      });
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "新建关系失败。"));
+      }
+      const payload = (await response.json()) as { companion: CompanionProfile };
+      setCompanions((current) => [payload.companion, ...current]);
+      if (activeConversationRef.current) {
+        draftsByConversationRef.current.set(activeConversationRef.current, draft);
+      }
+      activeConversationRef.current = payload.companion.conversationId;
+      messageRevisionRef.current += 1;
+      setActiveId(payload.companion.id);
+      setForm(toForm(payload.companion));
+      setCreateForm(createRelationshipObjectDraft("CUSTOM"));
+      setInspectorMode("profile");
+      setMessages([]);
+      setDraft("");
+      setProactiveDrafts([]);
+      setProactiveAutoCheck(null);
+      setVoicePreview(null);
+      setVoiceFailure(null);
+      setStatus("新关系对象已创建，可以开始聊天");
+      setIsMobileConversation(true);
+      setIsInspectorOpen(false);
+      playAbilityIntro({ kind: "renewal", companionName: payload.companion.name, autoPlay: true });
+      window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "companion-created", companionId: payload.companion.id, userId } }));
+      reportJourneyEvidence({ kind: "companion-created", companionId: payload.companion.id, resourceId: payload.companion.id, userId });
+    } catch (createError) {
+      const message = toSafeWorkspaceError(createError, "新建关系失败。");
+      setFormError(message);
+      setStatus("新建关系失败，请检查后重试");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteActiveCompanion() {
+    if (!activeCompanion || isSaving) return;
+
+    const confirmed = window.confirm(
+      `删除「${activeCompanion.name}」会同时移除相关对话、记忆、关系状态和主动回响草稿。确定继续吗？`
+    );
+    if (!confirmed) return;
+
+    setIsSaving(true);
+    setError(null);
+    setStatus("正在删除关系对象...");
+
+    try {
+      const response = await fetch(`/api/companions/${activeCompanion.id}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json()) as { deleted?: boolean; error?: string };
+
+      if (!response.ok || !payload.deleted) {
+        throw new Error(payload.error ?? "删除关系对象失败。");
+      }
+
+      setCompanions((current) => {
+        const nextCompanions = current.filter((companion) => companion.id !== activeCompanion.id);
+        const nextActive = nextCompanions[0] ?? null;
+        activeConversationRef.current = nextActive?.conversationId ?? null;
+        messageRevisionRef.current += 1;
+        setActiveId(nextActive?.id ?? null);
+        setForm(nextActive ? toForm(nextActive) : null);
+        return nextCompanions;
+      });
+      setMessages([]);
+      setDraft("");
+      setProactiveDrafts([]);
+      setProactiveAutoCheck(null);
+      setVoicePreview(null);
+      setVoiceFailure(null);
+      setInspectorMode("profile");
+      setStatus("关系对象已删除");
+      setIsInspectorOpen(false);
+      setIsMobileConversation(false);
+    } catch (deleteError) {
+      setError(toSafeWorkspaceError(deleteError, "删除关系对象失败。"));
+      setStatus("删除关系对象失败，请稍后重试");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = draft.trim();
+    if (!content || !activeCompanion || isSending || isAbilityPlaying) return;
+    const conversationId = activeCompanion.conversationId;
+    if (inFlightConversationsRef.current.has(conversationId)) return;
+    followLatest.current = true; setAtLatest(true);
+    const clientMessageId = createClientId();
+    const localId = `local-${clientMessageId}`;
+    const optimistic: MessageRecord = {
+      id: localId, conversationId, role: "user", content, createdAt: new Date().toISOString(),
+      metadata: { clientMessageId, localStatus: "sending" }
+    };
+    inFlightConversationsRef.current.add(conversationId);
+    setSendingConversations((current) => ({ ...current, [conversationId]: true }));
+    localMessagesByConversationRef.current.set(conversationId,
+      [...(localMessagesByConversationRef.current.get(conversationId) ?? []), optimistic]);
+    setMessages((current) => mergeConversationMessages(current, [optimistic]));
+    setDraft("");
+    draftsByConversationRef.current.set(conversationId, "");
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, clientMessageId })
+      });
+      if (!response.ok) {
+        throw new Error(await readResponseError(response, "消息发送失败。"));
+      }
+      const payload = (await response.json()) as {
+        userMessage: MessageRecord;
+        assistantMessage: MessageRecord | null;
+        pendingMemory: MemoryRecord | null;
+        relationshipState: CompanionProfile["relationshipState"];
+        completion: { provider: string; model: string } | null;
+        assistantError?: { message: string; provider?: string; model?: string; status?: number };
+      };
+
+      setCompanions((current) =>
+        current.map((companion) =>
+          companion.id === activeCompanion.id
+            ? {
+                ...companion,
+                relationshipState: payload.relationshipState,
+                memories: payload.pendingMemory
+                  ? [payload.pendingMemory, ...companion.memories]
+                  : companion.memories
+              }
+            : companion
+        )
+      );
+      const incoming = [payload.userMessage, ...(payload.assistantMessage ? [payload.assistantMessage] : [])];
+      if (payload.userMessage?.id) {
+        window.dispatchEvent(new CustomEvent("renewal:journey-observe", { detail: { kind: "message-sent", companionId: activeCompanion.id, userId } }));
+        reportJourneyEvidence({ kind: "message-sent", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
+      }
+      if (payload.assistantMessage?.id) reportJourneyEvidence({ kind: "assistant-replied", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
+      if (activeConversationRef.current === conversationId) messageRevisionRef.current++;
+      const remainingLocal = (localMessagesByConversationRef.current.get(conversationId) ?? []).filter((message) =>
+        message.id !== localId && message.metadata?.clientMessageId !== clientMessageId);
+      localMessagesByConversationRef.current.set(conversationId,
+        activeConversationRef.current === conversationId ? remainingLocal : mergeConversationMessages(remainingLocal, incoming));
+      setConversationPreviews((current) => ({ ...current, [conversationId]: incoming.at(-1)?.content ?? content }));
+      if (activeConversationRef.current !== conversationId) return;
+      setMessages((current) => mergeConversationMessages(current.filter((message) => message.id !== localId), incoming));
+      setStatus(
+        payload.completion
+          ? `已回复 · ${payload.completion.provider}/${payload.completion.model}`
+          : `用户消息已保存，回复可重试 · ${formatProviderLabel(payload.assistantError)}`
+      );
+      if (payload.assistantError) {
+        setError(`回复生成失败：${redactWorkspaceError(payload.assistantError.message)}`);
+      }
+    } catch (sendError) {
+      const unconfirmed = { ...optimistic, metadata: { ...optimistic.metadata, localStatus: "unconfirmed" } };
+      localMessagesByConversationRef.current.set(conversationId,
+        (localMessagesByConversationRef.current.get(conversationId) ?? []).map((message) => message.id === localId ? unconfirmed : message));
+      if (activeConversationRef.current === conversationId) {
+        setMessages((current) => mergeConversationMessages(current.filter((message) => message.id !== localId), [unconfirmed]));
+        setError(toSafeWorkspaceError(sendError, "消息发送未确认，请稍后刷新核对。"));
+      }
+    } finally {
+      inFlightConversationsRef.current.delete(conversationId);
+      setSendingConversations((current) => ({ ...current, [conversationId]: false }));
+    }
+  }
+
+  function editUnconfirmedMessage(message: MessageRecord) {
+    if (message.conversationId !== activeConversationRef.current || !message.metadata?.localStatus) return;
+    setDraft(message.content);
+    draftsByConversationRef.current.set(message.conversationId, message.content);
+    setMessages((current) => current.filter((item) => item.id !== message.id));
+    localMessagesByConversationRef.current.set(message.conversationId,
+      (localMessagesByConversationRef.current.get(message.conversationId) ?? []).filter((item) => item.id !== message.id));
+    setError(null);
+  }
+
+  async function regenerateMessage(messageId?: string) {
+    if (!activeCompanion || !messageId || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
+
+    setBusyMessageId(messageId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerate", messageId })
+      });
+      const payload = (await response.json()) as {
+        assistantMessage?: MessageRecord;
+        completion?: { provider: string; model: string };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.assistantMessage) {
+        throw new Error(payload.error ?? "重新生成失败。");
+      }
+
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === payload.assistantMessage?.id ? payload.assistantMessage : message
+        )
+      );
+      setStatus(
+        payload.completion
+          ? `已重新生成 · ${payload.completion.provider}/${payload.completion.model}`
+          : "已重新生成"
+      );
+    } catch (regenerateError) {
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(regenerateError, "重新生成失败。"));
+      }
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function deleteMessage(messageId: string) {
+    if (!activeCompanion || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
+
+    setBusyMessageId(messageId);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/conversations/${activeCompanion.conversationId}/messages?messageId=${encodeURIComponent(
+          messageId
+        )}`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json()) as { deleted?: boolean; error?: string };
+
+      if (!response.ok || !payload.deleted) {
+        throw new Error(payload.error ?? "删除消息失败。");
+      }
+
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
+      setMessages((current) => current.filter((message) => message.id !== messageId));
+      setStatus("消息已删除");
+    } catch (deleteError) {
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(deleteError, "删除消息失败。"));
+      }
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function toggleMessageImportant(message: MessageRecord) {
+    if (!activeCompanion || busyMessageId) return;
+    const conversationId = activeCompanion.conversationId;
+
+    setBusyMessageId(message.id);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/conversations/${activeCompanion.conversationId}/messages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_important",
+          messageId: message.id,
+          important: !isMessageImportant(message)
+        })
+      });
+      const payload = (await response.json()) as { message?: MessageRecord; error?: string };
+
+      if (!response.ok || !payload.message) {
+        throw new Error(payload.error ?? "重要消息更新失败。");
+      }
+
+      if (activeConversationRef.current !== conversationId) return;
+      messageRevisionRef.current += 1;
+      setMessages((current) =>
+        current.map((item) => (item.id === payload.message?.id ? payload.message : item))
+      );
+      setStatus(isMessageImportant(payload.message) ? "已标记为重要消息" : "已取消重要标记");
+    } catch (importantError) {
+      if (activeConversationRef.current === conversationId) {
+        setError(toSafeWorkspaceError(importantError, "重要消息更新失败。"));
+      }
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function updateProactiveDraftStatus(
+    draftId: string,
+    status: NonNullable<ProactiveDraft["status"]>
+  ) {
+    if (busyMessageId || !activeCompanion) return;
+    const conversationId = activeCompanion.conversationId;
+
+    setBusyMessageId(draftId);
+    setError(null);
+    setProactiveError(null);
+
+    try {
+      const response = await fetch(`/api/proactive-messages/${draftId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      const payload = (await response.json()) as {
+        proactiveMessage?: ProactiveDraft;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.proactiveMessage) {
+        throw new Error(payload.error ?? "主动回响状态更新失败。");
+      }
+
+      if (activeConversationRef.current !== conversationId) return;
+      setProactiveDrafts((current) =>
+        current.map((draft) =>
+          draft.id === payload.proactiveMessage?.id
+            ? { ...draft, ...payload.proactiveMessage }
+            : draft
+        )
+      );
+      if (status === "sent") {
+        const historyResponse = await fetch(`/api/conversations/${conversationId}/messages`, { cache: "no-store" });
+        if (!historyResponse.ok) throw new Error(await readResponseError(historyResponse, "主动消息同步失败。"));
+        const historyPayload = (await historyResponse.json()) as { messages: MessageRecord[] };
+        if (activeConversationRef.current !== conversationId) return;
+        messageRevisionRef.current += 1;
+        setMessages((current) => mergeConversationMessages(current, historyPayload.messages));
+      }
+      setStatus(status === "sent" ? "主动回响已发送到聊天" : `主动回响已标记为${formatDraftStatus(status, null)}`);
+    } catch (draftError) {
+      if (activeConversationRef.current !== conversationId) return;
+      const message = toSafeWorkspaceError(draftError, "主动回响状态更新失败。");
+      setProactiveError(message);
+      setStatus("主动回响状态更新失败，请稍后重试");
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function updateMemory(memoryId: string, status: MemoryRecord["status"]) {
+    setBusyMessageId(memoryId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/memories/${memoryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, expectedUpdatedAt: activeCompanion?.memories.find(memory => memory.id === memoryId)?.updatedAt })
+      });
+      const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
+
+      if (!response.ok || !payload.memory) {
+        throw new Error(payload.error ?? "记忆更新失败。");
+      }
+
+      mergeMemory(payload.memory);
+      setStatus("记忆状态已更新");
+      if (payload.memory.status === "active" && activeCompanion) {
+        reportJourneyEvidence({ kind: "memory-confirmed", companionId: activeCompanion.id, resourceId: payload.memory.id, userId });
+      }
+    } catch (memoryError) {
+      setError(toSafeWorkspaceError(memoryError, "记忆更新失败。"));
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function saveMemoryContent(memoryId: string) {
+    const content = editingMemoryContent.trim();
+    if (!content) {
+      setError("记忆内容不能为空。");
+      return;
+    }
+
+    setBusyMessageId(memoryId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/memories/${memoryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, type: editingMemoryType, expectedUpdatedAt: editingMemoryUpdatedAt })
+      });
+      const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
+
+      if (!response.ok || !payload.memory) {
+        throw new Error(payload.error ?? "记忆保存失败。");
+      }
+
+      mergeMemory(payload.memory);
+      setEditingMemoryId(null);
+      setEditingMemoryContent("");
+      setEditingMemoryType("user_fact");
+      setStatus("记忆内容已更新");
+    } catch (memoryError) {
+      setError(toSafeWorkspaceError(memoryError, "记忆保存失败。"));
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  function startEditMemory(memory: MemoryRecord) {
+    setEditingMemoryUpdatedAt(memory.updatedAt);
+    setEditingMemoryId(memory.id);
+    setEditingMemoryContent(memory.content);
+    setEditingMemoryType(memory.type);
+    setError(null);
+  }
+
+  async function deleteMemory(memoryId: string) {
+    if (!window.confirm("删除这条长期记忆及其变更历史？此操作不能恢复。原始聊天消息仍会保留，最近聊天上下文可能仍包含这些内容。")) return;
+    setBusyMessageId(memoryId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/memories/${memoryId}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedUpdatedAt: activeCompanion?.memories.find(memory => memory.id === memoryId)?.updatedAt }) });
+      const payload = (await response.json()) as { memory?: MemoryRecord; error?: string };
+
+      if (!response.ok || !payload.memory) {
+        throw new Error(payload.error ?? "记忆删除失败。");
+      }
+
+      setCompanions((current) =>
+        current.map((companion) =>
+          companion.id === payload.memory?.companionId
+            ? {
+                ...companion,
+                memories: companion.memories.filter((memory) => memory.id !== memoryId)
+              }
+            : companion
+        )
+      );
+      setStatus("记忆已删除");
+    } catch (memoryError) {
+      setError(toSafeWorkspaceError(memoryError, "记忆删除失败。"));
+    } finally {
+      setBusyMessageId(null);
+    }
+  }
+
+  async function generateProactiveDrafts(force = true) {
+    if (!activeCompanion) return;
+    const conversationId = activeCompanion.conversationId;
+
+    setIsLoadingDrafts(true);
+    setError(null);
+    setProactiveError(null);
+    setProactiveSafety(null);
+    openInspector("proactive");
+    setStatus("正在生成主动回响草稿...");
+
+    try {
+      const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
+      const response = await fetch(`/api/companions/${activeCompanion.id}/proactive-drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lastUserMessage: lastUserMessage?.content,
+          proactiveMessagesEnabled: true,
+          force
+        })
+      });
+      const payload = (await response.json()) as {
+        data?: ProactiveDraft[];
+        error?: string;
+        persistence?: string;
+        safety?: DraftSafety;
+        schedule?: ProactiveSchedule;
+        availability?: ProactiveAvailability;
+        skippedReason?: string | null;
+        deliveredCount?: number;
+        deliveredMessages?: MessageRecord[];
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "主动回响生成失败。");
+      }
+
+      if (activeConversationRef.current !== conversationId) return;
+      if (payload.availability) setProactiveAvailability(payload.availability);
+      setProactiveDrafts((current) => mergeProactiveDrafts(current, payload.data ?? []));
+      setProactiveDraftFilter(payload.deliveredCount ? "sent" : "draft");
+      if (payload.deliveredMessages?.length) {
+        setMessages((current) => mergeConversationMessages(current, payload.deliveredMessages ?? []));
+      }
+      setProactivePersistence(payload.persistence ?? "persisted");
+      setProactiveSafety(payload.safety ?? null);
+      setProactiveAutoCheck(
+        createProactiveAutoCheckStatus(
+          payload.data?.length
+            ? payload.deliveredCount ? `主动回响已送达 ${payload.deliveredCount} 条` : `手动生成 ${payload.data.length} 条草稿`
+            : `检查完成，${payload.skippedReason ?? payload.schedule?.reason ?? "暂未生成草稿"}`,
+          payload.schedule
+        )
+      );
+      setStatus(payload.deliveredCount ? "收到新的主动回响" : payload.skippedReason ?? (payload.data?.length ? "主动回响草稿已生成" : "暂未到发送时间"));
+    } catch (draftError) {
+      if (activeConversationRef.current !== conversationId) return;
+      const message = toSafeWorkspaceError(draftError, "主动回响生成失败。");
+      setProactiveError(message);
+      setProactiveAutoCheck(createProactiveAutoCheckStatus(`手动生成失败：${message}`));
+      setStatus("主动回响生成失败，请稍后重试");
+    } finally {
+      setIsLoadingDrafts(false);
+    }
+  }
+
+  async function enableAccountProactive() {
+    if (enablingProactiveRef.current) return;
+    enablingProactiveRef.current = true;
+    setIsEnablingProactive(true); setProactiveError(null);
+    try {
+      const response = await fetch("/api/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ proactiveMessagesEnabled: true }) });
+      if (!response.ok) throw new Error("enable_failed");
+      const payload = await response.json() as { user?: { proactiveMessagesEnabled: boolean } };
+      if (payload.user?.proactiveMessagesEnabled !== true) throw new Error("enable_failed");
+      setProactiveAvailability((current) => current ? { ...current, accountEnabled: true, effectiveEnabled: current.companionEnabled } : null);
+      setStatus("账号主动回响已开启");
+    } catch { setProactiveError("未能开启账号主动回响，请稍后重试。"); }
+    finally { enablingProactiveRef.current = false; setIsEnablingProactive(false); }
+  }
+
+  async function importTextMaterials(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeCompanion || isImporting) return;
+
+    const text = importText.trim();
+    if (!text) {
+      setImportError("请先粘贴要导入的内容。");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportError(null);
+    setImportSummary(null);
+    setStatus("正在导入为候选记忆...");
+
+    try {
+      const response = await fetch(`/api/companions/${activeCompanion.id}/imports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildImportRequest(importMode, text, importSourceKind))
+      });
+      const payload = (await response.json()) as {
+        memories?: MemoryRecord[];
+        importSummary?: ImportSummary;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.memories?.length) {
+        setImportSummary(payload.importSummary ?? null);
+        throw new Error(payload.error ?? "导入失败。");
+      }
+
+      mergeMemories(payload.memories);
+      setImportSummary(payload.importSummary ?? null);
+      setImportText("");
+      setStatus(
+        `已导入 ${payload.importSummary?.createdCount ?? payload.memories.length} 条候选记忆`
+      );
+      reportJourneyEvidence({ kind: "companion-updated", companionId: activeCompanion.id, resourceId: activeCompanion.id, userId });
+    } catch (importFailure) {
+      const message = toSafeWorkspaceError(importFailure, "导入失败。");
+      setImportError(message);
+      setStatus("导入失败，请检查内容后重试");
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  async function readImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    setImportError(null);
+    setImportSummary(null);
+    setImportFileName(null);
+
+    const extension = readImportFileExtension(file.name);
+    if (!extension) {
+      setImportError("只支持 .txt、.jsonl、.json 文本文件。");
+      setStatus("文件未导入：格式不支持");
+      return;
+    }
+
+    if (file.size > maxImportFileBytes) {
+      setImportError(`文件不能超过 ${formatBytes(maxImportFileBytes)}。`);
+      setStatus("文件未导入：体积过大");
+      return;
+    }
+
+    try {
+      const rawText = await file.text();
+      const normalized = normalizeImportFileText(rawText, extension);
+      if (!normalized.text.trim()) {
+        throw new Error("文件里没有可导入的文本。");
+      }
+
+      setImportMode(normalized.mode);
+      setImportText(normalized.text);
+      setImportFileName(file.name);
+      setStatus(`已读取 ${file.name}，确认内容后可导入`);
+    } catch (readError) {
+      const message = readError instanceof Error ? readError.message : "文件读取失败。";
+      setImportError(message);
+      setStatus("文件读取失败，请换一个文本文件");
+    }
+  }
+
+  async function readStructuredImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (!files.length) return;
+
+    setImportError(null);
+    setImportSummary(null);
+
+    try {
+      if (structuredImportKind === "media") {
+        applyStructuredImportPlan(
+          createMediaFileImportPlan(
+            files.map((file) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified
+            }))
+          ),
+          files.length === 1 ? files[0].name : `${files.length} 个媒体文件`
+        );
+        return;
+      }
+
+      const file = files[0];
+      const text = await file.text();
+      applyStructuredImportPlan(
+        createContactFileImportPlan({
+          fileName: file.name,
+          fileText: text,
+          fileSize: file.size
+        }),
+        file.name
+      );
+    } catch (readError) {
+      const message = readError instanceof Error ? readError.message : "结构化素材读取失败。";
+      setImportError(message);
+      setStatus("结构化素材读取失败，请换一个文件");
+    }
+  }
+
+  function applyStructuredTextImport() {
+    applyStructuredImportPlan(
+      createStructuredTextImportPlan({
+        kind: structuredImportKind,
+        text: structuredImportText
+      }),
+      structuredImportKindLabels[structuredImportKind]
+    );
+  }
+
+  function applyStructuredImportPlan(plan: StructuredImportPlan, sourceName: string) {
+    if (!plan.items.length) {
+      setImportError(plan.warnings[0] ?? "没有发现可导入的结构化素材。");
+      setStatus("结构化素材未导入：没有可用条目");
+      return;
+    }
+
+    setImportMode("jsonl");
+    setImportSourceKind(plan.items[0].sourceKind);
+    setImportText(plan.items.map((item) => JSON.stringify(item)).join("\n"));
+    setImportFileName(sourceName);
+    setStructuredImportText("");
+    setImportError(plan.warnings.length ? plan.warnings.join(" ") : null);
+    setStatus(
+      `已整理 ${plan.items.length} 条${structuredImportKindLabels[structuredImportKind]}，确认后可导入`
+    );
+  }
+
+  function reportVoiceStatus(message: string) {
+    setStatus(message);
+    setVoiceStatus(message);
+  }
+
+  async function toggleVoiceRecording() {
+    if (isRecording) {
+      stopVoiceRecording();
+      return;
+    }
+
+    await startVoiceRecording(voiceInputMode === "provider");
+  }
+
+  /**
+   * 识别路径优先级：
+   * 1. 原生安卓壳 → 系统 SpeechRecognizer（WebView 没有 Web Speech API）
+   * 2. 浏览器 → Web Speech API（免费、无需服务端 STT）
+   * 3. 兜底 → 录音上传 + /api/voice/transcribe
+   */
+  async function startVoiceRecording(forceUpload = false) {
+    if (!activeCompanion || isTranscribing || voiceStartPendingRef.current) return;
+    if (forceUpload && !transcriptionModel.trim()) {
+      setError("请先在语音输入设置中填写供应商支持的转写模型。");
+      return;
+    }
+    const conversationId = activeConversationRef.current;
+    voiceStartPendingRef.current = true;
+    try {
+
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    setRecordingPreview(null);
+    if (isSynthesizing) stopReading();
+
+    if (!forceUpload && canUseNativeSpeech()) {
+      const available = await isNativeSpeechAvailable();
+      if (conversationId !== activeConversationRef.current) return;
+      if (available) {
+        startNativeVoiceTranscript();
+        return;
+      }
+      showVoiceUnavailable("手机系统识别服务不可用。可在“语音输入设置”将话筒改为“供应商转写（上传录音）”，并填写供应商支持的转写模型。");
+      return;
+    }
+
+    if (!forceUpload && isBrowserSpeechSupported()) {
+      startBrowserVoiceTranscript();
+      return;
+    }
+
+    if (!canRecordVoice()) {
+      showVoiceUnavailable("当前浏览器不支持录音，请改用文字输入");
+      return;
+    }
+
+    reportVoiceStatus("正在请求麦克风权限...");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (conversationId !== activeConversationRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      const mimeType = readSupportedAudioMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+      const chunks: BlobPart[] = [];
+      audioChunksRef.current = chunks;
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        cleanupVoiceRecording();
+        setError("录音失败，请稍后重试。");
+        reportVoiceStatus("录音失败，请稍后重试");
+      };
+      recorder.onstop = () => {
+        const audioBlob = new Blob(chunks, {
+          type: recorder.mimeType || mimeType || "audio/webm"
+        });
+        if (mediaRecorderRef.current !== recorder || conversationId !== activeConversationRef.current) return;
+        cleanupVoiceRecording();
+
+        if (!audioBlob.size) {
+          setError("没有录到可转写的语音。");
+          reportVoiceStatus("没有录到可转写的语音");
+          return;
+        }
+
+        setRecordingPreview(audioBlob);
+        void transcribeAudioBlob(audioBlob, conversationId);
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      reportVoiceStatus("正在录音，再点一次麦克风结束");
+    } catch {
+      cleanupVoiceRecording();
+      showVoiceUnavailable("麦克风不可用，请改用文字输入");
+    }
+    } finally { voiceStartPendingRef.current = false; }
+  }
+
+  function stopVoiceRecording() {
+    if (nativeSpeechRef.current) {
+      reportVoiceStatus("正在整理识别结果...");
+      nativeSpeechRef.current.stop();
+      return;
+    }
+
+    if (browserSpeechRef.current) {
+      reportVoiceStatus("正在整理识别结果...");
+      browserSpeechRef.current.stop();
+      return;
+    }
+
+    const recorder = mediaRecorderRef.current;
+
+    if (recorder && recorder.state === "recording") {
+      reportVoiceStatus("正在处理录音...");
+      recorder.stop();
+      return;
+    }
+
+    cleanupVoiceRecording();
+  }
+
+  /** 原生安卓识别：一次性返回整段文字，结果同样追加在既有草稿之后。 */
+  function startNativeVoiceTranscript() {
+    const handle = startNativeSpeech({ lang: "zh-CN" });
+    if (!handle) {
+      showVoiceUnavailable("当前设备不支持语音识别，请改用文字输入");
+      return;
+    }
+
+    nativeSpeechRef.current = handle;
+    setIsRecording(true);
+    reportVoiceStatus("正在听，再点一次麦克风结束");
+
+    void handle.done.then((result) => {
+      if (nativeSpeechRef.current !== handle) return;
+      nativeSpeechRef.current = null;
+      setIsRecording(false);
+
+      if (result.ok) {
+        setDraft(current => joinTranscript(current, result.text, ""));
+        reportVoiceStatus("语音已识别，可继续编辑");
+        return;
+      }
+
+      const message = describeNativeSpeechError(result);
+      if (!message) {
+        // Switching conversations invalidates the handle above. A remaining
+        // cancellation came from the system, so do not silently hide it.
+        setError("录音被系统中断。请保持应用在前台并检查麦克风权限，也可在语音输入设置中改用供应商转写。");
+        reportVoiceStatus("语音输入已中断");
+        return;
+      }
+
+      setError(message);
+      reportVoiceStatus("语音识别失败，请稍后重试");
+    });
+  }
+
+  /** 浏览器内置识别：边识别边把临时结果写进草稿，结束后保留最终结果。 */
+  function startBrowserVoiceTranscript() {
+    // 记下开始前的草稿，识别结果追加其后，不覆盖用户已经写的内容。
+    const draftBefore = draft;
+    const base = draftBefore.trim() ? draftBefore.trimEnd() : "";
+    let latestFinal = "";
+    let hadError = false;
+
+    const handle = startBrowserSpeech({
+      lang: "zh-CN",
+      onInterim: (text) => {
+        setDraft(joinTranscript(base, latestFinal, text));
+      },
+      onFinal: (text) => {
+        latestFinal = latestFinal ? `${latestFinal}${text}` : text;
+        setDraft(joinTranscript(base, latestFinal, ""));
+        reportVoiceStatus("语音已识别，可继续编辑");
+      },
+      onError: (code) => {
+        hadError = true;
+        const message = describeBrowserSpeechError(code);
+        browserSpeechRef.current = null;
+        setIsRecording(false);
+        if (!message) {
+          setDraft(draftBefore);
+          reportVoiceStatus("已取消语音输入");
+          return;
+        }
+        setError(message);
+        reportVoiceStatus("语音识别失败，请稍后重试");
+      },
+      onEnd: () => {
+        browserSpeechRef.current = null;
+        setIsRecording(false);
+        if (hadError) return;
+        if (latestFinal.trim()) {
+          setDraft(joinTranscript(base, latestFinal, ""));
+          reportVoiceStatus("语音已识别，可继续编辑");
+        } else {
+          setDraft(draftBefore);
+          reportVoiceStatus("没有识别到内容，可以再说一次");
+        }
+      }
+    });
+
+    if (!handle) {
+      showVoiceUnavailable("当前浏览器不支持语音识别，请改用文字输入");
+      return;
+    }
+
+    browserSpeechRef.current = handle;
+    setIsRecording(true);
+    reportVoiceStatus("正在听，再点一次麦克风结束");
+  }
+
+  /**
+   * 浏览器不能录音（或麦克风被拒绝）时的降级：不伪造转写结果，
+   * 直接告诉用户改用文字输入，并保留原有草稿。
+   */
+  function showVoiceUnavailable(hint: string) {
+    setError(hint);
+    reportVoiceStatus(hint);
+  }
+
+  async function transcribeAudioBlob(audioBlob: Blob, conversationId = activeConversationRef.current) {
+    if (audioBlob.size > maxVoiceUploadBytes) {
+      setError("录音太长，请控制在更短的一段话内。");
+      reportVoiceStatus("录音太长，未发送转写");
+      return;
+    }
+
+    setIsTranscribing(true);
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    reportVoiceStatus("正在转写录音...");
+
+    try {
+      const audioBase64 = await blobToBase64(audioBlob);
+      const mimeType = audioBlob.type || "audio/webm";
+      const response = await fetch("/api/voice/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audioBase64,
+          mimeType,
+          fileName: `voice-input.${audioExtensionFromMimeType(mimeType)}`,
+          language: "zh-CN",
+          sttModel: transcriptionModel.trim()
+        })
+      });
+      const payload = (await response.json()) as {
+        text?: string;
+        provider?: string;
+        model?: string;
+        requestedProvider?: string;
+        credentialSource?: "server-env" | "user-vault";
+        fallback?: boolean;
+        fallbackKind?: string;
+        fallbackReason?: string;
+        error?: string;
+      };
+
+      if (conversationId !== activeConversationRef.current) return;
+      if (!response.ok || !payload.text?.trim()) {
+        setVoiceFailure(payload);
+        throw new Error(payload.error ?? voiceTranscriptionUnavailableCopy);
+      }
+
+      setDraft(current => joinTranscript(current, payload.text!.trim(), ""));
+      reportVoiceStatus(`语音已转写 · ${formatVoiceProviderStatus(payload)}`);
+    } catch (voiceError) {
+      if (conversationId !== activeConversationRef.current) return;
+      setError(toSafeWorkspaceError(voiceError, voiceTranscriptionUnavailableCopy));
+      reportVoiceStatus("语音转写失败，请稍后重试");
+    } finally {
+      if (conversationId === activeConversationRef.current) setIsTranscribing(false);
+    }
+  }
+
+  function cleanupVoiceRecording() {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setIsRecording(false);
+  }
+
+  /** 把草稿和识别片段拼回去：临时结果覆盖，最终结果累加，绝不覆盖已有草稿。 */
+  function joinTranscript(base: string, finalText: string, interimText: string) {
+    const spoken = `${finalText}${interimText}`.trim();
+    if (!spoken) return base;
+
+    return base ? `${base}${base.endsWith(" ") ? "" : " "}${spoken}` : spoken;
+  }
+
+  async function synthesizeLatestReply() {
+    if (!latestAssistantMessage || isSynthesizing) return;
+
+    if (canUseNativeSpeech()) {
+      playWithNativeVoice(latestAssistantMessage.content);
+      return;
+    }
+
+    // 原生安卓壳里 WebView 连不上 Edge TTS（wss + 自定义头 + CSP），
+    // 直接调用设备自带的语音引擎朗读，不走 /api/voice/synthesize。
+    if (shouldUseSystemSpeech()) {
+      playWithSystemVoice(latestAssistantMessage.content);
+      return;
+    }
+
+    setIsSynthesizing(true);
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    reportVoiceStatus("正在生成语音回复...");
+
+    try {
+      const response = await fetch("/api/voice/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: latestAssistantMessage.content,
+          voice: "warm",
+          format: "wav"
+        })
+      });
+      const payload = (await response.json()) as VoicePreview & VoiceFailure & {
+        error?: string;
+        errorType?: string;
+      };
+
+      // 服务端会把 mock/静音占位音频判为失败；前端不再把 0 秒音频当成"已生成"。
+      if (!response.ok || !payload.audioDataUrl || isUnplayableVoicePreview(payload)) {
+        setVoiceFailure({
+          provider: payload.provider,
+          requestedProvider: payload.requestedProvider,
+          credentialSource: payload.credentialSource,
+          model: payload.model,
+          fallback: payload.fallback,
+          fallbackKind: payload.fallbackKind,
+          fallbackReason: payload.fallbackReason
+        });
+        setError(toSafeWorkspaceError(payload.error, voiceReplyUnavailableCopy));
+        reportVoiceStatus("语音回复生成失败，请稍后重试");
+        return;
+      }
+
+      setVoicePreview(payload);
+      reportVoiceStatus("语音已准备好。");
+    } catch (voiceError) {
+      setError(toSafeWorkspaceError(voiceError, voiceReplyUnavailableCopy));
+      reportVoiceStatus("语音回复生成失败，请稍后重试");
+    } finally {
+      setIsSynthesizing(false);
+    }
+  }
+
+  function playWithNativeVoice(text: string) {
+    nativePlaybackRef.current?.stop();
+    const handle = speakNativeText(text, { lang: "zh-CN" });
+    setError(null);
+    setVoicePreview(null);
+    setVoiceFailure(null);
+    if (!handle) { setError("设备朗读未能启动，请检查系统文字转语音服务。"); return; }
+    nativePlaybackRef.current = handle;
+    setIsDeviceReading(true);
+    setIsSynthesizing(true);
+    reportVoiceStatus("正在启动设备朗读…");
+    void handle.done.then(result => {
+      if (nativePlaybackRef.current !== handle) return;
+      nativePlaybackRef.current = null;
+      setIsDeviceReading(false);
+      setIsSynthesizing(false);
+      if (result.ok) reportVoiceStatus("朗读结束");
+      else if (result.errorType === "cancelled") reportVoiceStatus("朗读已停止");
+      else { setError(result.error || "设备朗读失败，请检查系统文字转语音服务和中文语音包。"); reportVoiceStatus("朗读未完成"); }
+    });
+  }
+
+  function stopReading() {
+    setIsDeviceReading(false);
+    nativePlaybackRef.current?.stop();
+    nativePlaybackRef.current = null;
+    systemSpeechRef.current?.stop();
+    systemSpeechRef.current = null;
+    setIsSynthesizing(false);
+    reportVoiceStatus("朗读已停止");
+  }
+
+  /** 设备本地朗读：安卓 WebView 支持 speechSynthesis，不产生可下载音频。 */
+  function playWithSystemVoice(text: string) {
+    systemSpeechRef.current?.stop();
+    const handle = speakWithSystemVoice(text, {
+      lang: "zh-CN",
+      onStart: () => {
+        setIsDeviceReading(true);
+        setIsSynthesizing(true);
+        reportVoiceStatus("正在用设备语音朗读...");
+      },
+      onEnd: () => reportVoiceStatus("朗读结束")
+    });
+
+    if (!handle) {
+      setError(voiceReplyUnavailableCopy);
+      reportVoiceStatus("当前设备不支持朗读，请稍后重试");
+      return;
+    }
+
+    systemSpeechRef.current = handle;
+    void handle.done.then(() => {
+      setIsDeviceReading(false);
+      if (systemSpeechRef.current === handle) systemSpeechRef.current = null;
+      setIsSynthesizing(false);
+    });
+  }
+
+  async function loadUsageDashboard() {
+    setIsLoadingUsage(true);
+    setError(null);
+    setUsageError(null);
+    openInspector("usage");
+    setStatus("正在读取模型调用看板...");
+
+    try {
+      const response = await fetch("/api/usage/model-calls?rangeDays=7", { cache: "no-store" });
+      const payload = (await response.json()) as {
+        dashboard?: UsageDashboard;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.dashboard) {
+        throw new Error(payload.error ?? "模型调用看板加载失败。");
+      }
+
+      setUsageDashboard(payload.dashboard);
+      setStatus("模型调用看板已更新");
+    } catch (usageLoadError) {
+      const message = toSafeWorkspaceError(usageLoadError, "模型调用看板加载失败。");
+      setUsageError(message);
+      setStatus("模型调用看板加载失败，请稍后重试");
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  }
+
+  function mergeMemories(memories: MemoryRecord[]) {
+    for (const memory of memories) {
+      mergeMemory(memory);
+    }
+  }
+
+  function mergeMemory(memory: MemoryRecord) {
+    setCompanions((current) =>
+      current.map((companion) =>
+        companion.id === memory.companionId
+          ? {
+              ...companion,
+              memories: [memory, ...companion.memories.filter((item) => item.id !== memory.id)]
+            }
+          : companion
+      )
+    );
+  }
+
+  const activeMemories = activeCompanion?.memories ?? [];
+  const activeCount = activeMemories.filter((memory) => memory.status === "active").length;
+  const pendingCount = activeMemories.filter((memory) => memory.status === "pending").length;
+
+  if (inbox.state === "account-changed" || inbox.state === "signed-out") return <SyncAccessNotice reason={inbox.state} />;
+
+  return (
+    <main ref={viewportRef} className={`app-shell ${styles.workspace} ${isInspectorOpen ? "is-inspector-open" : ""} ${isMobileConversation ? "is-mobile-conversation" : ""}`}>
+      <aside className="rail" aria-label="关系对象">
+        <div className={styles.railMasthead}>
+          <div className={styles.railScene} aria-hidden="true"><span className={styles.railBell} /></div>
+          <span className={styles.mastheadNote}>只要想念，就会想见</span>
+          <div className="brand">
+            <div className="brand-mark">
+              <RenewalEmblem width={44} height={44} />
+            </div>
+            <div>
+              <h1>生生不息</h1>
+              <p>念念不忘，必有回响</p>
+            </div>
+          </div>
+        </div>
+
+        <section className="rail-section">
+          <div className={styles.contactHeading}>
+            <p className="section-label">想见的人</p>
+            <span>{String(companions.length).padStart(2, "0")}</span>
+          </div>
+          <div className="relationship-list" data-guide="people-list">
+            {companions.map((companion) => (
+              <button
+                className={`relationship-button ${companion.id === activeId ? "active" : ""}`}
+                key={companion.id}
+                onClick={() => selectCompanion(companion)}
+                title={`切换到 ${companion.name}`}
+                aria-pressed={companion.id === activeId}
+                type="button"
+              >
+                <div className="avatar">{companion.name.slice(0, 1)}</div>
+                <div>
+                  <div className="relationship-name">{companion.name}<UnreadBadge count={inbox.count("private", companion.conversationId)} /></div>
+                  <div className="relationship-kind">
+                    {companion.id === activeCompanion?.id
+                      ? messages.at(-1)?.content ?? "还没有消息，先打声招呼吧"
+                      : conversationPreviews[companion.conversationId] ?? companion.speakingStyle}
+                  </div>
+                </div>
+              </button>
+            ))}
+            {!companions.length && !isBooting ? <div className={styles.noContacts}>还没有关系<span>有一个名字，值得被想起。</span></div> : null}
+          </div>
+        </section>
+
+        <div className="quick-actions">
+          <JourneyEntry />
+          <StarterPackEntry guideAnchor="lanterns-entry" />
+          <button aria-label="创建关系对象" className="text-button primary-action" data-guide="create-person" onClick={startCreateCompanion} type="button">
+            <Plus size={17} />
+            想见谁
+          </button>
+          <Link className="text-button" data-guide="open-chat-import" href="/create-from-chat" title="从聊天记录创建人物">
+            <Upload size={17} />
+            从聊天记录创建
+          </Link>
+          <Link className="text-button" data-guide="open-groups" href="/groups" title="进入群聊">
+            <MessageCircle size={17} />
+            围坐 · 群聊
+            <UnreadBadge count={inbox.total("group")} />
+          </Link>
+          <Link className="text-button" href="/settings" title="用户设置">
+            <Settings size={17} />
+            设置
+          </Link>
+          {signedIn ? (
+            <Link className="text-button" href="/account" title="我的账号">
+              <UserRound size={17} />
+              我的账号
+            </Link>
+          ) : (
+            <Link className="text-button" href="/login" title="登录账号">
+              <LogIn size={17} />
+              登录
+            </Link>
+          )}
+        </div>
+      </aside>
+
+      <section className="main" aria-label="聊天" data-guide="chat-region">
+        <header className="topbar">
+          <button aria-label="返回联系人" className={`icon-button ${styles.mobileBack}`} onClick={() => setIsMobileConversation(false)} type="button">
+            <ArrowLeft size={22} />
+          </button>
+          {activeCompanion ? (
+            <div className="companion-heading" data-guide="active-person">
+              <div className="avatar">{activeCompanion.name.slice(0, 1)}</div>
+              <div>
+                <div className="title-row">
+                  <h2>{activeCompanion.name}</h2>
+                  {isSending ? <span className={styles.typingStatus} role="status" aria-live="polite">对方正在输入…</span> : null}
+                </div>
+                <p className="muted">{activeCompanion.customKind || relationshipKindLabels[activeCompanion.relationshipKind]}<span className={styles.headingSeparator}> / </span>此刻的回响</p>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.emptyHeading}>
+              <h2>想见的人，总有回响</h2>
+              <p className="muted">选择一位想见的人，或开始新的相遇</p>
+            </div>
+          )}
+          <div className={`topbar-actions ${styles.conversationActions}`} aria-label="当前人物的聊天工具" data-guide="chat-tools">
+            {activeCompanion ? <Link aria-label="入梦" data-guide="open-dream" title="进入人物梦境，完善语气与性格" className={`icon-button ${styles.dreamEntry}`} href={`/dream/${encodeURIComponent(activeCompanion.id)}`}><Moon size={18} /><span className={styles.actionLabel}>入梦</span></Link> : null}
+            <button aria-label="关系资料" data-guide="open-profile" className="icon-button" disabled={!activeCompanion} onClick={() => openInspector("profile")} title="关系资料" type="button">
+              <UserRound size={20} />
+              <span className={styles.actionLabel}>人物资料</span>
+            </button>
+            <button
+              aria-label="编辑关系设定"
+              data-guide="open-edit"
+              className="icon-button"
+              disabled={!activeCompanion}
+              onClick={startEditCompanion}
+              title="打开编辑面板"
+              type="button"
+            >
+              <Edit3 size={18} />
+              <span className={styles.actionLabel}>人物设置</span>
+            </button>
+            <button
+              aria-label="重新生成最近一条回复"
+              data-guide="chat-regenerate"
+              className="icon-button"
+              disabled={!latestAssistantMessage || !!busyMessageId}
+              onClick={() => regenerateMessage(latestAssistantMessage?.id)}
+              title="重新生成最近一条回复"
+              type="button"
+            >
+              <RotateCcw size={18} />
+              <span className={styles.actionLabel}>重新生成</span>
+            </button>
+            <button
+              aria-label="记忆"
+              data-guide="open-memory"
+              className="icon-button"
+              disabled={!activeCompanion}
+              onClick={() => openInspector("memories")}
+              title="记忆"
+              type="button"
+            >
+              <BookHeart size={18} />
+              <span className={styles.actionLabel}>记忆</span>
+            </button>
+            <button
+              aria-label="导入素材"
+              data-guide="open-import"
+              className="icon-button"
+              disabled={!activeCompanion || isImporting}
+              onClick={() => openInspector("import")}
+              title="导入素材"
+              type="button"
+            >
+              <Upload size={18} />
+              <span className={styles.actionLabel}>导入素材</span>
+            </button>
+            <button
+              aria-label="主动回响"
+              className="icon-button"
+              disabled={!activeCompanion || isLoadingDrafts}
+              onClick={() => { setProactiveDraftFilter("all"); setProactiveRefresh((value) => value + 1); openInspector("proactive"); }}
+              title="主动回响"
+              type="button"
+            >
+              <Bell size={18} />
+              <span className={styles.actionLabel}>主动回响</span>
+            </button>
+            <button
+              aria-label="模型调用看板"
+              className="icon-button"
+              disabled={isLoadingUsage}
+              onClick={loadUsageDashboard}
+              title="模型调用看板"
+              type="button"
+            >
+              <BarChart3 size={18} />
+              <span className={styles.actionLabel}>调用看板</span>
+            </button>
+          </div>
+        </header>
+
+        {(messageSyncError || inbox.state === "offline") && <p className="status-box" role="status">{messageSyncError || "未读状态暂时未能同步，恢复连接后会继续。"}</p>}
+        <div className="chat-stream" ref={streamRef} aria-label="聊天记录" aria-busy={isBooting || isSending} onScroll={() => {
+          const node = streamRef.current;
+          if (node) { const latest = node.scrollHeight - node.scrollTop - node.clientHeight < 100; followLatest.current = latest; setAtLatest(latest); }
+        }}>
+          {isBooting ? <div className="day-divider">加载中</div> : null}
+          {messages.map((message, index) => (
+            <Fragment key={message.id}>
+              {index === 0 || formatChatDate(message.createdAt) !== formatChatDate(messages[index - 1].createdAt) ? (
+                <div className="day-divider">{formatChatDate(message.createdAt)}</div>
+              ) : null}
+            <article className={`message ${message.role}`} {...(message.id === latestAssistantMessage?.id ? { "data-guide": "chat-last-reply" } : {})}>
+              {message.role === "assistant" ? <div className={`avatar ${styles.messageAvatar}`} aria-hidden="true">{activeCompanion?.name.slice(0, 1)}</div> : null}
+              <div
+                className={`message-bubble ${
+                  getMessageStatus(message) === "failed" || message.metadata?.localStatus === "unconfirmed" ? "failed" : ""
+                }`}
+              >
+                {message.content}
+              </div>
+              <div className="message-time">
+                <time dateTime={Number.isNaN(Date.parse(message.createdAt)) ? undefined : message.createdAt}>{formatTime(message.createdAt)}</time>
+                {message.metadata?.localStatus === "sending" ? " · 发送中" : ""}
+                {message.metadata?.localStatus === "unconfirmed" ? " · 发送未确认，请刷新核对" : ""}
+                {getMessageStatus(message) === "failed" ? " · 回复失败，请重试" : ""}
+              </div>
+              {message.metadata?.localStatus ? message.metadata.localStatus === "unconfirmed" ? (
+                <div className="topbar-actions" aria-label="消息操作">
+                  <button className="text-button" type="button" disabled={!!draft.trim()} onClick={() => editUnconfirmedMessage(message)} title={draft.trim() ? "请先处理输入框中的草稿" : "重新编辑这条未确认消息"}>重新编辑</button>
+                </div>
+              ) : null : <div className="topbar-actions" aria-label="消息操作">
+                {message.role === "assistant" ? (
+                  <button
+                    aria-label={
+                      getMessageStatus(message) === "failed" ? "重试这条回复" : "重新生成这条回复"
+                    }
+                    className="icon-button"
+                    disabled={busyMessageId === message.id}
+                    onClick={() => regenerateMessage(message.id)}
+                    title={getMessageStatus(message) === "failed" ? "重试回复" : "重新生成回复"}
+                    type="button"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                ) : null}
+                <button
+                  aria-label={isMessageImportant(message) ? "取消重要标记" : "标记为重要消息"}
+                  className={`icon-button ${isMessageImportant(message) ? "active" : ""}`}
+                  disabled={busyMessageId === message.id}
+                  onClick={() => toggleMessageImportant(message)}
+                  title={isMessageImportant(message) ? "取消重要" : "标记重要"}
+                  type="button"
+                >
+                  <Star size={16} />
+                </button>
+                <button
+                  aria-label="删除这条消息"
+                  className="icon-button"
+                  disabled={busyMessageId === message.id}
+                  onClick={() => deleteMessage(message.id)}
+                  title="删除消息"
+                  type="button"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>}
+            </article>
+            </Fragment>
+          ))}
+          {!messages.length && !isBooting ? (
+            <div className={styles.conversationOpening}>
+              <RenewalEmblem width={72} height={72} />
+              <p className={styles.openingEyebrow}>念念不忘，必有回响</p>
+              <h3>{activeCompanion ? `想说的话，${activeCompanion.name}在听。` : "钟声落下，故事继续。"}</h3>
+              <p>{activeCompanion ? "这段关系还没有消息，先说第一句话吧" : "从一个想念的名字，开始这次相遇。"}</p>
+              {!activeCompanion ? <button className="text-button" type="button" aria-label="创建关系对象" onClick={startCreateCompanion}><Plus size={16} />想见谁</button> : null}
+              <span className={styles.openingRule} aria-hidden="true">◆</span>
+            </div>
+          ) : null}
+        </div>
+
+        <form className="composer" data-guide="chat-composer-form" onSubmit={sendMessage}>
+          <div className="composer-inner">
+            <div className={styles.writingCaption}><span>{activeCompanion ? `说给${activeCompanion.name}听` : "留一句想说的话"}</span><span>Enter 发送</span></div>
+            <div className={styles.voiceTools}>
+              <button type="button" className="text-button" disabled={!latestAssistantMessage || (isSynthesizing && !isDeviceReading)} onClick={isSynthesizing ? stopReading : synthesizeLatestReply}>{isSynthesizing ? "停止朗读" : "朗读最近回复"}</button>
+              <button type="button" className="text-button" disabled={!activeCompanion || isRecording || isTranscribing || isSending} onClick={() => void startVoiceRecording(true)} title="录音结束后发送给已配置的语音供应商，需支持语音转写模型">供应商转写（上传录音）</button>
+            </div>
+            {error && !isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
+            <details className={styles.voiceOptions}>
+              <summary>语音输入设置</summary>
+              <label>话筒使用<select aria-label="话筒识别方式" value={voiceInputMode} disabled={isRecording || isTranscribing} onChange={event => setVoiceInputMode(event.target.value as "system" | "provider")}><option value="system">系统识别</option><option value="provider">供应商转写（上传录音）</option></select></label>
+              <label>转写模型<input aria-label="语音转写模型" value={transcriptionModel} disabled={isRecording || isTranscribing} onChange={event => setTranscriptionModel(event.target.value)} placeholder="例如 whisper-1" /></label>
+              <p className="muted">系统识别依赖手机的识别服务。供应商转写共用你的 API 配置，需要单独支持音频转写的模型；聊天模型通常不能转写。whisper-1 仅为示例，请填写供应商实际支持的模型。</p>
+            </details>
+            {recordingPreviewUrl ? <div className="voice-preview"><span>录音预听（仅本机预览）</span><audio aria-label="录音预听" controls src={recordingPreviewUrl} /><button type="button" className="text-button" onClick={() => setRecordingPreview(null)}>清除预听</button></div> : null}
+            {isRecording || isTranscribing || isSynthesizing ? <div role="status" className="muted">{isRecording ? "正在录音，点击麦克风结束" : isTranscribing ? "正在将语音转为文字…" : isDeviceReading ? "设备朗读中，可点击停止朗读结束" : "正在准备语音回复…"}</div> : null}
+            {!isRecording && !isTranscribing && !isSynthesizing && voiceStatus ? <div role="status" className="muted">{voiceStatus}</div> : null}
+            {voicePreview ? (
+              <div className="voice-preview">
+                <span className="voice-ready" role="status">语音回复已生成</span>
+                <audio controls src={voicePreview.audioDataUrl} />
+                <details>
+                  <summary>语音详情</summary>
+                  {formatVoiceProviderStatus(voicePreview)}
+                  {voicePreview.voice ? ` · ${voicePreview.voice}` : ""}
+                  {voicePreview.fallbackReason ? (
+                    <p>{redactWorkspaceError(voicePreview.fallbackReason)}</p>
+                  ) : null}
+                </details>
+              </div>
+            ) : null}
+            {voiceFailure ? (
+              <div className="voice-preview voice-failure">
+                <details>
+                  <summary>语音详情</summary>
+                  <p>{formatVoiceProviderStatus(voiceFailure)}</p>
+                  {voiceFailure.fallbackReason ? (
+                    <p>{redactWorkspaceError(voiceFailure.fallbackReason)}</p>
+                  ) : null}
+                </details>
+              </div>
+            ) : null}
+            <div className="input-row" data-guide="chat-composer">
+              <button
+                aria-label={isRecording ? "停止录音" : "语音输入"}
+                data-guide="voice-input"
+                className={`icon-button composer-icon ${isRecording ? "recording" : ""}`}
+                disabled={!activeCompanion || isSending || (isTranscribing && !isRecording)}
+                onClick={toggleVoiceRecording}
+                title={isRecording ? "停止录音" : "语音输入"}
+                type="button"
+              >
+                <Mic size={18} />
+              </button>
+              <input
+                className="chat-input"
+                data-guide="chat-input"
+                aria-label="把想说的话放在这里"
+                disabled={!activeCompanion || isAbilityPlaying}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="把想说的话放在这里"
+                value={draft}
+              />
+              <button
+                aria-label={isSynthesizing ? "停止播放最近回复" : "播放最近回复"}
+                data-guide="voice-read"
+                className="icon-button composer-icon"
+                disabled={!latestAssistantMessage || (isSynthesizing && !isDeviceReading)}
+                onClick={isSynthesizing ? stopReading : synthesizeLatestReply}
+                title="朗读最近回复"
+                type="button"
+              >
+                <Volume2 size={18} />
+              </button>
+              <button className="primary-button" data-guide="chat-send" disabled={!activeCompanion || isSending || isAbilityPlaying} type="submit">
+                <Send size={17} />
+                {isSending ? "等待回复" : "发送"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <dialog className={`inspector ${styles.drawer}`} aria-label="关系资料" data-guide-expected ref={inspectorRef}
+        onCancel={(event) => { event.preventDefault(); closeInspector(); }}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeInspector();
+        }}>
+        <div className={styles.drawerBar}>
+          <span>这一段回响</span>
+          <button aria-label="关闭关系资料" className="icon-button" onClick={closeInspector} type="button"><X size={19} /></button>
+        </div>
+        <div className={styles.drawerContent}>
+        {inspectorMode === "create" ? (
+          <RelationshipObjectForm
+            disabled={isSaving}
+            errorMessage={formError}
+            form={createForm}
+            isSaving={isSaving}
+            mode="create"
+            onCancel={closeInspector}
+            onChange={setCreateForm}
+            onKindSelect={(kind) =>
+              setCreateForm((current) => applyRelationshipKindDefaults(current, kind))
+            }
+            onSubmit={createCompanion}
+          />
+        ) : inspectorMode === "edit" && form ? (
+          <RelationshipObjectForm
+            disabled={isSaving}
+            errorMessage={formError}
+            form={form}
+            isSaving={isSaving}
+            mode="edit"
+            onCancel={() => {
+              setForm(activeCompanion ? toForm(activeCompanion) : null);
+              setInspectorMode("profile");
+              closeInspector();
+            }}
+            onChange={setForm}
+            onKindSelect={(kind) =>
+              setForm((current) =>
+                current ? applyRelationshipKindDefaults(current, kind) : current
+              )
+            }
+            onSubmit={saveCompanion}
+          />
+        ) : inspectorMode === "memories" ? (
+          <>
+            <header className="inspector-header">
+              <h2>记忆管理</h2>
+              <div className="form-actions">
+                <button
+                  aria-label="返回关系资料"
+                  className="icon-button"
+                  onClick={closeInspector}
+                  title="关闭记忆管理"
+                  type="button"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="inspector-scroll">
+              <section className="panel">
+                <div className="panel-title">
+                  <h2>候选与长期记忆</h2>
+                  <span className="pill">{activeMemories.length} 条</span>
+                </div>
+                <div className="memory-list" data-guide="memory-list">
+                  {activeMemories.length ? (
+                    activeMemories.map((memory) => (
+                      <article className="memory-item" key={memory.id}>
+                        <div className="memory-meta">
+                          <BookHeart size={14} />
+                          {memoryTypeLabels[memory.type]} · {memory.status}
+                        </div>
+                        {editingMemoryId === memory.id ? (
+                          <div className="memory-edit-form">
+                            <label className="field">
+                              <span>记忆内容</span>
+                              <textarea
+                                maxLength={500}
+                                onChange={(event) => setEditingMemoryContent(event.target.value)}
+                                value={editingMemoryContent}
+                              />
+                            </label>
+                            <label className="field">
+                              <span>分类</span>
+                              <select
+                                onChange={(event) =>
+                                  setEditingMemoryType(event.target.value as MemoryRecord["type"])
+                                }
+                                value={editingMemoryType}
+                              >
+                                {Object.entries(memoryTypeLabels).map(([value, label]) => (
+                                  <option key={value} value={value}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <div className="memory-actions">
+                              <button
+                                className="text-button"
+                                disabled={busyMessageId === memory.id}
+                                onClick={() => saveMemoryContent(memory.id)}
+                                type="button"
+                              >
+                                <Check size={15} />
+                                保存
+                              </button>
+                              <button
+                                className="text-button"
+                                disabled={busyMessageId === memory.id}
+                                onClick={() => {
+                                  setEditingMemoryId(null);
+                                  setEditingMemoryContent("");
+                                  setEditingMemoryType("user_fact");
+                                }}
+                                type="button"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>{memory.content}</div>
+                        )}
+                        <div className="memory-actions">
+                          {editingMemoryId !== memory.id ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === memory.id}
+                              onClick={() => startEditMemory(memory)}
+                              type="button"
+                            >
+                              <Edit3 size={15} />
+                              编辑
+                            </button>
+                          ) : null}
+                          {memory.status === "pending" ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === memory.id}
+                              onClick={() => updateMemory(memory.id, "active")}
+                              type="button"
+                            >
+                              <Check size={15} />
+                              确认
+                            </button>
+                          ) : null}
+                          {memory.status === "active" ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === memory.id}
+                              onClick={() => updateMemory(memory.id, "archived")}
+                              type="button"
+                            >
+                              归档
+                            </button>
+                          ) : null}
+                          {memory.status === "archived" && !memory.supersededById ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === memory.id}
+                              onClick={() => updateMemory(memory.id, "active")}
+                              type="button"
+                            >
+                              恢复
+                            </button>
+                          ) : null}
+                          <button
+                            aria-label={`删除记忆：${memory.content.slice(0, 18)}`}
+                            className="icon-button"
+                            disabled={busyMessageId === memory.id}
+                            onClick={() => deleteMemory(memory.id)}
+                            title="删除记忆"
+                            type="button"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                        <MemoryLifecycleControls memory={memory} memories={activeMemories} onChanged={mergeMemories} />
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty">还没有记忆</div>
+                  )}
+                </div>
+              </section>
+            </div>
+          </>
+        ) : inspectorMode === "import" ? (
+          <>
+            <header className="inspector-header">
+              <h2>导入素材</h2>
+              <div className="form-actions">
+                <button
+                  aria-label="返回关系资料"
+                  className="icon-button"
+                  onClick={closeInspector}
+                  title="关闭导入"
+                  type="button"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="inspector-scroll">
+              <form className="panel" data-guide="import-form" onSubmit={importTextMaterials}>
+                <div className="panel-title">
+                  <h2>粘贴导入</h2>
+                  <span className="pill teal">{importModeLabels[importMode]}</span>
+                </div>
+                <div className="segmented import-mode-grid" role="group" aria-label="导入模式">
+                  {(["single", "batch", "jsonl"] as ImportMode[]).map((mode) => (
+                    <button
+                      className={`segment ${importMode === mode ? "active" : ""}`}
+                      disabled={isImporting}
+                      key={mode}
+                      onClick={() => {
+                        setImportMode(mode);
+                        setImportError(null);
+                        setImportSummary(null);
+                      }}
+                      type="button"
+                    >
+                      {importModeLabels[mode]}
+                    </button>
+                  ))}
+                </div>
+                <div className="relationship-type-grid" role="group" aria-label="导入类型">
+                  {(["memory_candidate", "tone_sample", "material"] as ImportSourceKind[]).map(
+                    (kind) => (
+                      <button
+                        className={`relationship-type-card ${
+                          importSourceKind === kind ? "active" : ""
+                        }`}
+                        disabled={isImporting}
+                        key={kind}
+                        onClick={() => setImportSourceKind(kind)}
+                        type="button"
+                      >
+                        <strong>{importSourceLabels[kind]}</strong>
+                      </button>
+                    )
+                  )}
+                </div>
+                <div className="file-import-row">
+                  <label
+                    className={`text-button wide ${isImporting ? "disabled" : ""}`}
+                    htmlFor="text-material-file"
+                  >
+                    <Upload size={17} />
+                    选择文本文件
+                  </label>
+                  <input
+                    accept=".txt,.jsonl,.json,text/plain,application/json,application/x-ndjson"
+                    aria-label="选择文本文件"
+                    className="visually-hidden"
+                    disabled={!activeCompanion || isImporting}
+                    id="text-material-file"
+                    onChange={readImportFile}
+                    type="file"
+                  />
+                  <div className="status-box">
+                    支持 .txt、.jsonl、.json，最大 {formatBytes(maxImportFileBytes)}；文件只在浏览器读取。
+                  </div>
+                  {importFileName ? (
+                    <div className="status-box">已读取：{importFileName}</div>
+                  ) : null}
+                </div>
+                <div className="panel-title compact-title">
+                  <h2>媒体与通讯录</h2>
+                  <span className="pill teal">{structuredImportKindLabels[structuredImportKind]}</span>
+                </div>
+                <div className="segmented import-mode-grid" role="group" aria-label="结构化导入类型">
+                  {(["media", "contact"] as StructuredImportKind[]).map((kind) => (
+                    <button
+                      className={`segment ${structuredImportKind === kind ? "active" : ""}`}
+                      disabled={isImporting}
+                      key={kind}
+                      onClick={() => {
+                        setStructuredImportKind(kind);
+                        setImportError(null);
+                      }}
+                      type="button"
+                    >
+                      {structuredImportKindLabels[kind]}
+                    </button>
+                  ))}
+                </div>
+                <div className="file-import-row">
+                  <label
+                    className={`text-button wide ${isImporting ? "disabled" : ""}`}
+                    htmlFor="structured-material-file"
+                  >
+                    <Upload size={17} />
+                    选择{structuredImportKindLabels[structuredImportKind]}
+                  </label>
+                  <input
+                    accept={
+                      structuredImportKind === "media"
+                        ? "image/*,audio/*,video/*"
+                        : ".vcf,.vcard,.csv,.json,text/vcard,text/csv,application/json"
+                    }
+                    aria-label={`选择${structuredImportKindLabels[structuredImportKind]}`}
+                    className="visually-hidden"
+                    disabled={!activeCompanion || isImporting}
+                    id="structured-material-file"
+                    multiple={structuredImportKind === "media"}
+                    onChange={readStructuredImportFile}
+                    type="file"
+                  />
+                  <div className="status-box">
+                    媒体最多 {structuredImportLimits.maxMediaFiles} 个、单个最大{" "}
+                    {formatBytes(structuredImportLimits.maxMediaFileBytes)}；通讯录最大{" "}
+                    {formatBytes(structuredImportLimits.maxContactFileBytes)}。原文件不会上传或保存。
+                  </div>
+                </div>
+                <label className="field">
+                  <span>{structuredImportKindLabels[structuredImportKind]}说明</span>
+                  <textarea
+                    disabled={!activeCompanion || isImporting}
+                    onChange={(event) => setStructuredImportText(event.target.value)}
+                    placeholder={formatStructuredImportPlaceholder(structuredImportKind)}
+                    value={structuredImportText}
+                  />
+                </label>
+                <button
+                  className="text-button wide"
+                  disabled={!activeCompanion || isImporting || !structuredImportText.trim()}
+                  onClick={applyStructuredTextImport}
+                  type="button"
+                >
+                  <Upload size={17} />
+                  整理为导入文本
+                </button>
+                <label className="field">
+                  <span>{formatImportFieldLabel(importMode)}</span>
+                  <textarea
+                    disabled={!activeCompanion || isImporting}
+                    onChange={(event) => setImportText(event.target.value)}
+                    placeholder={formatImportPlaceholder(importMode)}
+                    value={importText}
+                  />
+                </label>
+                <div className="status-box">
+                  {formatImportModeHint(importMode)}
+                </div>
+                {importSummary ? (
+                  <div className="status-box">
+                    {formatImportSummary(importSummary)}
+                  </div>
+                ) : null}
+                {importError ? (
+                  <div className="error-box" role="alert">
+                    {importError}
+                  </div>
+                ) : null}
+                <button
+                  className="primary-button wide"
+                  data-guide="import-submit"
+                  disabled={!activeCompanion || isImporting || !importText.trim()}
+                  type="submit"
+                >
+                  <Upload size={17} />
+                  {isImporting ? "导入中" : "导入为候选"}
+                </button>
+              </form>
+            </div>
+          </>
+        ) : inspectorMode === "proactive" ? (
+          <>
+            <header className="inspector-header">
+              <h2>主动回响</h2>
+              <div className="form-actions">
+                <button
+                  aria-label="刷新主动回响状态"
+                  className="icon-button"
+                  disabled={!activeCompanion || isLoadingDrafts}
+                  onClick={() => setProactiveRefresh((value) => value + 1)}
+                  title="刷新状态与记录"
+                  type="button"
+                >
+                  <RotateCcw size={18} />
+                </button>
+                <button
+                  aria-label="返回关系资料"
+                  className="icon-button"
+                  onClick={closeInspector}
+                  title="关闭主动回响"
+                  type="button"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="inspector-scroll">
+              <section className={`panel ${styles.proactivePanel}`} aria-label="自动发送状态">
+                <h3>自动发送</h3>
+                <p>开启后，到达设置间隔会直接发到聊天，不需要你先发消息。</p>
+                {proactiveAvailability ? <>
+                  <p>账号总开关：{proactiveAvailability.accountEnabled ? "已开启" : "已关闭"} · 此人物：{proactiveAvailability.companionEnabled ? "已开启" : "已关闭"}</p>
+                  <p role="status">{!proactiveAvailability.accountEnabled ? "已暂停：账号总开关已关闭，所有人物都不会主动发消息。" : !proactiveAvailability.companionEnabled ? "已暂停：此人物的主动回响已关闭。" : "已开启：到期后直接送达聊天。"}</p>
+                  {!proactiveAvailability.accountEnabled ? <button className="text-button" type="button" disabled={isEnablingProactive} onClick={() => void enableAccountProactive()}>{isEnablingProactive ? "正在开启…" : "开启账号主动回响"}</button> : null}
+                  <button className="text-button" type="button" onClick={startEditCompanion}>设置此人物的主动回响开关与频率</button>
+                  <button className="text-button" type="button" disabled={!proactiveAvailability.effectiveEnabled || isLoadingDrafts || isEnablingProactive} onClick={() => void generateProactiveDrafts(false)}>按当前设置检查一次</button>
+                </> : <p>正在读取开关状态…</p>}
+                <p>本机试用时，请保持聊天页打开并选中此人物；关闭页面或切换人物后，这个人物不会继续自动检查。</p>
+                <p>每分钟检查是否到期，不代表每分钟一定发送。切到后台可能被浏览器延迟；生成失败或内容重复时会跳过，并在下方显示原因。</p>
+              </section>
+              <section className={`panel ${styles.proactivePanel}`}>
+                <div className="panel-title">
+                  <h2>回响记录与草稿</h2>
+                  <span className="pill teal">{proactivePersistence === "memory" ? "本次试用记录" : "已保存的记录"}</span>
+                </div>
+                <p>这里查看已发送消息，也可手动生成草稿，核对后点“发送到聊天”。手动草稿不会自行发送。</p>
+                <p>手动草稿同样参考人物设定与记忆，默认生成一条；未配置模型时仅提供演示模板。</p>
+                <button className="text-button" type="button" disabled={!activeCompanion || isLoadingDrafts || !proactiveAvailability?.effectiveEnabled} onClick={() => void generateProactiveDrafts(true)}>手动生成草稿</button>
+                {proactiveSafety ? (
+                  <details className="status-box"><summary>查看生成检查</summary>
+                    上下文安全：{formatSafetyAction(proactiveSafety)} ·{" "}
+                    {proactiveSafety.reason ?? "已通过基础检查"}
+                  </details>
+                ) : null}
+                {proactiveError ? (
+                  <div className="error-box" role="alert">
+                    {proactiveError}
+                  </div>
+                ) : null}
+                <div className="status-box" role="status">
+                  <Bell size={14} />
+                  {formatProactiveAutoCheckStatus(activeCompanion, proactiveAutoCheck, isLoadingDrafts, proactiveAvailability,
+                    isSending ? "正在等待当前聊天回复，自动检查暂缓" : isSaving ? "正在保存资料，自动检查暂缓" : isImporting ? "正在导入资料，自动检查暂缓" : undefined)}
+                </div>
+                <div className="segmented" aria-label="主动回响状态筛选">
+                  {proactiveDraftFilterOptions.map((option) => (
+                    <button
+                      aria-pressed={proactiveDraftFilter === option.value}
+                      className={`segment ${
+                        proactiveDraftFilter === option.value ? "active" : ""
+                      }`}
+                      key={option.value}
+                      onClick={() => setProactiveDraftFilter(option.value)}
+                      type="button"
+                    >
+                      {option.label} {proactiveDraftStats[option.value]}
+                    </button>
+                  ))}
+                </div>
+                <div className="memory-list" data-guide="memory-list-proactive">
+                  {isLoadingDrafts ? <div className="empty">正在生成主动回响</div> : null}
+                  {!isLoadingDrafts && visibleProactiveDrafts.length ? (
+                    visibleProactiveDrafts.map((draft) => (
+                      <article className="memory-item" key={draft.id}>
+                        <div className="memory-meta">
+                          <Bell size={14} />
+                          {formatDraftKind(draft.kind)} · {formatDraftStatus(
+                            draft.status,
+                            proactivePersistence
+                          )}
+                        </div>
+                        <div>{draft.content}</div>
+                        <div className="memory-meta">{draft.reason}</div>
+                        {draft.generator ? <details className="memory-meta">
+                          <summary>查看这条回响的生成信息</summary>
+                          <div>{draft.generator === "model" ? "模型生成" : draft.generator === "template" ? "演示模板" : "边界提示"}
+                            {draft.generation ? ` · ${{ short: "短句", medium: "中等长度", long: "较长表达" }[draft.generation.length ?? ""] ?? "自然长度"} · 提供 ${draft.generation.memoryIds?.length ?? 0} 条记忆参考 · ${draft.generation.actualChars ?? 0} 字${(draft.generation.attempts ?? 1) > 1 ? " · 已重写一次" : ""}` : ""}
+                          </div>
+                        </details> : null}
+                        <div className="memory-meta">
+                          生成 {formatDateTime(draft.createdAt ?? draft.scheduledAt)}
+                          {draft.scheduledAt ? ` · 计划 ${formatDateTime(draft.scheduledAt)}` : ""}
+                        </div>
+                        <div className="memory-meta">
+                          节奏 {draft.frequency?.label ?? "沿用关系设置"}
+                          {draft.nextCandidateAt
+                            ? ` · 下次候选 ${formatDateTime(draft.nextCandidateAt)}`
+                            : ""}
+                        </div>
+                        <div className="memory-meta">
+                          安全 {formatSafetyAction(draft.safety)}
+                          {draft.safety?.reason ? ` · ${draft.safety.reason}` : ""}
+                        </div>
+                        <div className="memory-actions">
+                          {normalizeDraftStatus(draft.status) === "draft" ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === draft.id}
+                              onClick={() => updateProactiveDraftStatus(draft.id, "sent")}
+                              type="button"
+                            >
+                              发送到聊天
+                            </button>
+                          ) : null}
+                          {draft.status !== "dismissed" ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === draft.id}
+                              onClick={() => updateProactiveDraftStatus(draft.id, "dismissed")}
+                              type="button"
+                            >
+                              忽略
+                            </button>
+                          ) : null}
+                          {draft.status !== "blocked" ? (
+                            <button
+                              className="text-button danger"
+                              disabled={busyMessageId === draft.id}
+                              onClick={() => updateProactiveDraftStatus(draft.id, "blocked")}
+                              type="button"
+                            >
+                              阻断
+                            </button>
+                          ) : null}
+                          {draft.status && draft.status !== "draft" ? (
+                            <button
+                              className="text-button"
+                              disabled={busyMessageId === draft.id}
+                              onClick={() => updateProactiveDraftStatus(draft.id, "draft")}
+                              type="button"
+                            >
+                              恢复草稿
+                            </button>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))
+                  ) : null}
+                  {!isLoadingDrafts &&
+                  proactiveDrafts.length > 0 &&
+                  !visibleProactiveDrafts.length &&
+                  !proactiveError ? (
+                    <div className="empty">
+                      当前没有{formatDraftFilterLabel(proactiveDraftFilter)}主动回响
+                    </div>
+                  ) : null}
+                  {!isLoadingDrafts && !proactiveDrafts.length && !proactiveError ? (
+                    <div className="empty">还没有回响记录。开启自动发送后等待到期，或手动生成一条草稿。</div>
+                  ) : null}
+                </div>
+              </section>
+            </div>
+          </>
+        ) : inspectorMode === "usage" ? (
+          <>
+            <header className="inspector-header">
+              <h2>调用看板</h2>
+              <div className="form-actions">
+                <button
+                  aria-label="刷新模型调用看板"
+                  className="icon-button"
+                  disabled={isLoadingUsage}
+                  onClick={loadUsageDashboard}
+                  title="刷新看板"
+                  type="button"
+                >
+                  <RotateCcw size={18} />
+                </button>
+                <button
+                  aria-label="返回关系资料"
+                  className="icon-button"
+                  onClick={closeInspector}
+                  title="关闭调用看板"
+                  type="button"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </header>
+            <div className="inspector-scroll">
+              <section className="panel">
+                <div className="panel-title">
+                  <h2>近 {usageDashboard?.rangeDays ?? 7} 天</h2>
+                  <span className="pill teal">
+                    {usageDashboard?.persistence === "prisma" ? "数据库" : "内存"}
+                  </span>
+                </div>
+                {usageError ? (
+                  <div className="error-box" role="alert">
+                    {usageError}
+                  </div>
+                ) : null}
+                {isLoadingUsage ? <div className="empty">正在加载调用记录</div> : null}
+                {usageDashboard ? (
+                  <>
+                    <div className="stats">
+                      <div className="stat">
+                        <span>调用</span>
+                        <strong>{usageDashboard.summary.calls}</strong>
+                      </div>
+                      <div className="stat">
+                        <span>失败</span>
+                        <strong>{usageDashboard.summary.failedCalls}</strong>
+                      </div>
+                      <div className="stat">
+                        <span>Tokens</span>
+                        <strong>{formatCompactNumber(usageDashboard.summary.totalTokens)}</strong>
+                      </div>
+                      <div className="stat">
+                        <span>估算 USD</span>
+                        <strong>{formatUsd(usageDashboard.summary.estimatedCostUsd)}</strong>
+                      </div>
+                    </div>
+                    <div className="status-box">
+                      输入 {formatCompactNumber(usageDashboard.summary.inputTokens)} · 输出{" "}
+                      {formatCompactNumber(usageDashboard.summary.outputTokens)} · 平均延迟{" "}
+                      {formatLatency(usageDashboard.summary.averageLatencyMs)}
+                    </div>
+                  </>
+                ) : null}
+              </section>
+
+              <section className="panel">
+                <div className="panel-title">
+                  <h2>模型分布</h2>
+                  <span className="pill">估算</span>
+                </div>
+                <div className="memory-list" data-guide="memory-list-usage-provider">
+                  {usageDashboard?.byProviderModel.length ? (
+                    usageDashboard.byProviderModel.map((item) => (
+                      <article className="memory-item" key={`${item.provider}/${item.model}`}>
+                        <div className="memory-meta">
+                          <BarChart3 size={14} />
+                          {item.provider}/{item.model}
+                        </div>
+                        <div className="usage-row">
+                          <span>{item.calls} 次</span>
+                          <span>{formatCompactNumber(item.totalTokens)} tokens</span>
+                          <span>{formatUsd(item.estimatedCostUsd)}</span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty">还没有模型调用记录</div>
+                  )}
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-title">
+                  <h2>最近记录</h2>
+                  <span className="pill">脱敏</span>
+                </div>
+                <div className="memory-list" data-guide="memory-list-usage-recent">
+                  {usageDashboard?.recent.length ? (
+                    usageDashboard.recent.map((log) => (
+                      <article className="memory-item" key={log.id}>
+                        <div className="memory-meta">
+                          <BarChart3 size={14} />
+                          {formatUsagePurpose(log.purpose)} · {formatUsageStatus(log.status)}
+                        </div>
+                        <div>
+                          {log.provider}/{log.model}
+                        </div>
+                        <div className="memory-meta">
+                          {formatDateTime(log.createdAt)} ·{" "}
+                          {formatCompactNumber(log.totalTokens ?? 0)} tokens ·{" "}
+                          {formatLatency(log.latencyMs)}
+                        </div>
+                        {log.errorKind ? <div className="memory-meta">错误：{log.errorKind}</div> : null}
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty">暂无最近记录</div>
+                  )}
+                </div>
+              </section>
+            </div>
+          </>
+        ) : (
+          <>
+            <header className="inspector-header">
+              <h2>关系资料</h2>
+              <div className="form-actions">
+                <button
+                  aria-label="新建关系对象"
+                  className="icon-button"
+                  onClick={startCreateCompanion}
+                  title="打开创建表单"
+                  type="button"
+                >
+                  <Plus size={18} />
+                </button>
+                <button
+                  aria-label="编辑当前关系设定"
+                  className="icon-button"
+                  disabled={!activeCompanion}
+                  onClick={startEditCompanion}
+                  title="打开关系设定"
+                  type="button"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </header>
+
+            <div className="inspector-scroll">
+          <section className="panel">
+            <div className="panel-title">
+              <h2>对象</h2>
+              <span className="pill">已保存</span>
+            </div>
+            {activeCompanion ? (
+              <div className="profile-summary">
+                <div className="profile-summary-head">
+                  <div className="avatar">{activeCompanion.name.slice(0, 1)}</div>
+                  <div>
+                    <strong>{activeCompanion.name}</strong>
+                    <span>
+                      {relationshipKindLabels[activeCompanion.relationshipKind]}
+                      {activeCompanion.customKind ? ` / ${activeCompanion.customKind}` : ""}
+                    </span>
+                  </div>
+                </div>
+                <dl>
+                  <div>
+                    <dt>称呼我</dt>
+                    <dd>{activeCompanion.userAddress ?? "你"}</dd>
+                  </div>
+                  <div>
+                    <dt>我称呼 TA</dt>
+                    <dd>{activeCompanion.companionAddress ?? activeCompanion.name}</dd>
+                  </div>
+                  <div>
+                    <dt>性格</dt>
+                    <dd>{activeCompanion.personality.join("、")}</dd>
+                  </div>
+                  <div>
+                    <dt>语气</dt>
+                    <dd>{activeCompanion.speakingStyle}</dd>
+                  </div>
+                  <div>
+                    <dt>背景</dt>
+                    <dd>{activeCompanion.background ?? "未设置"}</dd>
+                  </div>
+                  <div>
+                    <dt>禁区</dt>
+                    <dd>{activeCompanion.boundaries ?? "保持尊重、克制，不制造依赖压力。"}</dd>
+                  </div>
+                </dl>
+                <button className="text-button" onClick={startEditCompanion} type="button">
+                  <Edit3 size={17} />
+                  编辑设定
+                </button>
+                <button
+                  className="text-button danger"
+                  disabled={isSaving}
+                  onClick={deleteActiveCompanion}
+                  type="button"
+                >
+                  <Trash2 size={17} />
+                  删除关系
+                </button>
+              </div>
+            ) : (
+              <div className="empty">选择一个关系后编辑设定</div>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-title">
+              <h2>关系状态</h2>
+              <span className="pill teal">
+                <MessageCircle size={14} />
+                活跃
+              </span>
+            </div>
+            <div className="stats">
+              <div className="stat">
+                <span>熟悉度</span>
+                <strong>{activeCompanion?.relationshipState.familiarityScore ?? 0}</strong>
+              </div>
+              <div className="stat">
+                <span>亲密度</span>
+                <strong>{activeCompanion?.relationshipState.closenessScore ?? 0}</strong>
+              </div>
+              <div className="stat">
+                <span>记忆</span>
+                <strong>{activeCount}</strong>
+              </div>
+              <div className="stat">
+                <span>待确认</span>
+                <strong>{pendingCount}</strong>
+              </div>
+            </div>
+            <div className="status-box">
+              最近情绪：{activeCompanion?.relationshipState.recentEmotion ?? "还没有足够线索"}
+              <br />
+              上次互动：{formatDateTime(
+                activeCompanion?.relationshipState.lastInteractionAt ?? undefined
+              )}
+            </div>
+            {activeCompanion?.relationshipState.explanation ? (
+              <div className="status-box">{activeCompanion.relationshipState.explanation}</div>
+            ) : null}
+            <div className="memory-list" data-guide="memory-list-events">
+              {activeCompanion?.relationshipState.importantEvents.length ? (
+                activeCompanion.relationshipState.importantEvents.slice(0, 4).map((event, index) => (
+                  <article className="memory-item" key={`${event}-${index}`}>
+                    <div className="memory-meta">
+                      <BookHeart size={14} />
+                      重要事件
+                    </div>
+                    <div>{event}</div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty">还没有关系时间线</div>
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-title">
+              <h2>记忆</h2>
+              <span className="pill">用户可控</span>
+            </div>
+            <div className="memory-list" data-guide="memory-list-summary">
+              {activeMemories.length ? (
+                activeMemories.map((memory) => (
+                  <article className="memory-item" key={memory.id}>
+                    <div className="memory-meta">
+                      <BookHeart size={14} />
+                      {memoryTypeLabels[memory.type]} · {memory.status}
+                    </div>
+                    <div>{memory.content}</div>
+                  </article>
+                ))
+              ) : (
+                <div className="empty">还没有记忆</div>
+              )}
+            </div>
+          </section>
+            </div>
+          </>
+        )}
+        </div>
+        <div className={styles.drawerStatus}>
+          {error && isInspectorOpen ? <div className="error-text" role="alert">{error}</div> : null}
+          <div className="status-line" data-guide="chat-status" role="status">{status}</div>
+          {persistenceNotice ? <details><summary><Database size={14} aria-hidden="true" /> 存储状态</summary><p>{persistenceNotice.description} {persistenceNotice.nextStep}</p><Link className="text-button" href="/settings">配置状态</Link></details> : null}
+        </div>
+      </dialog>
+    </main>
+  );
+}
+
+function toForm(companion: CompanionProfile): RelationshipObjectFormState {
+  return {
+    id: companion.id,
+    name: companion.name,
+    relationshipKind: companion.relationshipKind,
+    customKind: companion.customKind ?? "",
+    userAddress: companion.userAddress ?? "",
+    companionAddress: companion.companionAddress ?? "",
+    personalityText: companion.personality.join("、"),
+    speakingStyle: companion.speakingStyle,
+    background: companion.background ?? "",
+    boundaries: companion.boundaries ?? "",
+    immersionEnabled: companion.immersionEnabled,
+    proactiveMessagesEnabled: companion.proactiveMessagesEnabled,
+    proactiveFrequencyPreset: companion.proactiveFrequencyPreset,
+    proactiveFrequencyValue: inferCustomFrequencyValue(
+      companion.proactiveFrequencyMinutes
+    ).value,
+    proactiveFrequencyUnit: inferCustomFrequencyValue(
+      companion.proactiveFrequencyMinutes
+    ).unit,
+    proactiveFrequencyMinutes: companion.proactiveFrequencyMinutes
+  };
+}
+
+function toCompanionPayload(form: RelationshipObjectFormState) {
+  return {
+    name: form.name,
+    relationshipKind: form.relationshipKind,
+    customKind: form.customKind,
+    userAddress: form.userAddress,
+    companionAddress: form.companionAddress,
+    personality: form.personalityText
+      .split(/[、,，]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 8),
+    speakingStyle: form.speakingStyle,
+    background: form.background,
+    boundaries: form.boundaries,
+    immersionEnabled: form.immersionEnabled,
+    proactiveMessagesEnabled: form.proactiveMessagesEnabled,
+    proactiveFrequencyPreset: form.proactiveFrequencyPreset,
+    proactiveFrequencyMinutes: form.proactiveFrequencyMinutes
+  };
+}
+
+async function readResponseError(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+    return typeof payload.error === "string" && payload.error.trim()
+      ? redactWorkspaceError(payload.error, fallback)
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function toSafeWorkspaceError(error: unknown, fallback: string) {
+  return redactWorkspaceError(error instanceof Error ? error.message : fallback, fallback);
+}
+
+function redactWorkspaceError(message: string, fallback = "操作失败，请稍后重试。") {
+  const trimmed = message.trim();
+  if (!trimmed) return fallback;
+
+  return [
+    {
+      pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+      replacement: "Bearer [已隐藏]"
+    },
+    {
+      pattern: /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
+      pattern: /\b(?:github_pat_[A-Za-z0-9_]{16,}|gh[pousr]_[A-Za-z0-9_]{16,})\b/g,
+      replacement: "[已隐藏 API Key]"
+    },
+    {
+      pattern: /\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',;<>]+["']?/gi,
+      replacement: "[已隐藏敏感字段]"
+    },
+    {
+      pattern: /https?:\/\/[^\s"',;<>]+/gi,
+      replacement: "[已隐藏 Base URL]"
+    },
+    {
+      pattern: /\b(?:prompt|rawPayload|raw_payload|raw payload|stack)\b/gi,
+      replacement: "[已隐藏调试字段]"
+    },
+    {
+      pattern: /\bat\s+\S+\s+\([^)]*\)/gi,
+      replacement: "[已隐藏堆栈]"
+    }
+  ].reduce((current, item) => current.replace(item.pattern, item.replacement), trimmed);
+}
+
+const voiceReplyUnavailableCopy = "语音暂时没有生成成功，文字回复还在。";
+const voiceTranscriptionUnavailableCopy = "这段语音没有识别出来，可以再录一次，或改用文字。";
+
+function isUnplayableVoicePreview(payload: VoicePreview) {
+  const dataUrl = payload.audioDataUrl ?? "";
+  const base64 = dataUrl.includes(",") ? dataUrl.slice(dataUrl.indexOf(",") + 1) : "";
+
+  return isSilentWavBase64(base64);
+}
+
+/** 0 秒 WAV（mock/fallback 静音占位）不应当作可播放的语音回复。 */
+function isSilentWavBase64(base64: string) {
+  if (!base64) return false;
+
+  try {
+    const binary = atob(base64.replace(/\s+/g, ""));
+    if (binary.length < 12) return false;
+
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    const ascii = (start: number, end: number) => {
+      let value = "";
+      for (let index = start; index < end; index += 1) value += String.fromCharCode(bytes[index]);
+      return value;
+    };
+
+    if (ascii(0, 4) !== "RIFF" || ascii(8, 12) !== "WAVE") return false;
+
+    // 头不完整（< 44 字节）同样无法播放。
+    if (bytes.length < 44) return true;
+
+    // 按 RIFF 块遍历，找到 data 块判断是否 0 字节负载。
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let offset = 12;
+    while (offset + 8 <= bytes.length) {
+      const chunkId = ascii(offset, offset + 4);
+      const chunkSize = view.getUint32(offset + 4, true);
+
+      if (chunkId === "data") {
+        return chunkSize === 0 || bytes.length - (offset + 8) === 0;
+      }
+
+      offset += 8 + chunkSize + (chunkSize % 2);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function canRecordVoice() {
+  return (
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia) &&
+    typeof MediaRecorder !== "undefined"
+  );
+}
+
+function readSupportedAudioMimeType() {
+  if (typeof MediaRecorder === "undefined") return "";
+
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus"
+  ];
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("录音读取失败。"));
+    reader.onloadend = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function audioExtensionFromMimeType(mimeType: string) {
+  if (mimeType.includes("mp4")) return "m4a";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("wav")) return "wav";
+  return "webm";
+}
+
+function formatVoiceProviderStatus(payload: {
+  provider?: string;
+  requestedProvider?: string;
+  model?: string;
+  credentialSource?: "server-env" | "user-vault";
+  fallback?: boolean;
+  fallbackKind?: string;
+}) {
+  const provider = payload.provider ?? "unknown";
+  const model = payload.model ?? "unknown";
+  const source =
+    payload.credentialSource === "user-vault"
+      ? "用户 vault"
+      : payload.credentialSource === "server-env"
+        ? "环境变量"
+        : "默认配置";
+  const requested = payload.requestedProvider && payload.requestedProvider !== provider
+    ? ` · from ${payload.requestedProvider}`
+    : "";
+  const fallback = payload.fallback
+    ? ` · mock fallback${payload.fallbackKind ? `/${payload.fallbackKind}` : ""}`
+    : "";
+
+  return `${provider}/${model} · ${source}${requested}${fallback}`;
+}
+
+function readImportFileExtension(fileName: string) {
+  const normalized = fileName.toLowerCase();
+  return allowedImportFileExtensions.find((extension) => normalized.endsWith(extension)) ?? null;
+}
+
+function normalizeImportFileText(
+  rawText: string,
+  extension: (typeof allowedImportFileExtensions)[number]
+): { text: string; mode: ImportMode } {
+  const text = rawText.trim();
+
+  if (extension === ".jsonl") {
+    return { text, mode: "jsonl" };
+  }
+
+  if (extension === ".json") {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      return {
+        text: items.map((item) => JSON.stringify(item)).join("\n"),
+        mode: "jsonl"
+      };
+    } catch {
+      throw new Error("JSON 文件无法解析，请检查格式后再导入。");
+    }
+  }
+
+  return { text, mode: "single" };
+}
+
+function buildImportRequest(mode: ImportMode, text: string, sourceKind: ImportSourceKind) {
+  if (mode === "batch") {
+    return {
+      batchTexts: text.split(/\r?\n/),
+      sourceKind
+    };
+  }
+
+  if (mode === "jsonl") {
+    return {
+      jsonLines: text,
+      sourceKind
+    };
+  }
+
+  return {
+    text,
+    sourceKind
+  };
+}
+
+function formatImportFieldLabel(mode: ImportMode) {
+  if (mode === "batch") return "每行一条";
+  if (mode === "jsonl") return "JSON Lines";
+  return "文本";
+}
+
+function formatImportPlaceholder(mode: ImportMode) {
+  if (mode === "batch") {
+    return "一行一段素材，例如：\n她说话喜欢先轻轻喊我的名字\n我们的纪念日是 5 月 20 日";
+  }
+
+  if (mode === "jsonl") {
+    return '{"text":"她说话喜欢先轻轻喊我的名字","sourceKind":"tone_sample"}\n{"content":"我们的纪念日是 5 月 20 日","sourceKind":"material"}';
+  }
+
+  return "粘贴聊天片段、设定补充、语气样例或想让 TA 记住的事实";
+}
+
+function formatStructuredImportPlaceholder(kind: StructuredImportKind) {
+  if (kind === "contact") {
+    return '可粘贴 vCard、CSV 或 JSON，例如：\n[{"name":"阿澈","relationship":"朋友","phone":"13800000000","note":"高中时总陪我晚自习"}]';
+  }
+
+  return '可粘贴照片/音频/视频说明，例如：\n[{"title":"五月海边","description":"那天 TA 说以后难过就来海边吹风","people":"我和 TA","date":"2024-05-20"}]';
+}
+
+function formatImportModeHint(mode: ImportMode) {
+  if (mode === "batch") {
+    return "每行会作为一条输入逐条脱敏；导入后先进入 pending，确认后进入 active。";
+  }
+
+  if (mode === "jsonl") {
+    return '每行一个 JSON，可用 text、content 或 message；sourceKind 可覆盖为 material、tone_sample 或 memory_candidate。';
+  }
+
+  return "导入后先进入 pending，确认后进入 active；也可以归档或删除。";
+}
+
+function formatBytes(value: number) {
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)}MB`;
+  return `${Math.round(value / 1024)}KB`;
+}
+
+function formatImportSummary(summary: ImportSummary) {
+  const parts = [
+    `${importModeLabels[summary.mode]} · 已生成 ${summary.createdCount} 条`,
+    `已移除疑似密钥 ${summary.redactionCount} 处`,
+    `跳过 ${summary.skippedCount} 段`
+  ];
+
+  if (typeof summary.inputCount === "number") {
+    parts.push(`输入 ${summary.inputCount} 条`);
+  }
+
+  if (typeof summary.acceptedCount === "number") {
+    parts.push(`接受 ${summary.acceptedCount} 条`);
+  }
+
+  if (summary.truncatedCount) {
+    parts.push(`截断 ${summary.truncatedCount} 条`);
+  }
+
+  if (summary.parseSkippedCount) {
+    parts.push(`解析跳过 ${summary.parseSkippedCount} 行`);
+  }
+
+  if (summary.duplicateCount) {
+    parts.push(`本次重复 ${summary.duplicateCount} 条`);
+  }
+
+  if (summary.existingDuplicateCount) {
+    parts.push(`已存在 ${summary.existingDuplicateCount} 条`);
+  }
+
+  if (summary.limit) {
+    parts.push(
+      `上限 ${summary.limit.maxItems} 条 / 单条 ${summary.limit.maxItemChars} 字 / 候选 ${summary.limit.maxCandidates} 条`
+    );
+  }
+
+  return parts.join(" · ");
+}
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "时间未知";
+  return `${formatChatDate(value)} ${date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  })}`;
+}
+
+function formatChatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "日期未知";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function loadDatabaseConfigStatus() {
+  try {
+    const response = await fetch("/api/me/config-status", { cache: "no-store" });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { configStatus?: ConfigReadinessSnapshot };
+    return payload.configStatus?.items.find((item) => item.id === "database") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getMessageStatus(message: MessageRecord) {
+  return typeof message.metadata?.status === "string" ? message.metadata.status : "sent";
+}
+
+function isMessageImportant(message: MessageRecord) {
+  return message.metadata?.important === true;
+}
+
+function formatProviderLabel(
+  metadata:
+    | MessageRecord["metadata"]
+    | { provider?: string; model?: string; status?: number }
+    | null
+    | undefined
+) {
+  const provider = typeof metadata?.provider === "string" ? metadata.provider : "unknown";
+  const model = typeof metadata?.model === "string" ? metadata.model : "unknown";
+  return `${provider}/${model}`;
+}
+
+function formatDraftKind(kind: string) {
+  const labels: Record<string, string> = {
+    ANNIVERSARY: "纪念日",
+    DAILY_GREETING: "日常问候",
+    EMOTION_CARE: "情绪关怀",
+    LAST_CONVERSATION_FOLLOWUP: "承接上次",
+    PLAYFUL_MISS_YOU: "撒娇式"
+  };
+
+  return labels[kind] ?? kind;
+}
+
+function formatDraftStatus(status: string | undefined, persistence: string | null) {
+  if (!status) return persistence === "mock" ? "mock 预览" : "草稿";
+
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    draft: "草稿",
+    SENT: "已发送",
+    sent: "已发送",
+    DISMISSED: "已忽略",
+    dismissed: "已忽略",
+    BLOCKED: "已拦截",
+    blocked: "已拦截"
+  };
+
+  return labels[status] ?? status;
+}
+
+function normalizeDraftStatus(status: string | undefined): ProactiveDraftStatus {
+  const normalized = status?.toLowerCase();
+
+  if (
+    normalized === "sent" ||
+    normalized === "dismissed" ||
+    normalized === "blocked" ||
+    normalized === "draft"
+  ) {
+    return normalized;
+  }
+
+  return "draft";
+}
+
+function mergeProactiveDrafts(current: ProactiveDraft[], incoming: ProactiveDraft[]) {
+  const merged = new Map<string, ProactiveDraft>();
+
+  for (const draft of current) {
+    merged.set(draft.id, draft);
+  }
+  for (const draft of incoming) {
+    merged.set(draft.id, draft);
+  }
+
+  return [...merged.values()].sort((left, right) => {
+    const leftTime = new Date(left.createdAt ?? left.scheduledAt ?? 0).getTime();
+    const rightTime = new Date(right.createdAt ?? right.scheduledAt ?? 0).getTime();
+    return rightTime - leftTime;
+  });
+}
+
+function mergeConversationMessages(current: MessageRecord[], incoming: MessageRecord[]) {
+  const merged = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) merged.set(message.id, message);
+  const values = [...merged.values()];
+  const confirmedKeys = new Set(values.filter((message) => !message.metadata?.localStatus && message.metadata?.clientMessageId)
+    .map((message) => `${message.conversationId}:${message.metadata?.clientMessageId}`));
+  return values.filter((message) => !message.metadata?.localStatus ||
+    !confirmedKeys.has(`${message.conversationId}:${message.metadata?.clientMessageId}`)).sort((left, right) =>
+    new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  );
+}
+
+function formatDraftFilterLabel(filter: ProactiveDraftFilter) {
+  const labels: Record<ProactiveDraftFilter, string> = {
+    all: "全部",
+    draft: "草稿",
+    sent: "已发送",
+    dismissed: "已忽略",
+    blocked: "已拦截"
+  };
+
+  return labels[filter];
+}
+
+function createProactiveAutoCheckStatus(
+  result: string,
+  schedule?: ProactiveSchedule
+): ProactiveAutoCheck {
+  const checkedAt = new Date();
+  const nextCheckAt = new Date(checkedAt.getTime() + proactiveAutoCheckIntervalMs);
+
+  return {
+    checkedAt: checkedAt.toISOString(),
+    nextCheckAt: nextCheckAt.toISOString(),
+    result,
+    candidateAt: schedule?.candidateAt ?? null,
+    nextCandidateAt: schedule?.nextCandidateAt ?? null,
+    elapsedMinutes: schedule?.elapsedMinutes ?? null
+  };
+}
+
+function formatProactiveAutoCheckStatus(
+  companion: CompanionProfile | undefined,
+  check: ProactiveAutoCheck | null,
+  isLoading: boolean,
+  availability?: ProactiveAvailability | null,
+  pauseReason?: string
+) {
+  if (!companion) return "选择关系后显示主动回响状态";
+  if (!availability) return "尚未确认开关状态，请刷新状态后重试。";
+  if (availability?.accountEnabled === false) return "账号总开关关闭，自动检查已暂停。";
+  if (!companion.proactiveMessagesEnabled) return "主动回响已关闭";
+  if (isLoading) return "正在生成主动回响草稿";
+  if (pauseReason) return `${pauseReason}${check ? ` · 本页最近检查 ${formatDateTime(check.checkedAt)}：${check.result}` : ""}`;
+
+  const cadence = formatProactiveCadence(companion.proactiveFrequencyMinutes);
+
+  if (!check) {
+    return `当前节奏 ${cadence} · 自动检查每 1 分钟 · 最近尚未检查`;
+  }
+
+  const scheduleHint = check.nextCandidateAt && !/失败|跳过|未生成|无法生成/.test(check.result)
+    ? ` · 预计最早可发送 ${formatDateTime(check.nextCandidateAt)}`
+    : "";
+  const elapsedHint =
+    typeof check.elapsedMinutes === "number" ? ` · 距离上次互动或回响已过 ${check.elapsedMinutes} 分钟` : "";
+
+  return `本页最近检查 ${formatDateTime(check.checkedAt)}：${check.result}${scheduleHint}${elapsedHint} · 当前节奏 ${cadence} · 自动检查每 1 分钟（后台可能延迟）`;
+}
+
+function formatProactiveCadence(minutes: number) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "未记录";
+  if (minutes % 1440 === 0) return `每 ${minutes / 1440} 天`;
+  if (minutes % 60 === 0) return `每 ${minutes / 60} 小时`;
+  return `每 ${Math.floor(minutes)} 分钟`;
+}
+
+function formatDateTime(value: string | undefined) {
+  if (!value) return "未记录";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未记录";
+
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatSafetyAction(safety: DraftSafety | null | undefined) {
+  if (!safety) return "未记录";
+
+  const labels: Record<string, string> = {
+    allow: "通过",
+    block: "拦截",
+    boundary_response: "边界回应",
+    revise: "已改写"
+  };
+
+  return labels[safety.action ?? ""] ?? safety.action ?? (safety.ok ? "通过" : "需复核");
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat("zh-CN", {
+    notation: value >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: 1
+  }).format(value);
+}
+
+function formatUsd(value: number) {
+  if (value <= 0) return "$0";
+  return `$${value.toFixed(value < 0.01 ? 4 : 2)}`;
+}
+
+function formatLatency(value: number | null | undefined) {
+  if (value == null) return "未记录";
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}s`;
+  return `${value}ms`;
+}
+
+function formatUsageStatus(status: string) {
+  const labels: Record<string, string> = {
+    success: "成功",
+    error: "失败"
+  };
+
+  return labels[status] ?? status;
+}
+
+function formatUsagePurpose(purpose: string) {
+  const labels: Record<string, string> = {
+    chat_reply: "聊天回复",
+    group_reply: "群聊回复",
+    group_proactive: "群聊主动发言",
+    chat_regenerate: "重新生成",
+    chat_complete_api: "补全 API",
+    proactive_draft: "主动草稿",
+    safety_check: "安全检查",
+    other: "其他"
+  };
+
+  return labels[purpose] ?? purpose;
+}

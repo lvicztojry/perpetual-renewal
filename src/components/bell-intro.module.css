@@ -1,0 +1,202 @@
+.intro {
+  --duration: 6s;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: #f4e7d1;
+  background: #191a18;
+  color-scheme: dark;
+  font-family: "Songti SC", "Noto Serif SC", SimSun, serif;
+}
+
+.intro:not([open]) { display: none; }
+.intro::backdrop { background: #191a18; }
+
+.film, .camera, .canvas, .artwork, .scene, .bellPosition, .bell, .dust, .vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.film { overflow: hidden; }
+.camera { transform: scale(1.025); }
+
+/* All artwork coordinates refer to the supplied 1672 × 941 canvas.
+   Contain preserves both the bell and the right-hand screen on narrow displays. */
+.canvas {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 177.6833dvh);
+  aspect-ratio: 1672 / 941;
+  transform: translate(-50%, -50%);
+  container-type: inline-size;
+  background: radial-gradient(ellipse at 34% 76%, #704c36 0, #302c27 35%, #191a18 75%);
+}
+
+.artwork { opacity: 0; transition: opacity 800ms ease; }
+.loaded { opacity: 1; }
+.scene { background: url("/visuals/bell-scene.png") center / 100% 100% no-repeat; }
+
+/* The isolated export is larger than the reference bell. Keep compensation
+   outside the swing so both always share the same suspension point. */
+.bellPosition { transform: scale(0.85); transform-origin: 33% 0%; }
+.bell {
+  background: url("/visuals/bell-isolated.png") center / 100% 100% no-repeat;
+  transform-origin: 33% 1%;
+  transform: rotate(-1.4deg);
+}
+
+.screen {
+  position: absolute;
+  left: 57.5%;
+  top: 21%;
+  width: 40%;
+  height: 32%;
+  display: grid;
+  place-items: center;
+  transform: perspective(1000px) rotateY(-13deg) rotateZ(-12deg) skewX(-7deg);
+  color: #ffe4bc;
+  text-align: center;
+  text-shadow: 0 0 0.5cqw #d29e63, 0 0 1.5cqw #ba794438;
+  opacity: 0.6;
+}
+
+.screen p { margin: 0; font-size: 3.1cqw; line-height: 1.65; white-space: nowrap; }
+.screen strong { color: #fff1d9; font-weight: 600; }
+
+.dust {
+  opacity: 0.2;
+  background-image:
+    radial-gradient(circle at 15% 54%, #d8b87a 0 1px, transparent 1.5px),
+    radial-gradient(circle at 40% 66%, #c5a571 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 42%, #ad956c 0 0.6px, transparent 1.2px);
+  background-size: 173px 139px, 257px 193px, 113px 229px;
+  mask-image: radial-gradient(ellipse at 30% 62%, #000, transparent 56%);
+}
+
+.vignette {
+  background: linear-gradient(0deg, #111310e8, transparent 27%, #11131018 80%),
+    radial-gradient(ellipse at center, transparent 44%, #11131073);
+}
+
+.signature {
+  position: absolute;
+  inset: auto 20px max(30px, env(safe-area-inset-bottom)) 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-shadow: 0 2px 12px #000;
+}
+
+.signature h1 { margin: 0; font-size: clamp(22px, 1.65vw, 30px); font-weight: 400; letter-spacing: 0.22em; }
+.signature p { margin: 0; font-size: 14px; letter-spacing: 0.32em; }
+.rule { width: 180px; margin: 7px 0; font-size: 8px; color: #b9a17b; background: linear-gradient(90deg, transparent, #b9a17b55, transparent) center / 100% 1px no-repeat; }
+
+.intro button, .replay {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 9px 14px;
+  background: #191a186b;
+  color: #f4e7d1;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.intro .enter { margin-top: 20px; min-width: 112px; border-color: #b9a17b99; letter-spacing: 0.3em; background: #191a18b8; }
+.intro button:hover, .replay:hover { background: #584b36; }
+.intro button:focus-visible, .replay:focus-visible { outline: 2px solid #ffe4bc; outline-offset: 4px; }
+.controls { position: absolute; right: max(22px, env(safe-area-inset-right)); bottom: max(26px, env(safe-area-inset-bottom)); display: flex; gap: 12px; }
+.replay { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); right: 16px; z-index: 20; background: #292b27; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.intro[data-short="true"] { --duration: 2s; }
+.intro[data-phase="playing"] .camera { animation: approach var(--duration) ease-out both; }
+.intro[data-phase="playing"] .bell { animation: swing var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .dust { animation: drift var(--duration) ease-out both; }
+.intro[data-phase="playing"] .screen { animation: screenPower var(--duration) ease-out both; }
+.intro[data-phase="playing"] .film { animation: depart var(--duration) linear both; }
+
+.companion { max-width: 80vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 8px; font-size: 13px; letter-spacing: 0.12em; color: #e1d3bc; }
+.birth, .cityEcho, .reflection, .memories, .dreamVeil { position: absolute; inset: 0; pointer-events: none; }
+.birth { left: 40%; top: 36%; width: 20%; height: 45%; }
+.orb { position: absolute; inset: 0 -15% 0; opacity: 0; border-radius: 50%; background: radial-gradient(ellipse at 50% 45%, #fffdf5 0, #fff8e9ed 14%, #f2d7a6a0 32%, #d6b87b38 54%, transparent 72%); mix-blend-mode: screen; filter: blur(0.45cqw); }
+.silhouette { position: absolute; left: 6%; top: 13%; width: 88%; height: 87%; opacity: 0; background: #050706; mask: url("/visuals/yu-nianan-silhouette.png") center / contain no-repeat; }
+.intro[data-phase="playing"] .orb { animation: birthLight var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .silhouette { animation: emerge var(--duration) ease-out both; }
+.cityEcho { opacity: 0; background: url("/visuals/bell-scene.png") center / 100% 100% no-repeat; mask-image: linear-gradient(transparent 35%, #000 67%, transparent); mix-blend-mode: screen; }
+.reflection { top: 73%; opacity: 0; transform: scaleY(-1); background: repeating-linear-gradient(0deg, transparent 0 7px, #e0ceb417 8px 9px), radial-gradient(ellipse at 45% 25%, #b9c9ce65, transparent 65%); mask-image: linear-gradient(transparent, #000 25%, transparent); }
+.memories { opacity: 0; }
+.memories i { position: absolute; width: 9%; height: 15%; border: 1px solid #e7d9ba55; box-shadow: 0 0 2cqw #dfd1b822; filter: blur(0.14cqw); background: linear-gradient(140deg, #c6bca029, #363a3d55); }
+.memories i:nth-child(1) { left: 20%; top: 52%; transform: rotate(-8deg); background: linear-gradient(90deg, transparent 47%, #dbcdbb70 48% 51%, transparent 52%), linear-gradient(0deg, transparent 47%, #dbcdbb70 48% 51%, transparent 52%), #9a9f9633; }
+.memories i:nth-child(2) { left: 65%; top: 65%; transform: rotate(9deg); background: repeating-linear-gradient(0deg, transparent 0 14%, #e5d6b936 15% 16%, transparent 17% 22%), #b0a89922; }
+.memories i:nth-child(3) { left: 76%; top: 47%; transform: rotate(-3deg); border-radius: 50% 50% 4% 4%; background: radial-gradient(ellipse at 50% 75%, #dbccb33d, transparent 65%); }
+.door { position: absolute; left: 43%; top: 50%; width: 10%; height: 36%; perspective: 55cqw; opacity: 0; border-radius: 48% 48% 2% 2%; background: radial-gradient(ellipse at 50% 70%, #fff7dfcf, #b8c6ca85 35%, #313b48 80%); box-shadow: 0 0 4cqw #cdd9d44d, inset 0 0 0 0.35cqw #817b6855; border: 1px solid #e0d8c555; }
+.doorLeaf { position: absolute; inset: 0; transform-origin: left; border-radius: inherit; background: linear-gradient(90deg, #262b2c, #525149 48%, #292e30); border: 1px solid #c6bba944; box-shadow: inset 0 0 0 0.45cqw #1f252655, inset 0 0 0 0.6cqw #afa38a33; }
+.dreamVeil { opacity: 0; background: radial-gradient(ellipse at 48% 65%, #cad4d0, #445567 45%, #202630); }
+.intro[data-ability="dream"][data-phase="playing"] .camera { animation-name: dreamApproach; }
+.intro[data-ability="dream"][data-phase="playing"] .dust { animation-name: dreamDust; }
+.intro[data-phase="playing"] .cityEcho.loaded { animation: cityDouble var(--duration) ease-out both; }
+.intro[data-phase="playing"] .reflection { animation: waterTime var(--duration) ease-out both; }
+.intro[data-phase="playing"] .memories { animation: memoryGlimpse var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .door { animation: doorway var(--duration) ease-out both; }
+.intro[data-phase="playing"] .doorLeaf { animation: doorOpen var(--duration) ease-in-out both; }
+.intro[data-phase="playing"] .dreamVeil { animation: dreamEnter var(--duration) ease-in both; }
+
+@keyframes birthLight { 0% { opacity: 0; transform: scale(0.35); } 16% { opacity: 0.3; } 35% { opacity: 1; transform: scale(1.08); } 60% { opacity: 0.55; } 100% { opacity: 0.14; transform: scale(0.9); } }
+@keyframes emerge { 0%, 42% { opacity: 0; transform: translateY(2%); } 76%, 100% { opacity: 1; transform: translateY(0); } }
+@keyframes cityDouble { 0%, 10% { opacity: 0; transform: translate(0); } 36% { opacity: 0.3; transform: translate(1.1%, -0.4%); } 80%, 100% { opacity: 0.12; transform: translate(1.4%, -0.6%); } }
+@keyframes waterTime { 0% { opacity: 0; background-position: 0 0; } 30%, 100% { opacity: 0.6; background-position: 0 4px; } }
+@keyframes memoryGlimpse { 0%, 22%, 85%, 100% { opacity: 0; } 42%, 62% { opacity: 0.5; } }
+@keyframes doorway { 0%, 32% { opacity: 0; transform: scale(0.97); } 52%, 100% { opacity: 0.9; transform: scale(1); } }
+@keyframes doorOpen { 0%, 46% { transform: rotateY(0); } 83%, 100% { transform: rotateY(-82deg); } }
+@keyframes dreamApproach { 0%, 48% { transform: scale(1.025); transform-origin: 48% 68%; } 76% { transform: scale(1.08); transform-origin: 48% 68%; } 100% { transform: scale(5.5); transform-origin: 48% 68%; } }
+@keyframes dreamDust { 0% { transform: translateY(3px); } 30% { transform: translate(3px, -4px); } 100% { transform: translate(4px, -5px); } }
+@keyframes dreamEnter { 0%, 78% { opacity: 0; } 100% { opacity: 1; } }
+
+@keyframes approach { from { transform: scale(1.025); } to { transform: scale(1.065) translateY(0.4%); } }
+@keyframes swing {
+  0% { transform: rotate(-1.4deg); }
+  19% { transform: rotate(2.1deg); }
+  42% { transform: rotate(-1.6deg); }
+  65% { transform: rotate(1deg); }
+  85% { transform: rotate(-0.5deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes drift { from { transform: translateY(5px); } to { transform: translate(6px, -12px); } }
+@keyframes screenPower { 0%, 12% { opacity: 0.3; } 24%, 100% { opacity: 1; } }
+@keyframes depart { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+
+@media (max-width: 640px) {
+  .signature { bottom: max(100px, calc(env(safe-area-inset-bottom) + 80px)); }
+  .controls { left: 16px; right: 16px; justify-content: space-between; }
+  .screen p { font-size: 3.6cqw; }
+}
+
+.intro[data-reduced-motion="true"],
+.intro[data-reduced-motion="true"] * { animation: none !important; transition: none !important; }
+.intro[data-reduced-motion="true"] .camera { transform: none; }
+.intro[data-reduced-motion="true"] .bell { transform: none; }
+.intro[data-reduced-motion="true"] .screen { opacity: 1; }
+.intro[data-reduced-motion="true"] .orb { opacity: 0.45; }
+.intro[data-reduced-motion="true"] .silhouette { opacity: 1; }
+.intro[data-reduced-motion="true"] .door { opacity: 0.65; }
+.intro[data-reduced-motion="true"] .doorLeaf { opacity: 0.3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro, .intro * { animation: none !important; transition: none !important; }
+  .camera, .bell { transform: none; }
+  .screen { opacity: 1; }
+}

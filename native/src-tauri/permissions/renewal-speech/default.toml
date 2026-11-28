@@ -1,0 +1,20 @@
+"$schema" = "../../gen/schemas/desktop-schema.json"
+
+[default]
+description = """
+Grants device speech recognition, stop/cancel and text-to-speech commands on
+the native Android client.
+
+Non-Android builds register the same commands but always answer
+`available: false`, so the web client falls back to the browser's own speech
+recognition.
+"""
+permissions = [
+  "allow-speech-is-available",
+  "allow-speech-recognize",
+  "allow-speech-cancel",
+  "allow-speech-stop",
+  "allow-speech-speak",
+  "allow-speech-cancel-speech",
+  "allow-speech-is-speech-available"
+]

@@ -1,0 +1,107 @@
+.overlay {
+  --guide-gold: #e8c886;
+  --guide-gold-strong: #f7dda4;
+  --guide-ink: #f3e8d3;
+  --guide-panel: #16231f;
+  position: fixed;
+  inset: 0;
+  /* Above the course directory (70) so a step that teaches the directory still shows its card. */
+  z-index: 80;
+  pointer-events: none;
+  color: var(--guide-ink);
+  font-family: var(--font-literary, "Noto Serif SC"), "Songti SC", serif;
+}
+/* Four dimming bands leave the target itself untouched. They never take pointer
+   events; the guided scope restricts interaction with `inert` instead.
+   A free step only hints where to look, so it dims far less. */
+.shade { position: fixed; background: #07120f99; pointer-events: none; }
+[data-policy="free"] .shade { background: #07120f55; }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* A ~2s breathing glow; it never flashes and never moves layout. */
+.pulse {
+  position: fixed;
+  pointer-events: none;
+  border: 2px solid #e8c886cc;
+  box-shadow: 0 0 0 1px #0b1530aa, 0 0 18px 4px #e8c88655;
+  animation: guide-breath 2s ease-in-out infinite;
+}
+@keyframes guide-breath {
+  0%, 100% { box-shadow: 0 0 0 1px #0b1530aa, 0 0 12px 2px #e8c88644; }
+  50% { box-shadow: 0 0 0 1px #0b1530aa, 0 0 22px 6px #e8c88688; }
+}
+.round { border-radius: 999px; }
+.pill { border-radius: 999px; }
+.box { border-radius: 5px; }
+.arrow { position: fixed; width: 14px; height: 14px; border-right: 2px solid #e8c886; border-bottom: 2px solid #e8c886; transform: rotate(45deg); pointer-events: none; }
+
+/* Guide card: dialogue + one instruction + controls. */
+.card {
+  position: fixed;
+  z-index: 81;
+  /* The overlay is click-through; the card itself must stay interactive. */
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(56dvh, 360px);
+  overflow: auto;
+  padding: 14px 16px;
+  background: #16231ff2;
+  border: 1px solid #af956160;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px #000a;
+}
+.cardCompact { width: min(260px, calc(100vw - 24px)); padding: 11px 13px; gap: 6px; max-height: 44dvh; }
+.cardTop { display: flex; align-items: center; gap: 8px; }
+.avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid #af956170; background: #23352d; }
+.name { font-size: 12px; letter-spacing: .16em; color: #c3b28d; }
+.counter { margin-left: auto; font-size: 11px; color: #a89b7d; }
+.stepTitle { margin: 0; font-size: 17px; font-weight: 400; letter-spacing: .05em; color: #f0dfbb; }
+.close { border: 0; background: none; color: #d8c399; font-size: 22px; line-height: 1; padding: 2px 6px; min-width: 44px; min-height: 44px; cursor: pointer; }
+.dialogue { margin: 0; font-size: 14px; line-height: 1.75; letter-spacing: .02em; }
+.dialogue p { margin: 0 0 6px; }
+.dialogue p:last-child { margin: 0; }
+.reply { color: #ffe1a2; }
+.instruction { margin: 0; display: flex; gap: 7px; align-items: flex-start; font-size: 14px; line-height: 1.6; color: var(--guide-gold-strong); }
+.instruction::before { content: "◆"; font-size: 10px; margin-top: 5px; color: #e8c886; }
+.waiting { font-size: 12px; color: #bdbaa9; }
+.error { margin: 0; font-size: 12px; color: #f0d3b4; background: #c6a25a18; border-left: 2px solid #d7ad71; padding: 7px 9px; }
+.actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.actions button {
+  font: inherit; cursor: pointer; min-height: 44px; padding: 8px 14px; font-size: 13px;
+  color: #f5e1b9; background: #97834b20; border: 1px solid #b49a6055; border-radius: 4px;
+}
+.actions .primary { background: linear-gradient(110deg, #6a613e65, #a38b5030); border-color: #c2a16b88; }
+.actions button:disabled { opacity: .45; cursor: wait; }
+.actions .quiet { border-color: transparent; background: none; color: #a89b7d; text-decoration: underline; text-underline-offset: 4px; }
+.card button:focus-visible, .more button:focus-visible { outline: 2px solid #f6d79c; outline-offset: 3px; }
+.progress { height: 2px; background: #e8c88633; overflow: hidden; border-radius: 2px; }
+.progress span { display: block; height: 100%; background: #e8c88699; transition: width .25s ease; }
+/* Secondary controls stay visually quiet but keep a 44px tap target on both axes. */
+.more { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 11px; }
+.more button { border: 0; background: none; color: #a89b7d; padding: 0 6px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; min-height: 44px; min-width: 44px; }
+.recovery { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #c9c3b2; }
+.collapsed { align-items: center; }
+.collapsed .expand { width: 100%; text-align: left; border: 0; background: none; color: #efe1c4; font: inherit; cursor: pointer; min-height: 44px; padding: 0; }
+
+/* Desktop shows her portrait beside the dialogue; it never covers the target. */
+.portrait { position: fixed; pointer-events: none; width: 168px; max-height: 46dvh; object-fit: contain; object-position: bottom center; filter: drop-shadow(0 10px 26px #0007); }
+.portraitFallback {
+  position: fixed; pointer-events: none; display: grid; place-items: center; width: 168px; height: 220px;
+  border: 1px solid #af956150; border-radius: 8px; background: radial-gradient(ellipse at 50% 80%, #b19a5040, #16231f 70%);
+  color: #c3b28d; font-size: 14px; letter-spacing: .3em; writing-mode: vertical-rl;
+}
+
+@media (max-width: 620px) {
+  .card { width: calc(100vw - 20px); max-height: 40dvh; }
+  .cardCompact { width: calc(100vw - 20px); }
+  .dialogue { font-size: 13px; }
+  .instruction { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress span { transition: none; }
+  .pulse { animation: none; box-shadow: 0 0 0 1px #0b1530aa, 0 0 10px 2px #e8c88633; }
+}
